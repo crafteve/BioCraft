@@ -53,7 +53,9 @@ public final class MoleculeItemDecorator implements IItemDecorator {
         }
 
         guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(x + OFFSET_X, y + OFFSET_Y, 0);
+        // z 提升到 200 层（与 vanilla 堆叠数 ITEM_COUNT_BLIT_OFFSET 同级）：
+        // 物品模型贴图渲染在 z=0 且可能覆盖后绘制的文字，必须提升 z 才能显示在贴图之上
+        guiGraphics.pose().translate(x + OFFSET_X, y + OFFSET_Y, 200.0);
         guiGraphics.pose().scale(TEXT_SCALE, TEXT_SCALE, 1.0F);
         // 阴影（黑色，右偏下偏 1px，未缩放坐标）
         guiGraphics.drawString(font, abbreviation, 1, 1, 0xFF000000, false);
