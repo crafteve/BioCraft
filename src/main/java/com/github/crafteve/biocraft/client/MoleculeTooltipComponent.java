@@ -70,9 +70,12 @@ public record MoleculeTooltipComponent(String smiles) implements TooltipComponen
             return;
         }
 
-        // 键线骨架
+        // 键线骨架：超采样纹理（SUPERSAMPLE 倍像素）缩放到逻辑尺寸显示，
+        // 高密度采样缩小后获得平滑细线
+        int pixelWidth = image.width() * MoleculeTextureCache.SUPERSAMPLE;
+        int pixelHeight = image.height() * MoleculeTextureCache.SUPERSAMPLE;
         guiGraphics.blit(image.texture(), x, y + 2, 0, 0,
-                image.width(), image.height(), image.width(), image.height());
+                image.width(), image.height(), pixelWidth, pixelHeight);
         // 杂原子符号：MC 像素字体叠加，以原子像素位置为中心动态居中
         // （按字符串实际宽度居中，避免单字符与双字符符号的错位）
         for (MoleculeTextureCache.AtomLabel label : image.labels()) {
