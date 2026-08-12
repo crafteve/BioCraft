@@ -81,12 +81,15 @@ public class MachineBlock extends Block implements EntityBlock {
      * 方块被破坏时把容器内容全部掉落为实体物品
      * <p>
      * 序列物品的 NBT（序列内容）随物品堆保存，掉落回收不丢失数据；
-     * 仅在被替换为其他方块时执行（世界加载时同方块刷新不会触发）
+     * 缓冲池等容器之外的库存由方块实体的 dropExtraContents 处理（服务端）
+     * <p>
+     * 掉落逻辑必须放在 onRemove 而非 BlockEntity.setRemoved：
+     * 世界卸载/区块卸载同样触发 setRemoved，会误爆库存（实测 bug）
      *
-     * @param state       原方块状态
-     * @param level       所在世界
-     * @param pos         方块位置
-     * @param newState    新方块状态
+     * @param state         原方块状态
+     * @param level         所在世界
+     * @param pos           方块位置
+     * @param newState      新方块状态
      * @param movedByPiston 是否为活塞推动
      */
     @Override
@@ -94,6 +97,7 @@ public class MachineBlock extends Block implements EntityBlock {
         if (!state.is(newState.getBlock())) {
             if (level.getBlockEntity(pos) instanceof MachineBlockEntity machine) {
                 Containers.dropContents(level, pos, machine.getContainer());
+                machine.dropExtraContents(level, pos);
             }
         }
         super.onRemove(state, level, pos, newState, movedByPiston);

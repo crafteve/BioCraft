@@ -9,6 +9,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.Level;
 
 /**
  * 机器方块实体基类
@@ -55,6 +56,22 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
      */
     public SimpleContainer getContainer() {
         return inventory;
+    }
+
+    /**
+     * 方块被破坏/替换时的额外掉落钩子（仅服务端）
+     * <p>
+     * 由 MachineBlock.onRemove 统一调用：容器内容已由 onRemove 掉落，
+     * 本方法用于掉落容器之外的特殊库存（如 DNA 编码器的缓冲池碱基）
+     * <p>
+     * 注意不可依赖 setRemoved() 实现掉落：世界卸载/区块卸载同样触发
+     * setRemoved，会导致进出存档时物品爆出（实测 bug）
+     *
+     * @param level 所在世界
+     * @param pos   方块位置
+     */
+    public void dropExtraContents(Level level, BlockPos pos) {
+        // 基类空实现：无额外掉落，子类按需覆盖
     }
 
     /**

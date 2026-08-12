@@ -12,6 +12,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.HashMap;
@@ -220,17 +221,21 @@ public class DNAEncoderBlockEntity extends MachineBlockEntity {
     }
 
     /**
-     * 方块实体被移除时把缓冲池换算回碱基物品掉落
+     * 缓冲池库存换算为碱基物品掉落（仅服务端执行）
      * <p>
-     * 容器内容（含未取走的 DNA模板）由 MachineBlock.onRemove 负责掉落，
+     * 由 MachineBlock.onRemove 在方块真正被破坏/替换时调用——
+     * 不能放在 setRemoved()：世界卸载/区块卸载同样触发 setRemoved，
+     * 会导致每次进出存档都爆出缓冲池物品（用户实测 bug）
+     * <p>
+     * 容器内容（含未取走的 DNA模板）由 MachineBlock.onRemove 统一掉落，
      * 本方法只处理缓冲池库存；按每堆 64 拆堆，避免生成海量物品实体
-     * <p>
-     * 1.20.5+ 的移除回调已由 onRemoved 改名为 setRemoved
+     *
+     * @param level 所在世界
+     * @param pos   方块位置
      */
     @Override
-    public void setRemoved() {
-        super.setRemoved();
-        if (level == null || level.isClientSide) {
+    public void dropExtraContents(Level level, BlockPos pos) {
+        if (level.isClientSide) {
             return;
         }
         Item[] baseItems = {
@@ -243,8 +248,8 @@ public class DNAEncoderBlockEntity extends MachineBlockEntity {
             int count = buffer[i];
             while (count > 0) {
                 int drop = Math.min(count, 64);
-                Containers.dropItemStack(level, getBlockPos().getX() + 0.5, getBlockPos().getY() + 0.5,
-                        getBlockPos().getZ() + 0.5, new ItemStack(baseItems[i], drop));
+                Containers.dropItemStack(level, pos.getX() + 0.5, pos.getY() + 0.5,
+                        pos.getZ() + 0.5, new ItemStack(baseItems[i], drop));
                 count -= drop;
             }
         }
