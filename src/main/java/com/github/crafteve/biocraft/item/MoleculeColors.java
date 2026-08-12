@@ -1,6 +1,7 @@
 package com.github.crafteve.biocraft.item;
 
 import com.github.crafteve.biocraft.BioCraft;
+import com.github.crafteve.biocraft.client.MoleculeItemDecorator;
 import com.github.crafteve.biocraft.client.MoleculeTooltipComponent;
 import com.github.crafteve.biocraft.init.ModItems;
 import net.minecraft.client.color.item.ItemColor;
@@ -11,6 +12,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterClientTooltipComponentFactoriesEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
+import net.neoforged.neoforge.client.event.RegisterItemDecorationsEvent;
 
 /**
  * 分子物品的客户端染色与 tooltip 组件注册器
@@ -62,6 +64,16 @@ public class MoleculeColors {
         // MoleculeTooltipComponent 同时实现了 TooltipComponent 与 ClientTooltipComponent，
         // 工厂返回组件自身即可（不能使用构造器引用：record 构造器参数是 SMILES 字符串）
         event.register(MoleculeTooltipComponent.class, component -> component);
+    }
+
+    /**
+     * 为全部分子物品注册图标缩写装饰器（左上角显示 ATP/GLUC 等缩写）
+     *
+     * @param event 物品装饰器注册事件
+     */
+    @SubscribeEvent
+    public static void onRegisterItemDecorations(RegisterItemDecorationsEvent event) {
+        ModItems.all().values().forEach(holder -> event.register(holder.get(), MoleculeItemDecorator.INSTANCE));
     }
 }
 
