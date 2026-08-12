@@ -127,12 +127,18 @@ dependencies {
     // cdk-bundle 的 dependencyManagement 会向全局传播版本约束，
     // 与 NeoForge 的 strictly 锁定（log4j/commons-io/commons-lang3）冲突，
     // 因此排除这些 MC 环境已自带的库，运行时复用 NeoForge 内置版本
-    implementation('org.openscience.cdk:cdk-bundle:2.12') {
-        exclude group: 'org.apache.logging.log4j'
-        exclude group: 'commons-io'
-        exclude group: 'org.apache.commons', module: 'commons-lang3'
-        exclude group: 'com.google.guava', module: 'guava'
+    // implementation 提供编译期类，localRuntime 提供 dev 运行期类
+    // （ModDevGradle 的 dev run 不包含 implementation 依赖，localRuntime 才是运行期入口）
+    def cdkBundle = { d ->
+        d.exclude group: 'org.apache.logging.log4j'
+        d.exclude group: 'commons-io'
+        d.exclude group: 'org.apache.commons', module: 'commons-lang3'
+        d.exclude group: 'com.google.guava', module: 'guava'
     }
+    implementation('org.openscience.cdk:cdk-bundle:2.12', cdkBundle)
+    // ModDevGradle 的 dev run 通过 additionalRuntimeClasspath 配置收集运行期依赖
+    // （implementation 只进编译期，不声明此配置则运行期缺失 CDK 类）
+    additionalRuntimeClasspath('org.openscience.cdk:cdk-bundle:2.12', cdkBundle)
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
@@ -199,3 +205,4 @@ idea {
         downloadJavadoc = true
     }
 }
+
