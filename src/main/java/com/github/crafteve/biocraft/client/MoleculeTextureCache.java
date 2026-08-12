@@ -56,20 +56,20 @@ public final class MoleculeTextureCache {
     public static final int SUPERSAMPLE = 4;
 
     /** 目标最大高度（px，逻辑尺寸），大分子允许更高画布以免压缩糊成一团 */
-    private static final int TARGET_HEIGHT = 140;
+    private static final int TARGET_HEIGHT = 200;
     /** 目标最大宽度（px，逻辑尺寸），大分子允许更宽画布以免压缩糊成一团 */
-    private static final int MAX_WIDTH = 256;
+    private static final int MAX_WIDTH = 384;
     /** 画布四周留白（px，逻辑尺寸），为原子符号与键线厚度预留空间 */
     private static final int PADDING = 12;
     /** 目标平均键长（px，逻辑尺寸），决定分子的显示大小 */
     private static final double BOND_LENGTH_PX = 10.0;
     /** 键线显示宽度（px，逻辑尺寸） */
-    private static final float BOND_STROKE_WIDTH = 1.0f;
+    private static final float BOND_STROKE_WIDTH = 0.8f;
     /** 双键平行线偏移距离（px，逻辑尺寸） */
     private static final double DOUBLE_BOND_OFFSET = 1.4;
     /** 三键副键偏移距离（px，逻辑尺寸） */
     private static final double TRIPLE_BOND_OFFSET = 2.6;
-    /** 杂原子端键线缩进距离（px，逻辑尺寸），避免线与元素符号重叠 */
+    /** 杂原子端键线最小缩进距离（px，逻辑尺寸），避免线与元素符号重叠 */
     private static final double SYMBOL_INSET = 6.0;
     /** 重原子数上限，超过则判定为过于复杂的分子，不生成结构图 */
     private static final int MAX_HEAVY_ATOMS = 150;
@@ -207,7 +207,9 @@ public final class MoleculeTextureCache {
 
         // 原子 -> 画布逻辑坐标（浮点；绘制时统一乘超采样倍率）
         Map<IAtom, double[]> pixelPositions = new HashMap<>();
-        Set<IAtom> labeledAtoms = new HashSet<>();
+        // 杂原子标签文本（含显式 H，如 OH/NH₂）与其缩进距离
+        Map<IAtom, String> labelTexts = new HashMap<>();
+        Map<IAtom, Double> labelInsets = new HashMap<>();
         for (IAtom atom : molecule.atoms()) {
             if (atom.getAtomicNumber() == 1) {
                 continue;
@@ -216,9 +218,18 @@ public final class MoleculeTextureCache {
             double py = PADDING + (atom.getPoint2d().y - minY) * scale;
             pixelPositions.put(atom, new double[]{px, py});
             if (atom.getAtomicNumber() != 6) {
-                labeledAtoms.add(atom);
+                // 显式 H：杂原子的隐氢写入标签（羟基 O→OH、氨基 N→NH₂），
+                // 键线式仅省略碳上的氢，杂原子上的氢应当可见
+                int hCount = atom.getImplicitHydrogenCount() == null ? 0 : atom.getImplicitHydrogenCount();
+                String text = atom.getSymbol() + (hCount > 1 ? toSubscriptText(hCount) : "");
+                labelTexts.put(atom, text);
+                // 缩进按标签估算宽度动态调整（MC 字符约 6px 宽，半宽 = 字符数 * 3）
+                labelInsets.put(atom, Math.max(SYMBOL_INSET, text.length() * 3.0 + 2.0));
             }
         }
+
+        // 芳香键连通分量的环质心（供 Kekulé 双键朝环内侧偏移）
+        Map<IBond, double[]> ringCenters = ringCenters(molecule, pixelPositions);
 
         // Java2D 抗锯齿平滑绘制键线骨架（超采样画布）
         BufferedImage buffered = new BufferedImage(pixelWidth, pixelHeight, BufferedImage.TYPE_INT_ARGB);
@@ -241,22 +252,24 @@ public final class MoleculeTextureCache {
                 double[] p1 = pixelPositions.get(begin);
                 double[] p2 = pixelPositions.get(end);
                 // 杂原子端向内缩进，避免线与元素符号重叠（碳端画到中心，键线交汇即碳）
-                if (labeledAtoms.contains(begin)) {
-                    p1 = shrink(p1, p2, SYMBOL_INSET);
+                if (labelInsets.containsKey(begin)) {
+                    p1 = shrink(p1, p2, labelInsets.get(begin));
                 }
-                if (labeledAtoms.contains(end)) {
-                    p2 = shrink(p2, p1, SYMBOL_INSET);
+                if (labelInsets.containsKey(end)) {
+                    p2 = shrink(p2, p1, labelInsets.get(end));
                 }
                 IBond.Order order = bond.getOrder();
                 if (bond.isAromatic()) {
-                    // 交替结果：true 画双键、false 画单键
+                    // 交替结果：true 画双键（朝环内侧偏移）、false 画单键
                     if (Boolean.TRUE.equals(kekule.get(bond))) {
-                        drawDoubleLine(g, p1, p2);
+                        drawInwardDouble(g, p1, p2, ringCenters.get(bond));
                     } else {
                         drawLine(g, p1, p2);
                     }
                 } else if (order == IBond.Order.DOUBLE) {
-                    drawDoubleLine(g, p1, p2);
+                    // 双键偏移方向远离杂原子标签（如 C=O 双键画在碳侧），避免与符号重叠
+                    double[] away = awayFromLabels(p1, p2, begin, end, labelTexts, pixelPositions);
+                    drawDoubleLine(g, p1, p2, away);
                 } else if (order == IBond.Order.TRIPLE) {
                     drawTripleLine(g, p1, p2);
                 } else {
@@ -280,15 +293,12 @@ public final class MoleculeTextureCache {
             }
         }
 
-        // 收集杂原子标签（键线式约定：碳不标符号、氢不绘制），坐标为逻辑尺寸
+        // 收集杂原子标签（键线式约定：碳不标符号、氢不绘制；杂原子显式 H 含在标签中）
         List<AtomLabel> labels = new ArrayList<>();
-        for (IAtom atom : molecule.atoms()) {
-            int atomicNumber = atom.getAtomicNumber();
-            if (atomicNumber == 1 || atomicNumber == 6) {
-                continue;
-            }
+        for (Map.Entry<IAtom, String> entry : labelTexts.entrySet()) {
+            IAtom atom = entry.getKey();
             double[] pos = pixelPositions.get(atom);
-            labels.add(new AtomLabel(atom.getSymbol(), (int) Math.round(pos[0]), (int) Math.round(pos[1]),
+            labels.add(new AtomLabel(entry.getValue(), (int) Math.round(pos[0]), (int) Math.round(pos[1]),
                     ATOM_COLORS.getOrDefault(atom.getSymbol(), 0xFFD0D0D0)));
         }
 
@@ -391,15 +401,163 @@ public final class MoleculeTextureCache {
 
     /**
      * 绘制双键：垂直于键方向的平行双线（化学期刊风格）
+     * <p>
+     * 偏移方向由调用方指定（朝环内侧或远离杂原子标签），
+     * 避免双键线与元素符号或环外区域冲突
      *
-     * @param g    Graphics2D 上下文
-     * @param from 起点像素（逻辑坐标）
-     * @param to   终点像素（逻辑坐标）
+     * @param g       Graphics2D 上下文
+     * @param from    起点像素（逻辑坐标）
+     * @param to      终点像素（逻辑坐标）
+     * @param dirUnit 偏移方向单位向量（法向方向）
      */
-    private static void drawDoubleLine(Graphics2D g, double[] from, double[] to) {
-        double[] normal = normalVector(from, to, DOUBLE_BOND_OFFSET);
-        drawLine(g, offset(from, normal, -1), offset(to, normal, -1));
-        drawLine(g, offset(from, normal, 1), offset(to, normal, 1));
+    private static void drawDoubleLine(Graphics2D g, double[] from, double[] to, double[] dirUnit) {
+        drawLine(g, offset(from, dirUnit, -DOUBLE_BOND_OFFSET), offset(to, dirUnit, -DOUBLE_BOND_OFFSET));
+        drawLine(g, offset(from, dirUnit, DOUBLE_BOND_OFFSET), offset(to, dirUnit, DOUBLE_BOND_OFFSET));
+    }
+
+    /**
+     * 绘制环内双键（Kekulé 风格）：键轴一条线 + 朝环内侧偏移一条线
+     * <p>
+     * 化学结构式惯例：苯环等芳香环的双键画在环内侧，
+     * 双键整体位于环内半区而非对称分布在键轴两侧
+     *
+     * @param g          Graphics2D 上下文
+     * @param from       起点像素（逻辑坐标）
+     * @param to         终点像素（逻辑坐标）
+     * @param ringCenter 所属环的质心（用于确定内侧方向）
+     */
+    private static void drawInwardDouble(Graphics2D g, double[] from, double[] to, double[] ringCenter) {
+        double[] inward = inwardDirection(from, to, ringCenter);
+        drawLine(g, from, to);
+        drawLine(g, offset(from, inward, DOUBLE_BOND_OFFSET * 2), offset(to, inward, DOUBLE_BOND_OFFSET * 2));
+    }
+
+    /**
+     * 计算朝向环质心的内侧方向（单位向量）
+     *
+     * @param from       键起点
+     * @param to         键终点
+     * @param ringCenter 环质心
+     * @return 朝向环心的单位向量（与键轴垂直的分量方向）
+     */
+    private static double[] inwardDirection(double[] from, double[] to, double[] ringCenter) {
+        double[] normal = normalVector(from, to, 1);
+        double midX = (from[0] + to[0]) / 2;
+        double midY = (from[1] + to[1]) / 2;
+        // 选择法向中指向环心的一侧
+        double toCenterX = ringCenter[0] - midX;
+        double toCenterY = ringCenter[1] - midY;
+        if (normal[0] * toCenterX + normal[1] * toCenterY < 0) {
+            normal[0] = -normal[0];
+            normal[1] = -normal[1];
+        }
+        return normal;
+    }
+
+    /**
+     * 计算双键偏移方向：远离杂原子标签的一侧（如 C=O 双键画在碳侧）
+     *
+     * @param from         键起点
+     * @param to           键终点
+     * @param begin        起点原子
+     * @param end          终点原子
+     * @param labelTexts   杂原子标签表（用于判断哪些端点有标签）
+     * @param pixelPositions 原子坐标表
+     * @return 偏移方向单位向量（法向，远离标签侧）
+     */
+    private static double[] awayFromLabels(double[] from, double[] to,
+                                           IAtom begin, IAtom end,
+                                           Map<IAtom, String> labelTexts,
+                                           Map<IAtom, double[]> pixelPositions) {
+        double[] normal = normalVector(from, to, 1);
+        // 无标签端点：默认方向即可（对称双线无方向性）
+        if (!labelTexts.containsKey(begin) && !labelTexts.containsKey(end)) {
+            return normal;
+        }
+        double midX = (from[0] + to[0]) / 2;
+        double midY = (from[1] + to[1]) / 2;
+        // 取有标签端点的位置作为"远离"参考
+        double[] labelPos = labelTexts.containsKey(begin) ? pixelPositions.get(begin) : pixelPositions.get(end);
+        double toLabelX = labelPos[0] - midX;
+        double toLabelY = labelPos[1] - midY;
+        // 选择法向中远离标签的一侧
+        if (normal[0] * toLabelX + normal[1] * toLabelY > 0) {
+            normal[0] = -normal[0];
+            normal[1] = -normal[1];
+        }
+        return normal;
+    }
+
+    /**
+     * 计算芳香键连通分量的环质心（供 Kekulé 双键朝内侧偏移）
+     *
+     * @param molecule       分子
+     * @param pixelPositions 原子坐标表
+     * @return 芳香键 -> 所属环质心
+     */
+    private static Map<IBond, double[]> ringCenters(IAtomContainer molecule, Map<IAtom, double[]> pixelPositions) {
+        Map<IBond, double[]> centers = new HashMap<>();
+        List<IBond> aromatic = new ArrayList<>();
+        for (IBond bond : molecule.bonds()) {
+            if (bond.isAromatic()) {
+                aromatic.add(bond);
+            }
+        }
+        // 按共享原子分组（连通分量）
+        Set<IBond> visited = new HashSet<>();
+        for (IBond start : aromatic) {
+            if (!visited.add(start)) {
+                continue;
+            }
+            List<IBond> component = new ArrayList<>();
+            ArrayDeque<IBond> queue = new ArrayDeque<>();
+            queue.add(start);
+            while (!queue.isEmpty()) {
+                IBond bond = queue.poll();
+                component.add(bond);
+                for (IBond neighbor : aromatic) {
+                    if (!visited.contains(neighbor) && sharesAtom(neighbor, bond)) {
+                        visited.add(neighbor);
+                        queue.add(neighbor);
+                    }
+                }
+            }
+            // 分量内所有端点原子的平均坐标作为质心
+            double sumX = 0, sumY = 0;
+            int count = 0;
+            Set<IAtom> atoms = new HashSet<>();
+            for (IBond bond : component) {
+                atoms.add(bond.getBegin());
+                atoms.add(bond.getEnd());
+            }
+            for (IAtom atom : atoms) {
+                double[] pos = pixelPositions.get(atom);
+                if (pos != null) {
+                    sumX += pos[0];
+                    sumY += pos[1];
+                    count++;
+                }
+            }
+            double[] centroid = count > 0 ? new double[]{sumX / count, sumY / count} : new double[]{0, 0};
+            for (IBond bond : component) {
+                centers.put(bond, centroid);
+            }
+        }
+        return centers;
+    }
+
+    /**
+     * 数字转 Unicode 下标（2 → ₂），用于显式氢标签（NH₂）
+     *
+     * @param number 数字
+     * @return 下标字符串
+     */
+    private static String toSubscriptText(int number) {
+        StringBuilder sb = new StringBuilder();
+        for (char c : String.valueOf(number).toCharArray()) {
+            sb.append((char) (c - '0' + '\u2080'));
+        }
+        return sb.toString();
     }
 
     /**
@@ -470,14 +628,14 @@ public final class MoleculeTextureCache {
     }
 
     /**
-     * 坐标按法向量偏移
+     * 坐标按法向向量偏移
      *
      * @param pos    原坐标
-     * @param normal 法向量
-     * @param side   偏移方向（-1 或 1）
+     * @param normal 法向向量（可为单位向量，偏移量由 side 控制）
+     * @param side   偏移量（正/负任意浮点）
      * @return 新坐标
      */
-    private static double[] offset(double[] pos, double[] normal, int side) {
+    private static double[] offset(double[] pos, double[] normal, double side) {
         return new double[]{pos[0] + normal[0] * side, pos[1] + normal[1] * side};
     }
 }
