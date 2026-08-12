@@ -124,21 +124,24 @@ configurations {
 
 dependencies {
     // CDK 化学开发套件：SMILES 解析、2D 坐标生成、分子式与质量计算
-    // cdk-bundle 的 dependencyManagement 会向全局传播版本约束，
-    // 与 NeoForge 的 strictly 锁定（log4j/commons-io/commons-lang3）冲突，
-    // 因此排除这些 MC 环境已自带的库，运行时复用 NeoForge 内置版本
-    // implementation 提供编译期类，localRuntime 提供 dev 运行期类
-    // （ModDevGradle 的 dev run 不包含 implementation 依赖，localRuntime 才是运行期入口）
+    // 采用分拆模块而非 cdk-bundle 聚合包：
+    // 1. bundle 会拉入全部 CDK 模块，部分模块带 JPMS module-info 与 JDK 模块解析冲突（如 cdk-libiocml）
+    // 2. 分拆只保留实际使用的模块，缩小依赖体积
+    // 3. 排除与 NeoForge strictly 锁定冲突的库（log4j/commons-io/commons-lang3/guava），运行时复用 MC 内置版本
+    // implementation 提供编译期类，additionalRuntimeClasspath 提供 dev 运行期类
+    // （ModDevGradle 的 dev run 不包含 implementation 依赖，必须显式声明运行期配置）
     def cdkBundle = { d ->
         d.exclude group: 'org.apache.logging.log4j'
         d.exclude group: 'commons-io'
         d.exclude group: 'org.apache.commons', module: 'commons-lang3'
         d.exclude group: 'com.google.guava', module: 'guava'
     }
-    implementation('org.openscience.cdk:cdk-bundle:2.12', cdkBundle)
-    // ModDevGradle 的 dev run 通过 additionalRuntimeClasspath 配置收集运行期依赖
-    // （implementation 只进编译期，不声明此配置则运行期缺失 CDK 类）
-    additionalRuntimeClasspath('org.openscience.cdk:cdk-bundle:2.12', cdkBundle)
+    def cdkModules = ['cdk-silent', 'cdk-smiles', 'cdk-sdg', 'cdk-interfaces',
+                      'cdk-data', 'cdk-atomtype', 'cdk-standard', 'cdk-formula']
+    cdkModules.each { module ->
+        implementation("org.openscience.cdk:${module}:2.12", cdkBundle)
+        additionalRuntimeClasspath("org.openscience.cdk:${module}:2.12", cdkBundle)
+    }
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
