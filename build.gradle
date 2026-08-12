@@ -136,11 +136,17 @@ dependencies {
         d.exclude group: 'org.apache.commons', module: 'commons-lang3'
         d.exclude group: 'com.google.guava', module: 'guava'
     }
+    // CDK 依赖需要三份声明，分别服务于三个环节：
+    // 1. implementation      —— 编译期（javac 需要 CDK 类）
+    // 2. additionalRuntimeClasspath —— 开发运行期（runClient 的 classpath，MDK 不包含 implementation）
+    // 3. jarJar              —— 发布打包（NeoForge 官方机制：依赖 jar 嵌入 mod 产物
+    //                            META-INF/jarjar/，玩家安装单个 mod jar 即可运行）
     def cdkModules = ['cdk-silent', 'cdk-smiles', 'cdk-sdg', 'cdk-interfaces',
                       'cdk-data', 'cdk-atomtype', 'cdk-standard', 'cdk-formula']
     cdkModules.each { module ->
         implementation("org.openscience.cdk:${module}:2.12", cdkBundle)
         additionalRuntimeClasspath("org.openscience.cdk:${module}:2.12", cdkBundle)
+        jarJar("org.openscience.cdk:${module}:2.12", cdkBundle)
     }
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
