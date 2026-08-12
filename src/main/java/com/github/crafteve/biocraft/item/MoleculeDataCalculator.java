@@ -34,15 +34,19 @@ public final class MoleculeDataCalculator {
      *
      * @param formula 格式化后的分子式（含 Unicode 下标/上标）
      * @param mass    精确摩尔质量（g/mol）
+     * @param valid   是否计算成功（SMILES 无法解析时为 false，tooltip 降级显示）
      */
-    public record MoleculeData(String formula, double mass) {
+    public record MoleculeData(String formula, double mass, boolean valid) {
     }
 
     /**
      * 计算指定 SMILES 的分子式与摩尔质量（带缓存）
+     * <p>
+     * SMILES 解析失败时返回 valid=false 的数据而非抛异常，
+     * 防止个别分子数据错误导致悬停物品时游戏崩溃
      *
      * @param smiles SMILES 结构式
-     * @return 计算结果
+     * @return 计算结果（可能为无效数据）
      */
     public static synchronized MoleculeData forSmiles(String smiles) {
         return CACHE.computeIfAbsent(smiles, MoleculeDataCalculator::compute);
@@ -50,9 +54,12 @@ public final class MoleculeDataCalculator {
 
     /**
      * 解析 SMILES 并计算分子式与精确质量
+     * <p>
+     * 解析失败（InvalidSmilesException 等）时记录日志并返回无效数据，
+     * 由调用方（tooltip）降级显示
      *
      * @param smiles SMILES 结构式
-     * @return 计算结果
+     * @return 计算结果（可能为无效数据）
      */
     private static MoleculeData compute(String smiles) {
         try {
@@ -61,9 +68,11 @@ public final class MoleculeDataCalculator {
             AtomContainerManipulator.percieveAtomTypesAndConfigureAtoms(container);
             IMolecularFormula formula = MolecularFormulaManipulator.getMolecularFormula(container);
             double mass = MolecularFormulaManipulator.getTotalExactMass(formula);
-            return new MoleculeData(formatHillFormula(formula), mass);
+            return new MoleculeData(formatHillFormula(formula), mass, true);
         } catch (Exception e) {
-            throw new IllegalArgumentException("SMILES 解析失败: " + smiles, e);
+            org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(MoleculeDataCalculator.class);
+            logger.warn("SMILES 解析失败，该分子的分子式与质量信息不可用: {} ({})", smiles, e.getMessage());
+            return new MoleculeData("?", 0, false);
         }
     }
 

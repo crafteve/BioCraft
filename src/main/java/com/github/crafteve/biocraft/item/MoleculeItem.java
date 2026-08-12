@@ -59,20 +59,26 @@ public class MoleculeItem extends Item {
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag tooltipFlag) {
         MoleculeDataCalculator.MoleculeData data = MoleculeDataCalculator.forSmiles(smiles);
 
-        // 缩写徽章 + 分子式：黄色，权威依据
-        tooltip.add(Component.literal("[" + abbreviation + "] " + data.formula())
-                .withStyle(style -> style.withColor(0xFFD700)));
+        // SMILES 解析失败时降级显示，避免工具提示崩溃（个别分子数据异常不影响游戏）
+        if (!data.valid()) {
+            tooltip.add(Component.translatable("tooltip.biocraft.smiles_error")
+                    .withStyle(style -> style.withColor(0x9E9E9E)));
+        } else {
+            // 缩写徽章 + 分子式：黄色，权威依据
+            tooltip.add(Component.literal("[" + abbreviation + "] " + data.formula())
+                    .withStyle(style -> style.withColor(0xFFD700)));
 
-        // 类别徽章：主题色圆点 + 类别名
-        tooltip.add(Component.literal("● ")
-                .withStyle(style -> style.withColor(category.getColor()))
-                .append(Component.translatable("category.biocraft." + category.getId())
-                        .withStyle(style -> style.withColor(category.getColor()))));
+            // 类别徽章：主题色圆点 + 类别名
+            tooltip.add(Component.literal("● ")
+                    .withStyle(style -> style.withColor(category.getColor()))
+                    .append(Component.translatable("category.biocraft." + category.getId())
+                            .withStyle(style -> style.withColor(category.getColor()))));
 
-        // 摩尔质量：精确质量 4 位小数
-        tooltip.add(Component.translatable("tooltip.biocraft.molar_mass",
-                        String.format(Locale.ROOT, "%.4f", data.mass()))
-                .withStyle(style -> style.withColor(0xB57EDC)));
+            // 摩尔质量：精确质量 4 位小数
+            tooltip.add(Component.translatable("tooltip.biocraft.molar_mass",
+                            String.format(Locale.ROOT, "%.4f", data.mass()))
+                    .withStyle(style -> style.withColor(0xB57EDC)));
+        }
     }
 
     /**

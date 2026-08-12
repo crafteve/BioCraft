@@ -473,7 +473,7 @@
                            "name_en":  "Adenine",
                            "container":  "flask",
                            "color":  4281637083,
-                           "smiles":  "c1nc2c(n1)ncnc2N",
+                           "smiles":  "Nc1ncnc2[nH]cnc12",
                            "abbreviation":  "A",
                            "category":  "base"
                        },
@@ -483,7 +483,7 @@
                            "name_en":  "Cytosine",
                            "container":  "flask",
                            "color":  4280790624,
-                           "smiles":  "Nc1ccnc(=O)n1",
+                           "smiles":  "Nc1cc[nH]c(=O)n1",
                            "abbreviation":  "C",
                            "category":  "base"
                        },
@@ -503,7 +503,7 @@
                            "name_en":  "Uracil",
                            "container":  "flask",
                            "color":  4290787627,
-                           "smiles":  "O=c1cc[nH]c(=O)n1",
+                           "smiles":  "O=c1cc[nH]c(=O)[nH]1",
                            "abbreviation":  "U",
                            "category":  "base"
                        },
@@ -533,7 +533,7 @@
                            "name_en":  "Guanosine Triphosphate",
                            "container":  "flask",
                            "color":  4280790624,
-                           "smiles":  "Nc1nc2c(n1)n(cn2)C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O)O",
+                           "smiles":  "c1nc2c(c(=O)[nH]1)n(cn2)C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O)O",
                            "abbreviation":  "GTP",
                            "category":  "nucleotide"
                        },

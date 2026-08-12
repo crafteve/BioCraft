@@ -44,6 +44,12 @@
 
 纪元一的开发分批顺序：物品地基（原子/分子注册 + 视觉）→ TNT 爆炸转化 + 熔炉产 ATP → 反应引擎（ReactionParser）→ 三台原始机器
 
+**当前进度**（2026-08-12）：
+- ✅ 物品地基第一阶段完成：62 个分子物品（20 氨基酸/13 离子/5 原子/2 无机物/4 碱基/4 NTP/3 辅酶/11 糖酵解）由 `substances.json` 数据表驱动注册，datagen 自动生成模型/语言/贴图
+- ✅ Tooltip 分子图渲染完成：CDK 解析 SMILES → 自绘 MC 风格键线式结构图 + 黄色分子式（Hill 排序 Unicode 下标）+ 类别徽章 + 摩尔质量
+- ⏳ 待实测：runClient hover 视觉效果尚未人工确认（结构图布局/字体/颜色）
+- ⏳ 待开发：TNT 爆炸转化、熔炉产 ATP、反应引擎、三台原始机器
+
 ### 1.6 开发流程
 
 迭代循环：编写代码 → `gradlew build` 验证编译 → `gradlew runClient` 进游戏实测 → `gradlew runData` 生成资源 → 提交 commit。具体命令见第二章，任务执行规范见第四章
@@ -91,42 +97,39 @@
 
 ### 2.4 Java 源码结构
 
-现状（模板遗留，待清理）：`com.github.crafteve.biocraft` 下只有 `BioCraft.java`（主类，塞了 3 个 DeferredRegister 和 example_block/example_item/example_tab 示例）、`BioCraftClient.java`（客户端入口）、`Config.java`（示例配置项）。新功能不要挂在这些示例上，按规划包结构开发
+现状：模板示例已清理，`BioCraft.java` 已瘦身为纯装配；分子物品体系（注册/染色/tooltip 分子图）已落地，具体见下方包结构
 
-规划中的包结构（与 1.4 技术架构一一对应）：
+当前包结构（与 1.4 技术架构一一对应）：
 
 ```
 com.github.crafteve.biocraft
 ├── BioCraft.java                 # 瘦身为纯装配：注册各 init 类 + 事件总线
 ├── BioCraftClient.java
 ├── Config.java
-├── init/                          # 注册中心（从主类拆出）
-│   ├── ModItems.java             # 原子/分子物品 DeferredRegister
-│   ├── ModBlocks.java            # 机器方块注册（方块本体只有通用 MachineBlock）
-│   ├── ModBlockEntities.java     # MachineType → BlockEntityType 映射
-│   └── ModCreativeTabs.java
+├── init/
+│   ├── ModItems.java             # 读 substances.json → 动态注册 62 个 MoleculeItem
+│   └── ModCreativeTabs.java      # 多标签页架构，现有"生物工艺 · 分子"页
 ├── item/
-│   ├── MoleculeItem.java         # 通用分子基类：化学式、元素组成、堆叠=分子数
-│   ├── MoleculeColors.java       # ItemColor 实现（Dist.CLIENT）
-│   └── DnaTemplateItem.java      # DNA 模板（NBT 存碱基序列）
-├── block/MachineBlock.java       # 唯一机器方块类
-├── blockentity/
-│   ├── MachineType.java          # 枚举：DNA_ENCODER / TRANSCRIBER / TRANSLATOR / 糖酵解各步...
-│   └── MachineBlockEntity.java   # 事件驱动+睡眠、startTick/requiredTicks、仅变更时发包
-├── reaction/                      # 反应引擎（配置驱动，不硬编码）
-│   ├── MoleculeRegistry.java     # 分子定义表（化学式↔物品）
-│   ├── ReactionParser.java       # "GLC + 2ATP -> F6P + 2ADP" 字符串解析
-│   ├── Reaction.java             # 底物/产物/系数/机器类型
-│   └── ReactionLoader.java       # 从配置文件加载配方
-├── machine/
-│   ├── MachineBehavior.java      # 策略抽象：速度公式/进度/停摆判定
-│   ├── RateLimitingBehavior.java # 限速酶：AMP 激活、指数进度
-│   ├── IsomeraseBehavior.java    # 异构酶：恒定 1 秒、堆叠≥8
-│   └── RedoxBehavior.java        # 氧化酶：NAD⁺ 双阶段、卡死 50%
-├── gui/                          # MachineMenu + MachineScreen（3 种变体渲染 + 停摆提示）
-├── network/                      # ModMessages + MachineSyncPacket
-├── event/                        # TNT 爆炸转化、熔炉燃烧产 ATP（纪元一）
-└── organelle/                    # 纪元三：相邻检测 + 控制核心（线粒体/内质网）
+│   ├── MoleculeItem.java         # 分子基类：SMILES/缩写/染色/类别 + tooltip 布局
+│   ├── MoleculeCategory.java     # 8 类分子类别枚举（主题色）
+│   ├── MoleculeDataCalculator.java # CDK 计算分子式（Hill 排序）与摩尔质量，缓存+防御降级
+│   └── MoleculeColors.java       # ItemColor 染色 + TooltipComponent 工厂注册（Dist.CLIENT）
+├── client/
+│   ├── MoleculeTextureCache.java # CDK 解析+2D 坐标 → 自绘键线骨架 → DynamicTexture 缓存
+│   └── MoleculeTooltipComponent.java # TooltipComponent+ClientTooltipComponent：blit 图+MC 字体原子符号
+├── datagen/
+│   ├── ModDataGen.java           # GatherDataEvent 装配
+│   ├── SubstanceData.java        # 物质表读取工具（classpath）
+│   ├── SubstanceModelProvider.java # 每物质两层模型 JSON
+│   └── SubstanceLanguageProvider.java # en_us/zh_cn 语言生成（含类别/摩尔质量 key）
+├── block/MachineBlock.java       # 唯一机器方块类（未开发）
+├── blockentity/                  # MachineType + MachineBlockEntity（未开发）
+├── reaction/                     # 反应引擎（未开发）
+├── machine/                      # 3 种酶动力学行为策略（未开发）
+├── gui/                          # MachineMenu + MachineScreen（未开发）
+├── network/                      # 同步数据包（未开发）
+├── event/                        # TNT 爆炸转化、熔炉燃烧产 ATP（未开发）
+└── organelle/                    # 纪元三：相邻检测 + 控制核心（未开发）
 ```
 
 ### 2.5 其他环境
@@ -138,6 +141,24 @@ com.github.crafteve.biocraft
   - 本机代理：`127.0.0.1:7892`（系统代理已开启）。push/fetch 必须显式携带 OpenSSL 后端 + 代理参数：
     - `git -c http.sslBackend=openssl -c http.proxy=http://127.0.0.1:7892 -c https.proxy=http://127.0.0.1:7892 push`
   - 本地分支名为 `main`，与远端默认分支一致；远端仓库初始含 GitHub 自动生成的 `LICENSE`，已合并保留，勿删除
+
+### 2.6 CDK 依赖架构与已知注意事项（欠账）
+
+**依赖架构**（build.gradle）：CDK 化学库（`org.openscience.cdk:2.9`，8 个分拆模块）通过 `cdkDeps` 配置解析，由 `mergeCdkJar` 任务合并为单个 `build/cdk/cdk-all.jar`，随后三处引用同一产物：
+- `implementation` — 编译期
+- `additionalRuntimeClasspath` — dev 运行期（ModDevGradle 的 dev run 不包含 implementation 依赖）
+- `jarJar` — 发布打包（嵌入 mod jar 的 `META-INF/jarjar/`，玩家单 jar 可运行）
+
+**为什么必须合并成单 jar**：NeoForge 1.21.1 会把 classpath 上的库 jar 自动模块化（JPMS 自动模块），而 CDK 各模块存在分包（如 `org.openscience.cdk.tools.manipulator` 同时存在于 cdk-standard 与 cdk-formula），模块间分包非法，导致部分类运行期 CNFE。合并为单 jar（单一模块 `cdk.all`）后包内分包不受限。这是排查最久的问题，**不要改回分模块引用方式**。
+
+**已知注意事项（欠账清单）**：
+1. **CDK 版本锁定 2.9**：2.12 全家桶（cdk-bundle）带 JPMS module-info 与 JDK 冲突；分拆模块 + 2.9 验证通过。升级 CDK 必须重跑全量 SMILES 校验（62 个全部能解析 + SDG 布局），校验方法：临时独立 Java 程序 + `build/cdk/cdk-all.jar`（详见 git 历史中 SmokeSmiles 类）
+2. **依赖排除规则**：CDK 的依赖声明会传播版本约束，与 NeoForge 严格锁定冲突，必须排除 log4j/commons-io/commons-lang3/guava（MC 环境自带），且 `resolutionStrategy.force commons-lang3:3.14.0` 不能删
+3. **SMILES 数据坑**：芳香环写法必须 CDK 兼容（小写芳香 + 显式 `[nH]`），曾修 4 个（adenine/cytosine/uracil/gtp）。新增分子后建议跑一遍批量解析校验
+4. **防御性降级**：`MoleculeDataCalculator` 解析失败返回 valid=false（tooltip 显示灰色提示），不抛异常——新增分子若写错 SMILES 不会崩游戏，但会显示"结构数据解析失败"
+5. **tooltip 组件注册**：自定义 TooltipComponent 必须经 `RegisterClientTooltipComponentFactoriesEvent` 注册（NeoForge 查表转换，非 instanceof 机制），遗漏会抛 Unknown TooltipComponent
+6. **进程残留**：runData/runClient 报错后可能残留 java 进程导致终端"卡住"，用 `--no-daemon` 运行可避免；残留进程任务管理器杀 java.exe
+7. **待实测**：tooltip 分子图视觉效果（结构图布局/杂原子字号/颜色）尚未人工确认，实测发现问题以 fix 提交
 
 ## 第三章 编码与开发规范
 
