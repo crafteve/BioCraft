@@ -14,6 +14,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.List;
+
 /**
  * DNA 编码器屏幕（缓冲池版 v2）
  * <p>
@@ -22,8 +24,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *   <li>按钮区 y=16：启动子/终止子按钮 + 右侧序列文本框（EditBox）</li>
  *   <li>按钮区 y=38：ATCG 碱基按钮（点击向文本框光标处插入字符）+ 合成按钮</li>
  *   <li>原料区 y=62：四根竖向缓冲进度条（颜色与对应碱基物品染色一致，
- *       悬停显示 库存/4096；悬停提示在 render 末尾渲染——NeoForge 1.21.1
- *       的 renderTooltip 钩子不被调用，覆盖 renderTooltip 无效）</li>
+ *       悬停显示 库存/4096；悬停提示经 1.21.1 官方延迟 tooltip 机制
+ *       setTooltipForNextRenderPass 注册，由 renderWithTooltip 统一绘制）</li>
  *   <li>原料区 y=106：四个碱基吸收槽（放入即吸收进缓冲池）</li>
  *   <li>输出槽 (134,62)：合成产物 DNA模板</li>
  * </ul>
@@ -157,10 +159,11 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
     /**
      * 渲染入口：背景 + 槽位物品 + 文本 + 进度条 tooltip
      * <p>
-     * NeoForge 1.21.1 的 AbstractContainerScreen.render 不调用 renderTooltip
-     * 钩子，因此进度条悬停提示改为在本方法 super 之后直接渲染：
-     * super.render 结束时 pose 已复位（屏幕绝对坐标），
-     * 此时渲染的 tooltip 位于所有内容之上，不会被遮挡
+     * 悬停提示改用 1.21.1 官方延迟 tooltip 机制（Screen.renderWithTooltip）：
+     * 在 render 中检测鼠标位于进度条区域时，向 setTooltipForNextRenderPass
+     * 注册提示内容，由 Minecraft 渲染循环在 render 之后统一绘制——
+     * 这是 vanilla 玩家 tooltip 的实现路径，不依赖 AbstractContainerScreen
+     * 未被调用的 renderTooltip 钩子，保证必然显示
      *
      * @param graphics    绘制上下文
      * @param mouseX      鼠标 X（屏幕坐标）
@@ -171,15 +174,15 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
 
-        // 悬停提示：鼠标位于进度条区域内时显示缓冲库存
+        // 悬停提示：鼠标位于进度条区域内时注册延迟 tooltip（显示缓冲库存）
         for (int i = 0; i < 4; i++) {
             int x1 = this.leftPos + BAR_X[i];
             int y1 = this.topPos + BAR_Y;
             if (mouseX >= x1 && mouseX < x1 + BAR_W && mouseY >= y1 && mouseY < y1 + BAR_H) {
-                graphics.renderTooltip(this.font,
+                this.setTooltipForNextRenderPass(List.of(
                         Component.literal(BASE_CHARS.charAt(i) + ": "
-                                + this.menu.getBuffer(i) + "/" + DNAEncoderBlockEntity.MAX_BUFFER),
-                        mouseX, mouseY);
+                                + this.menu.getBuffer(i) + "/" + DNAEncoderBlockEntity.MAX_BUFFER)
+                                .getVisualOrderText()));
                 return;
             }
         }
@@ -214,11 +217,12 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
     }
 
     /**
-     * 渲染标题（机器名，vanilla 自动绘制）
+     * 渲染标题（机器名）
      * <p>
-     * 不渲染自定义标注与状态文本：此前放置在进度条/槽位间隙的文字
-     * 与 GUI 组件重叠冲突（用户实测反馈），删除后信息展示全部依赖
-     * 悬停提示与服务端 actionbar
+     * 不调用 super.renderLabels：vanilla 会额外绘制"物品栏"标签
+     * （inventoryLabelY = imageHeight - 94，本 GUI 高 206 时落在原料区
+     * 正上方，与进度条/槽位视觉重叠，用户实测反馈），
+     * 故此处只绘制机器名标题，玩家背包区无标签
      *
      * @param graphics 绘制上下文
      * @param mouseX   鼠标 X
@@ -226,7 +230,7 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
      */
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        super.renderLabels(graphics, mouseX, mouseY);
+        graphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, 4210752, false);
     }
 
     /**
