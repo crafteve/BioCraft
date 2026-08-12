@@ -68,11 +68,9 @@ public class MoleculeItem extends Item {
             tooltip.add(Component.literal("[" + abbreviation + "] " + data.formula())
                     .withStyle(style -> style.withColor(0xFFD700)));
 
-            // 类别徽章：主题色圆点 + 类别名
-            tooltip.add(Component.literal("● ")
-                    .withStyle(style -> style.withColor(category.getColor()))
-                    .append(Component.translatable("category.biocraft." + category.getId())
-                            .withStyle(style -> style.withColor(category.getColor()))));
+            // 类别徽章：纯类别色文本（无符号前缀，避免 Unicode 符号渲染错位）
+            tooltip.add(Component.translatable("category.biocraft." + category.getId())
+                    .withStyle(style -> style.withColor(category.getColor())));
 
             // 摩尔质量：精确质量 4 位小数
             tooltip.add(Component.translatable("tooltip.biocraft.molar_mass",

@@ -14,6 +14,11 @@ import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.smiles.SmilesParser;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -22,15 +27,17 @@ import java.util.Map;
 /**
  * 分子键线式结构图缓存（Dist.CLIENT）
  * <p>
- * 自绘管线：CDK 仅负责 SMILES 解析与 2D 坐标生成，图像完全由本类
- * 以 MC 像素风格绘制（2px 无抗锯齿键线 + 透明背景），保证与 tooltip 风格统一：
+ * 自绘管线：CDK 仅负责 SMILES 解析与 2D 坐标生成，图像由本类以
+ * 化学期刊风格绘制（Java2D 抗锯齿平滑键线，圆头端点），
+ * 杂原子元素符号不画入纹理，改由渲染时用 MC 像素字体叠加，保证风格统一：
  * <ul>
- *   <li>单键：2px 亮白直线（Bresenham）</li>
- *   <li>双键：垂直偏移 3px 的平行双线</li>
- *   <li>芳香键：间隔虚线</li>
- *   <li>碳不标符号、氢不绘制（键线式约定），杂原子符号由渲染时叠加 MC 字体</li>
+ *   <li>单键：1.8px 抗锯齿直线（平滑、无像素锯齿）</li>
+ *   <li>双键：法向偏移的平行双线</li>
+ *   <li>三键：主键 + 两侧副键</li>
+ *   <li>芳香键：虚线</li>
+ *   <li>碳不标符号、氢不绘制（键线式约定）</li>
  * </ul>
- * 尺寸自适应：画布缩放使平均键长约为 9px，高度上限 56px、宽度上限 128px，
+ * 尺寸自适应：画布缩放使平均键长约为 10px，高度上限 56px、宽度上限 128px，
  * 小分子自然缩小、大分子封顶；超过 150 重原子的复杂分子（如大型蛋白质）
  * 跳过生成，由 tooltip 显示提示行
  * <p>
@@ -45,11 +52,17 @@ public final class MoleculeTextureCache {
     /** 画布四周留白（px），为原子符号与键线厚度预留空间 */
     private static final int PADDING = 12;
     /** 目标平均键长（px），决定分子的显示大小 */
-    private static final double BOND_LENGTH_PX = 9.0;
+    private static final double BOND_LENGTH_PX = 10.0;
+    /** 键线宽度（px） */
+    private static final float BOND_STROKE_WIDTH = 1.8f;
+    /** 双键平行线偏移距离（px） */
+    private static final double DOUBLE_BOND_OFFSET = 1.6;
+    /** 三键副键偏移距离（px） */
+    private static final double TRIPLE_BOND_OFFSET = 3.0;
     /** 重原子数上限，超过则判定为过于复杂的分子，不生成结构图 */
     private static final int MAX_HEAVY_ATOMS = 150;
-    /** 键线颜色（RGBA 亮白） */
-    private static final int BOND_COLOR = 0xE0E0E0FF;
+    /** 键线颜色（亮白，深色 tooltip 背景上清晰） */
+    private static final Color BOND_COLOR = new Color(0xE0, 0xE0, 0xE0);
 
     /** 杂原子 MC 风格色板：元素符号 -> ARGB 颜色 */
     private static final Map<String, Integer> ATOM_COLORS = new HashMap<>();
@@ -99,7 +112,7 @@ public final class MoleculeTextureCache {
     }
 
     /**
-     * 执行完整自绘管线：解析 -> 2D 坐标 -> 归一化 -> 像素绘制 -> 注册纹理
+     * 执行完整自绘管线：解析 -> 2D 坐标 -> 归一化 -> 平滑绘制 -> 注册纹理
      *
      * @param smiles SMILES 结构式
      * @return 分子图信息，复杂分子或解析失败为 null
@@ -134,14 +147,14 @@ public final class MoleculeTextureCache {
     }
 
     /**
-     * 布局坐标 -> 像素画布：计算缩放比例并绘制键线骨架，收集杂原子标签
+     * 布局坐标 -> 画布：计算缩放比例，用 Java2D 平滑绘制键线骨架，收集杂原子标签
      *
      * @param smiles   SMILES（用于纹理命名）
      * @param molecule 已生成 2D 坐标的分子
      * @return 分子图信息
      */
     private static MoleculeImage rasterize(String smiles, IAtomContainer molecule) {
-        // 计算原子坐标范围与平均键长
+        // 计算原子坐标范围与平均键长（Å）
         double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE;
         double maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
         double bondLengthSum = 0;
@@ -177,36 +190,59 @@ public final class MoleculeTextureCache {
         int width = Math.max(spanW, 16);
         int height = Math.max(spanH, 16);
 
-        // 原子 -> 像素坐标映射（居中于画布）
-        Map<IAtom, int[]> pixelPositions = new HashMap<>();
+        // 原子 -> 画布像素坐标（浮点，供平滑键线精确对接；标签坐标取整）
+        Map<IAtom, double[]> pixelPositions = new HashMap<>();
         for (IAtom atom : molecule.atoms()) {
             if (atom.getAtomicNumber() == 1) {
                 continue;
             }
-            int px = PADDING + (int) Math.round((atom.getPoint2d().x - minX) * scale);
-            int py = PADDING + (int) Math.round((atom.getPoint2d().y - minY) * scale);
-            pixelPositions.put(atom, new int[]{px, py});
+            double px = PADDING + (atom.getPoint2d().x - minX) * scale;
+            double py = PADDING + (atom.getPoint2d().y - minY) * scale;
+            pixelPositions.put(atom, new double[]{px, py});
         }
 
-        // 绘制键线骨架
-        NativeImage image = new NativeImage(width, height, true);
-        for (IBond bond : molecule.bonds()) {
-            IAtom begin = bond.getBegin();
-            IAtom end = bond.getEnd();
-            if (!isHeavy(begin) || !isHeavy(end)) {
-                continue;
+        // Java2D 抗锯齿平滑绘制键线骨架
+        BufferedImage buffered = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = buffered.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+            g.setColor(BOND_COLOR);
+            g.setStroke(new BasicStroke(BOND_STROKE_WIDTH, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            for (IBond bond : molecule.bonds()) {
+                IAtom begin = bond.getBegin();
+                IAtom end = bond.getEnd();
+                if (!isHeavy(begin) || !isHeavy(end)) {
+                    continue;
+                }
+                double[] p1 = pixelPositions.get(begin);
+                double[] p2 = pixelPositions.get(end);
+                IBond.Order order = bond.getOrder();
+                if (bond.isAromatic()) {
+                    drawDashedLine(g, p1, p2);
+                } else if (order == IBond.Order.DOUBLE) {
+                    drawDoubleLine(g, p1, p2);
+                } else if (order == IBond.Order.TRIPLE) {
+                    drawTripleLine(g, p1, p2);
+                } else {
+                    drawLine(g, p1, p2);
+                }
             }
-            int[] p1 = pixelPositions.get(begin);
-            int[] p2 = pixelPositions.get(end);
-            IBond.Order order = bond.getOrder();
-            if (bond.isAromatic()) {
-                drawDashedLine(image, p1, p2, BOND_COLOR);
-            } else if (order == IBond.Order.DOUBLE) {
-                drawDoubleLine(image, p1, p2, BOND_COLOR);
-            } else if (order == IBond.Order.TRIPLE) {
-                drawTripleLine(image, p1, p2, BOND_COLOR);
-            } else {
-                drawThickLine(image, p1, p2, BOND_COLOR);
+        } finally {
+            g.dispose();
+        }
+
+        // 转换 BufferedImage（ARGB）-> NativeImage（RGBA 字节序）
+        NativeImage image = new NativeImage(width, height, true);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int argb = buffered.getRGB(x, y);
+                int a = (argb >>> 24) & 0xFF;
+                int r = (argb >>> 16) & 0xFF;
+                int gr = (argb >>> 8) & 0xFF;
+                int b = argb & 0xFF;
+                image.setPixelRGBA(x, y, (r << 24) | (gr << 16) | (b << 8) | a);
             }
         }
 
@@ -217,8 +253,8 @@ public final class MoleculeTextureCache {
             if (atomicNumber == 1 || atomicNumber == 6) {
                 continue;
             }
-            int[] pos = pixelPositions.get(atom);
-            labels.add(new AtomLabel(atom.getSymbol(), pos[0], pos[1],
+            double[] pos = pixelPositions.get(atom);
+            labels.add(new AtomLabel(atom.getSymbol(), (int) Math.round(pos[0]), (int) Math.round(pos[1]),
                     ATOM_COLORS.getOrDefault(atom.getSymbol(), 0xFFD0D0D0)));
         }
 
@@ -230,6 +266,59 @@ public final class MoleculeTextureCache {
                 .register("biocraft/molecule_" + Math.abs(smiles.hashCode()), texture);
 
         return new MoleculeImage(location, width, height, labels);
+    }
+
+    /**
+     * 绘制单键：抗锯齿直线
+     *
+     * @param g    Graphics2D 上下文
+     * @param from 起点像素（浮点）
+     * @param to   终点像素（浮点）
+     */
+    private static void drawLine(Graphics2D g, double[] from, double[] to) {
+        g.drawLine((int) Math.round(from[0]), (int) Math.round(from[1]),
+                (int) Math.round(to[0]), (int) Math.round(to[1]));
+    }
+
+    /**
+     * 绘制双键：垂直于键方向的平行双线（化学期刊风格）
+     *
+     * @param g    Graphics2D 上下文
+     * @param from 起点像素
+     * @param to   终点像素
+     */
+    private static void drawDoubleLine(Graphics2D g, double[] from, double[] to) {
+        double[] normal = normalVector(from, to, DOUBLE_BOND_OFFSET);
+        drawLine(g, offset(from, normal, -1), offset(to, normal, -1));
+        drawLine(g, offset(from, normal, 1), offset(to, normal, 1));
+    }
+
+    /**
+     * 绘制三键：主键 + 两侧副键
+     *
+     * @param g    Graphics2D 上下文
+     * @param from 起点像素
+     * @param to   终点像素
+     */
+    private static void drawTripleLine(Graphics2D g, double[] from, double[] to) {
+        drawLine(g, from, to);
+        double[] normal = normalVector(from, to, TRIPLE_BOND_OFFSET);
+        drawLine(g, offset(from, normal, -1), offset(to, normal, -1));
+        drawLine(g, offset(from, normal, 1), offset(to, normal, 1));
+    }
+
+    /**
+     * 绘制芳香键：沿键方向的虚线
+     *
+     * @param g    Graphics2D 上下文
+     * @param from 起点像素
+     * @param to   终点像素
+     */
+    private static void drawDashedLine(Graphics2D g, double[] from, double[] to) {
+        g.setStroke(new BasicStroke(BOND_STROKE_WIDTH, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                10f, new float[]{5f, 4f}, 0f));
+        drawLine(g, from, to);
+        g.setStroke(new BasicStroke(BOND_STROKE_WIDTH, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
     }
 
     /**
@@ -256,74 +345,6 @@ public final class MoleculeTextureCache {
     }
 
     /**
-     * 绘制 2px 粗直线（Bresenham 采样 + 2x2 像素块）
-     *
-     * @param image 目标图像
-     * @param from  起点像素
-     * @param to    终点像素
-     * @param color 颜色（RGBA）
-     */
-    private static void drawThickLine(NativeImage image, int[] from, int[] to, int color) {
-        double steps = Math.max(Math.abs(to[0] - from[0]), Math.abs(to[1] - from[1]));
-        int pixelSteps = (int) Math.max(1, steps);
-        for (int i = 0; i <= pixelSteps; i++) {
-            double t = (double) i / pixelSteps;
-            int x = (int) Math.round(from[0] + (to[0] - from[0]) * t);
-            int y = (int) Math.round(from[1] + (to[1] - from[1]) * t);
-            setPixelBlock(image, x, y, color);
-        }
-    }
-
-    /**
-     * 绘制双键：垂直于键方向的 3px 偏移平行双线
-     *
-     * @param image 目标图像
-     * @param from  起点像素
-     * @param to    终点像素
-     * @param color 颜色（RGBA）
-     */
-    private static void drawDoubleLine(NativeImage image, int[] from, int[] to, int color) {
-        double[] normal = normalVector(from, to, 3);
-        drawThickLine(image, offset(from, normal, -1), offset(to, normal, -1), color);
-        drawThickLine(image, offset(from, normal, 1), offset(to, normal, 1), color);
-    }
-
-    /**
-     * 绘制三键：3px 偏移的三条平行线（主键 + 两侧副键）
-     *
-     * @param image 目标图像
-     * @param from  起点像素
-     * @param to    终点像素
-     * @param color 颜色（RGBA）
-     */
-    private static void drawTripleLine(NativeImage image, int[] from, int[] to, int color) {
-        drawThickLine(image, from, to, color);
-        double[] normal = normalVector(from, to, 4);
-        drawThickLine(image, offset(from, normal, -1), offset(to, normal, -1), color);
-        drawThickLine(image, offset(from, normal, 1), offset(to, normal, 1), color);
-    }
-
-    /**
-     * 绘制芳香键：沿键方向的间隔虚线
-     *
-     * @param image 目标图像
-     * @param from  起点像素
-     * @param to    终点像素
-     * @param color 颜色（RGBA）
-     */
-    private static void drawDashedLine(NativeImage image, int[] from, int[] to, int color) {
-        int steps = (int) Math.max(1, Math.hypot(to[0] - from[0], to[1] - from[1]));
-        for (int i = 0; i <= steps; i++) {
-            double t = (double) i / steps;
-            int x = (int) Math.round(from[0] + (to[0] - from[0]) * t);
-            int y = (int) Math.round(from[1] + (to[1] - from[1]) * t);
-            if ((i / 4) % 2 == 0) {
-                setPixelBlock(image, x, y, color);
-            }
-        }
-    }
-
-    /**
      * 计算键方向的法向量（单位向量 * 指定偏移距离）
      *
      * @param from   起点
@@ -331,7 +352,7 @@ public final class MoleculeTextureCache {
      * @param offset 法向偏移距离
      * @return 法向量数组
      */
-    private static double[] normalVector(int[] from, int[] to, int offset) {
+    private static double[] normalVector(double[] from, double[] to, double offset) {
         double dx = to[0] - from[0];
         double dy = to[1] - from[1];
         double length = Math.max(1e-6, Math.hypot(dx, dy));
@@ -346,28 +367,7 @@ public final class MoleculeTextureCache {
      * @param side   偏移方向（-1 或 1）
      * @return 新坐标
      */
-    private static int[] offset(int[] pos, double[] normal, int side) {
-        return new int[]{(int) Math.round(pos[0] + normal[0] * side),
-                (int) Math.round(pos[1] + normal[1] * side)};
-    }
-
-    /**
-     * 以指定像素为中心绘制 2x2 像素块（保证 2px 线宽）
-     *
-     * @param image 目标图像
-     * @param x     中心 x
-     * @param y     中心 y
-     * @param color 颜色（RGBA）
-     */
-    private static void setPixelBlock(NativeImage image, int x, int y, int color) {
-        for (int dy = 0; dy < 2; dy++) {
-            for (int dx = 0; dx < 2; dx++) {
-                int px = x + dx - 1;
-                int py = y + dy - 1;
-                if (px >= 0 && py >= 0 && px < image.getWidth() && py < image.getHeight()) {
-                    image.setPixelRGBA(px, py, color);
-                }
-            }
-        }
+    private static double[] offset(double[] pos, double[] normal, int side) {
+        return new double[]{pos[0] + normal[0] * side, pos[1] + normal[1] * side};
     }
 }

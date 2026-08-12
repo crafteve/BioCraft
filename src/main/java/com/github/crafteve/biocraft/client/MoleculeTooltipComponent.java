@@ -73,9 +73,12 @@ public record MoleculeTooltipComponent(String smiles) implements TooltipComponen
         // 键线骨架
         guiGraphics.blit(image.texture(), x, y + 2, 0, 0,
                 image.width(), image.height(), image.width(), image.height());
-        // 杂原子符号：MC 像素字体叠加，以原子像素位置为中心绘制
+        // 杂原子符号：MC 像素字体叠加，以原子像素位置为中心动态居中
+        // （按字符串实际宽度居中，避免单字符与双字符符号的错位）
         for (MoleculeTextureCache.AtomLabel label : image.labels()) {
-            guiGraphics.drawString(font, label.symbol(), x + label.x() - 4, y + 2 + label.y() - 9, label.color(), false);
+            int symbolX = x + label.x() - font.width(label.symbol()) / 2;
+            int symbolY = y + 2 + label.y() - 4;
+            guiGraphics.drawString(font, label.symbol(), symbolX, symbolY, label.color(), false);
         }
     }
 }
