@@ -167,6 +167,8 @@ com.github.crafteve.biocraft
 9. **结构式按 Shift 展示**：`getTooltipImage` 用 `Screen.hasShiftDown()` 控制；离子/原子/无机物类别恒不展示
 10. **标签页标题移置**：vanilla 将标签页标题插入 tooltip index 1（物品名后），`MoleculeTooltipLayout` 遍历全列表匹配移动，勿只查首行
 11. **缩写上下标**：`substances.json` 的 abbreviation 使用 Unicode 上下标（H⁺/Ca²⁺/NH₄⁺/H₂O/NAD⁺），糖酵解编号（G6P/3PG）保持原样——新增离子/无机物缩写需按此惯例书写
+12. **MC 源码查找方法（重要排查手段）**：ModDevGradle 在本地缓存了已映射（mojmap）的反编译 MC 源码，路径：`%USERPROFILE%\.gradle\caches\neoformruntime\intermediate_results\decompile_*.jar`（按 jar 内 `net/minecraft/.../*.java` 路径直接 `jar xf` 提取即可，比 javap 字节码逆向高效得多）。另有 `sourcesAndCompiledWithNeoForge_*_output.jar` 可 javap 查 NeoForge patch 后的类（混淆 jar `minecraft_1.21.1_client.jar` 无映射名不可用）。排查"vanilla 机制行为"类问题时优先查源码而非猜
+13. **1.21.1 容器 GUI 的 tooltip 渲染机制**：`AbstractContainerScreen.render` 本身**不**渲染 hoveredSlot 物品 tooltip（1.21 重构移除），`renderTooltip(GuiGraphics,int,int)` 改由**各子类 Screen 在 render 中显式调用**（源码实证：`InventoryScreen`、`ContainerScreen` 覆写 render 后调用 `this.renderTooltip(...)`）。自定义容器 Screen 覆写 render 时必须在 super 之后补调 `this.renderTooltip(graphics, mouseX, mouseY)`，否则悬停槽位无物品 tooltip（含自研 tooltip 组件）。另：`renderWithTooltip`（final）是 Minecraft 渲染入口，延迟 tooltip 走 `setTooltipForNextRenderPass`
 
 ## 第三章 编码与开发规范
 
