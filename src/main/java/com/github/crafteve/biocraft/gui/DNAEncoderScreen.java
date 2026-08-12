@@ -2,7 +2,8 @@ package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.DNAEncoderBlockEntity;
-import com.github.crafteve.biocraft.blockentity.SynthesisStatus;
+import com.github.crafteve.biocraft.init.ModItems;
+import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.network.ServerboundDnaSequencePacket;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -13,22 +14,21 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.neoforged.neoforge.network.PacketDistributor;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
- * DNA 编码器屏幕（缓冲池版）
+ * DNA 编码器屏幕（缓冲池版 v2）
  * <p>
- * 自下而上布局分区（背景贴图坐标，相对 GUI 左上角）：
+ * 布局分区（背景贴图坐标，相对 GUI 左上角）：
  * <ul>
  *   <li>按钮区 y=16：启动子/终止子按钮 + 右侧序列文本框（EditBox）</li>
  *   <li>按钮区 y=38：ATCG 碱基按钮（点击向文本框光标处插入字符）+ 合成按钮</li>
- *   <li>原料区 y=62：四根竖向缓冲进度条（对应四种碱基，悬停显示 库存/4096）</li>
- *   <li>原料区 y=106：四个碱基吸收槽（空槽时上方显示 A/T/C/G 小字标注）</li>
+ *   <li>原料区 y=62：四根竖向缓冲进度条（颜色与对应碱基物品染色一致，
+ *       悬停显示 库存/4096；悬停提示在 render 末尾渲染——NeoForge 1.21.1
+ *       的 renderTooltip 钩子不被调用，覆盖 renderTooltip 无效）</li>
+ *   <li>原料区 y=106：四个碱基吸收槽（放入即吸收进缓冲池）</li>
  *   <li>输出槽 (134,62)：合成产物 DNA模板</li>
  * </ul>
- * 进度条数据来自 Menu 的 ContainerData（每 tick 服务端同步），
- * 悬停提示与状态文本均为客户端本地渲染，无额外网络包
+ * 合成交互：点击直接发包（不做客户端预校验），服务端权威校验并以
+ * actionbar 反馈失败原因，保证"点击必有响应"
  */
 public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
     /** GUI 背景贴图（256×256，实际绘制区域 176×206） */
@@ -40,27 +40,26 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
 
     /** 四条进度条的 X 坐标（与碱基槽同列，宽 12 居中于 18 宽槽位上方） */
     private static final int[] BAR_X = {29, 47, 65, 83};
-    /** 进度条区域 Y 与宽高 */
+    /** 进度条区域 Y 与宽高（含 1px 边框的轨道从 x-1,y-1 起，填充区见常量） */
     private static final int BAR_Y = 62;
     private static final int BAR_W = 12;
     private static final int BAR_H = 34;
 
-    /** 碱基槽 X 坐标（用于空槽标注居中） */
-    private static final int[] BASE_SLOT_X = {26, 44, 62, 80};
-    /** 槽位上方标注 Y */
-    private static final int LABEL_Y = 100;
-
-    /** 进度条填充颜色：A=蓝 T=红 C=绿 G=黄 */
-    private static final int[] BAR_COLORS = {0xFF4FC3F7, 0xFFFF5252, 0xFF69F0AE, 0xFFFFD740};
+    /**
+     * 进度条填充颜色：直接取对应碱基物品的染色值（与物品图标颜色一致）
+     * <p>
+     * 此前硬编码四色与物品实际颜色（如胸腺嘧啶紫色 vs 进度条红色）不协调，
+     * 现改为读取 MoleculeItem.getTintColor，视觉上永远与碱基物品统一
+     */
+    private static final int[] BAR_COLORS = {
+            baseColor("adenine"),
+            baseColor("thymine"),
+            baseColor("cytosine"),
+            baseColor("guanine")
+    };
 
     /** 序列输入框 */
     private EditBox sequenceBox;
-
-    /** 合成按钮 */
-    private Button synthesizeButton;
-
-    /** 本地预校验失败状态（优先于服务端状态显示，点击后由服务端状态覆盖） */
-    private SynthesisStatus localStatus = SynthesisStatus.IDLE;
 
     /**
      * @param menu             菜单实例
@@ -71,6 +70,17 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
         super(menu, playerInventory, title);
         this.imageWidth = 176;
         this.imageHeight = 206;
+    }
+
+    /**
+     * 获取碱基物品的染色值（进度条填充色）
+     *
+     * @param substanceId 物质表 id
+     * @return ARGB 颜色值
+     */
+    private static int baseColor(String substanceId) {
+        MoleculeItem item = ModItems.byId(substanceId).get();
+        return 0xFF000000 | item.getTintColor();
     }
 
     /**
@@ -111,12 +121,11 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
         this.addRenderableWidget(Button.builder(Component.literal("G"), button -> insertSequence("G"))
                 .bounds(this.leftPos + 83, this.topPos + 38, 22, 16).build());
 
-        this.synthesizeButton = Button.builder(
+        this.addRenderableWidget(Button.builder(
                         Component.translatable("gui.biocraft.synthesize"),
                         button -> onSynthesizePressed())
                 .bounds(this.leftPos + 116, this.topPos + 38, 52, 16)
-                .build();
-        this.addRenderableWidget(this.synthesizeButton);
+                .build());
         this.addRenderableWidget(this.sequenceBox);
     }
 
@@ -132,55 +141,56 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
     /**
      * 合成按钮点击处理
      * <p>
-     * 先做客户端预校验（对照缓冲池数据，快速反馈不消耗资源），通过后发送网络包，
-     * 服务端再次权威校验并执行合成；发送成功后清空输入框
-     * <p>
-     * 预校验读取的是 Menu 的 ContainerData（服务端每 tick 同步），
-     * 与实际服务端缓冲可能存在极短延迟差，因此服务端校验不可省略
+     * 不做客户端预校验（ContainerData 存在同步延迟，静默拦截会造成
+     * "点击无响应"的困惑）：序列为空时直接忽略（无意义的请求），
+     * 否则一律发包，由服务端权威校验并 actionbar 反馈失败原因
      */
     private void onSynthesizePressed() {
         String sequence = this.sequenceBox.getValue().trim();
-
-        // 客户端预校验：序列为空 / 非法字符 / 超长（理论上已被过滤，兜底）
         if (sequence.isEmpty()) {
-            this.localStatus = SynthesisStatus.EMPTY_SEQUENCE;
             return;
         }
-        if (sequence.length() > DNAEncoderBlockEntity.MAX_SEQUENCE_LENGTH
-                || !sequence.chars().allMatch(c -> "ACGT".indexOf(c) >= 0)) {
-            this.localStatus = SynthesisStatus.INVALID_SEQUENCE;
-            return;
-        }
+        PacketDistributor.sendToServer(new ServerboundDnaSequencePacket(sequence));
+        this.sequenceBox.setValue("");
+    }
 
-        // 客户端预校验：统计需求并对照缓冲池（Menu data 槽 0-3）
-        Map<Character, Integer> needed = new HashMap<>();
-        for (int i = 0; i < sequence.length(); i++) {
-            needed.merge(sequence.charAt(i), 1, Integer::sum);
-        }
-        for (Map.Entry<Character, Integer> entry : needed.entrySet()) {
-            int bufferIndex = BASE_CHARS.indexOf(entry.getKey());
-            if (this.menu.getBuffer(bufferIndex) < entry.getValue()) {
-                this.localStatus = SynthesisStatus.INSUFFICIENT_BASE;
+    /**
+     * 渲染入口：背景 + 槽位物品 + 文本 + 进度条 tooltip
+     * <p>
+     * NeoForge 1.21.1 的 AbstractContainerScreen.render 不调用 renderTooltip
+     * 钩子，因此进度条悬停提示改为在本方法 super 之后直接渲染：
+     * super.render 结束时 pose 已复位（屏幕绝对坐标），
+     * 此时渲染的 tooltip 位于所有内容之上，不会被遮挡
+     *
+     * @param graphics    绘制上下文
+     * @param mouseX      鼠标 X（屏幕坐标）
+     * @param mouseY      鼠标 Y（屏幕坐标）
+     * @param partialTick 部分 tick
+     */
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        super.render(graphics, mouseX, mouseY, partialTick);
+
+        // 悬停提示：鼠标位于进度条区域内时显示缓冲库存
+        for (int i = 0; i < 4; i++) {
+            int x1 = this.leftPos + BAR_X[i];
+            int y1 = this.topPos + BAR_Y;
+            if (mouseX >= x1 && mouseX < x1 + BAR_W && mouseY >= y1 && mouseY < y1 + BAR_H) {
+                graphics.renderTooltip(this.font,
+                        Component.literal(BASE_CHARS.charAt(i) + ": "
+                                + this.menu.getBuffer(i) + "/" + DNAEncoderBlockEntity.MAX_BUFFER),
+                        mouseX, mouseY);
                 return;
             }
         }
-        if (!this.menu.getSlot(DNAEncoderBlockEntity.SLOT_OUTPUT).getItem().isEmpty()) {
-            this.localStatus = SynthesisStatus.OUTPUT_FULL;
-            return;
-        }
-
-        // 预校验通过：发送合成请求，服务端权威执行
-        PacketDistributor.sendToServer(new ServerboundDnaSequencePacket(sequence));
-        this.localStatus = SynthesisStatus.IDLE;
-        this.sequenceBox.setValue("");
     }
 
     /**
      * 渲染背景贴图与缓冲进度条填充
      * <p>
      * 进度条轨道画在背景贴图上（静态），填充按缓冲/上限比例动态绘制：
-     * 从轨道底部向上填充对应颜色，缓冲区变化后数据经 ContainerData
-     * 每 tick 同步，填充高度随之更新
+     * 从轨道底部向上填充对应颜色（取自碱基物品染色值），缓冲区变化后
+     * 数据经 ContainerData 每 tick 同步，填充高度随之更新
      *
      * @param graphics    绘制上下文
      * @param partialTick 部分 tick
@@ -204,10 +214,11 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
     }
 
     /**
-     * 渲染标题、状态文本与碱基槽空槽标注
+     * 渲染标题（机器名，vanilla 自动绘制）
      * <p>
-     * 状态文本优先显示本地预校验结果，否则显示服务端同步的最近合成状态；
-     * 空槽标注仅当槽位为空时绘制（物品放入后由图标缩写装饰器标识，避免遮挡）
+     * 不渲染自定义标注与状态文本：此前放置在进度条/槽位间隙的文字
+     * 与 GUI 组件重叠冲突（用户实测反馈），删除后信息展示全部依赖
+     * 悬停提示与服务端 actionbar
      *
      * @param graphics 绘制上下文
      * @param mouseX   鼠标 X
@@ -216,60 +227,6 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
         super.renderLabels(graphics, mouseX, mouseY);
-
-        // 空槽标注：字母画在槽位上方（进度条下方间隙）
-        for (int i = 0; i < 4; i++) {
-            if (this.menu.getSlot(i).getItem().isEmpty()) {
-                graphics.drawString(this.font, Character.toString(BASE_CHARS.charAt(i)),
-                        BASE_SLOT_X[i] + 6, LABEL_Y, 0xFF9E9E9E, false);
-            }
-        }
-
-        // 状态文本
-        SynthesisStatus status = this.localStatus != SynthesisStatus.IDLE
-                ? this.localStatus
-                : this.menu.getStatus();
-        Component text = switch (status) {
-            case IDLE -> Component.translatable("gui.biocraft.status.idle")
-                    .withStyle(style -> style.withColor(0x9E9E9E));
-            case SUCCESS -> Component.translatable("gui.biocraft.status.success")
-                    .withStyle(style -> style.withColor(0x55FF55));
-            case EMPTY_SEQUENCE -> Component.translatable("gui.biocraft.status.empty_sequence")
-                    .withStyle(style -> style.withColor(0xFF5555));
-            case INVALID_SEQUENCE -> Component.translatable("gui.biocraft.status.invalid_sequence")
-                    .withStyle(style -> style.withColor(0xFF5555));
-            case INSUFFICIENT_BASE -> Component.translatable("gui.biocraft.status.insufficient_base")
-                    .withStyle(style -> style.withColor(0xFF5555));
-            case OUTPUT_FULL -> Component.translatable("gui.biocraft.status.output_full")
-                    .withStyle(style -> style.withColor(0xFF5555));
-        };
-        graphics.drawString(this.font, text, 8, 124, 0xFFFFFF, false);
-    }
-
-    /**
-     * 悬停提示：鼠标位于进度条区域内时显示缓冲库存
-     * <p>
-     * 在渲染 tooltip 前检测鼠标位置与四条进度条的碰撞，
-     * 命中则直接渲染"碱基: 库存/上限"提示并短路（不渲染其他 tooltip）
-     *
-     * @param graphics 绘制上下文
-     * @param mouseX   鼠标 X
-     * @param mouseY   鼠标 Y
-     */
-    @Override
-    protected void renderTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
-        for (int i = 0; i < 4; i++) {
-            int x1 = this.leftPos + BAR_X[i];
-            int y1 = this.topPos + BAR_Y;
-            if (mouseX >= x1 && mouseX < x1 + BAR_W && mouseY >= y1 && mouseY < y1 + BAR_H) {
-                graphics.renderTooltip(this.font,
-                        Component.literal(BASE_CHARS.charAt(i) + ": "
-                                + this.menu.getBuffer(i) + "/" + DNAEncoderBlockEntity.MAX_BUFFER),
-                        mouseX, mouseY);
-                return;
-            }
-        }
-        super.renderTooltip(graphics, mouseX, mouseY);
     }
 
     /**
