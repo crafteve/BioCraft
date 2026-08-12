@@ -70,12 +70,14 @@ public record MoleculeTooltipComponent(String smiles) implements TooltipComponen
             return;
         }
 
-        // 键线骨架：超采样纹理（SUPERSAMPLE 倍像素）缩放到逻辑尺寸显示，
-        // 高密度采样缩小后获得平滑细线
+        // 键线骨架：完整 4x 超采样纹理线性缩放到逻辑尺寸显示
+        // 必须用 9 参数 blit 重载：采样区域（uWidth/vHeight）取整个纹理，
+        // 目标尺寸（width/height）为逻辑尺寸；
+        // 若用 6 参数重载则 w/h 同时决定采样区域，只会显示纹理左上角局部导致线缺失/错位
         int pixelWidth = image.width() * MoleculeTextureCache.SUPERSAMPLE;
         int pixelHeight = image.height() * MoleculeTextureCache.SUPERSAMPLE;
-        guiGraphics.blit(image.texture(), x, y + 2, 0, 0,
-                image.width(), image.height(), pixelWidth, pixelHeight);
+        guiGraphics.blit(image.texture(), x, y + 2, image.width(), image.height(),
+                0, 0, pixelWidth, pixelHeight, pixelWidth, pixelHeight);
         // 杂原子符号：MC 像素字体叠加，以原子像素位置为中心动态居中
         // （按字符串实际宽度居中，避免单字符与双字符符号的错位）
         for (MoleculeTextureCache.AtomLabel label : image.labels()) {
