@@ -38,3 +38,4 @@ run/
 **/src/generated/**/.cache/
 repo/
 !**/src/**/repo/
+run-client-log.txt

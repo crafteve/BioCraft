@@ -211,6 +211,7 @@ com.github.crafteve.biocraft
 ### 4.2 验证标准
 
 - 任何代码改动后必须运行 `.\gradlew.bat build` 确认编译与打包通过
+- **推送时机：`gradlew build` 编译打包通过即可 commit 并 push，禁止等待 runClient 实测**。实测属于可选的后置验证，实测发现的问题在后续对话中以新的 fix 提交处理，绝不阻塞当前推送
 - GameTest 用 `.\gradlew.bat gameTestServer`；进游戏实测用 `.\gradlew.bat runClient`
 - 构建中途失败可直接重跑，Gradle 缓存可断点续传
 
