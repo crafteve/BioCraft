@@ -274,7 +274,7 @@
                            "container":  "test_tube",
                            "color":  4294967295,
                            "smiles":  "[H+]",
-                           "abbreviation":  "H+",
+                           "abbreviation":  "H⁺",
                            "category":  "ion"
                        },
                        {
@@ -284,7 +284,7 @@
                            "container":  "test_tube",
                            "color":  4287090411,
                            "smiles":  "[OH-]",
-                           "abbreviation":  "OH-",
+                           "abbreviation":  "OH⁻",
                            "category":  "ion"
                        },
                        {
@@ -294,7 +294,7 @@
                            "container":  "test_tube",
                            "color":  4294956800,
                            "smiles":  "[Na+]",
-                           "abbreviation":  "Na+",
+                           "abbreviation":  "Na⁺",
                            "category":  "ion"
                        },
                        {
@@ -304,7 +304,7 @@
                            "container":  "test_tube",
                            "color":  4288371126,
                            "smiles":  "[K+]",
-                           "abbreviation":  "K+",
+                           "abbreviation":  "K⁺",
                            "category":  "ion"
                        },
                        {
@@ -314,7 +314,7 @@
                            "container":  "test_tube",
                            "color":  4281257073,
                            "smiles":  "[Cl-]",
-                           "abbreviation":  "Cl-",
+                           "abbreviation":  "Cl⁻",
                            "category":  "ion"
                        },
                        {
@@ -324,7 +324,7 @@
                            "container":  "test_tube",
                            "color":  4286434976,
                            "smiles":  "[Ca+2]",
-                           "abbreviation":  "Ca2+",
+                           "abbreviation":  "Ca²⁺",
                            "category":  "ion"
                        },
                        {
@@ -334,7 +334,7 @@
                            "container":  "test_tube",
                            "color":  4286767274,
                            "smiles":  "[Mg+2]",
-                           "abbreviation":  "Mg2+",
+                           "abbreviation":  "Mg²⁺",
                            "category":  "ion"
                        },
                        {
@@ -344,7 +344,7 @@
                            "container":  "test_tube",
                            "color":  4292249872,
                            "smiles":  "[Fe+2]",
-                           "abbreviation":  "Fe2+",
+                           "abbreviation":  "Fe²⁺",
                            "category":  "ion"
                        },
                        {
@@ -354,7 +354,7 @@
                            "container":  "test_tube",
                            "color":  4289739310,
                            "smiles":  "[Fe+3]",
-                           "abbreviation":  "Fe3+",
+                           "abbreviation":  "Fe³⁺",
                            "category":  "ion"
                        },
                        {
@@ -364,7 +364,7 @@
                            "container":  "test_tube",
                            "color":  4291998942,
                            "smiles":  "[NH4+]",
-                           "abbreviation":  "NH4+",
+                           "abbreviation":  "NH₄⁺",
                            "category":  "ion"
                        },
                        {
@@ -374,7 +374,7 @@
                            "container":  "test_tube",
                            "color":  4294155282,
                            "smiles":  "[O-]P(=O)([O-])[O-]",
-                           "abbreviation":  "PO4",
+                           "abbreviation":  "PO₄",
                            "category":  "ion"
                        },
                        {
@@ -384,7 +384,7 @@
                            "container":  "test_tube",
                            "color":  4283068325,
                            "smiles":  "[O-][N+](=O)[O-]",
-                           "abbreviation":  "NO3",
+                           "abbreviation":  "NO₃",
                            "category":  "ion"
                        },
                        {
@@ -394,7 +394,7 @@
                            "container":  "test_tube",
                            "color":  4282960304,
                            "smiles":  "OC(=O)[O-]",
-                           "abbreviation":  "HCO3",
+                           "abbreviation":  "HCO₃",
                            "category":  "ion"
                        },
                        {
@@ -454,7 +454,7 @@
                            "container":  "test_tube",
                            "color":  4284329442,
                            "smiles":  "O",
-                           "abbreviation":  "H2O",
+                           "abbreviation":  "H₂O",
                            "category":  "inorganic"
                        },
                        {
@@ -464,7 +464,7 @@
                            "container":  "test_tube",
                            "color":  4287997350,
                            "smiles":  "O=C=O",
-                           "abbreviation":  "CO2",
+                           "abbreviation":  "CO₂",
                            "category":  "inorganic"
                        },
                        {
@@ -564,7 +564,7 @@
                            "container":  "flask",
                            "color":  4281616734,
                            "smiles":  "c1cc(c[n+](c1)C2C(C(C(O2)COP(=O)(O)OP(=O)(O)OCC3C(C(C(O3)N4C=NC5=C4N=CN=C5N)O)O)O)O)C(=O)N",
-                           "abbreviation":  "NAD+",
+                           "abbreviation":  "NAD⁺",
                            "category":  "coenzyme"
                        },
                        {
