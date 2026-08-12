@@ -113,15 +113,26 @@ neoForge {
 // "optional", meaning it will not be pulled by dependents of this mod.
 configurations {
     runtimeClasspath.extendsFrom localRuntime
+    // CDK 的 dependencyManagement 会向全局传播 commons-lang3 版本约束，
+    // 与 NeoForge 内部（3.12 vs 3.14）产生变体冲突，统一强制为高版本
+    all {
+        resolutionStrategy {
+            force 'org.apache.commons:commons-lang3:3.14.0'
+        }
+    }
 }
 
 dependencies {
-    // Example optional mod dependency with JEI
-    // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
-    // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
-    // compileOnly "mezz.jei:jei-${mc_version}-neoforge-api:${jei_version}"
-    // We add the full version to localRuntime, not runtimeOnly, so that we do not publish a dependency on it
-    // localRuntime "mezz.jei:jei-${mc_version}-neoforge:${jei_version}"
+    // CDK 化学开发套件：SMILES 解析、2D 坐标生成、分子式与质量计算
+    // cdk-bundle 的 dependencyManagement 会向全局传播版本约束，
+    // 与 NeoForge 的 strictly 锁定（log4j/commons-io/commons-lang3）冲突，
+    // 因此排除这些 MC 环境已自带的库，运行时复用 NeoForge 内置版本
+    implementation('org.openscience.cdk:cdk-bundle:2.12') {
+        exclude group: 'org.apache.logging.log4j'
+        exclude group: 'commons-io'
+        exclude group: 'org.apache.commons', module: 'commons-lang3'
+        exclude group: 'com.google.guava', module: 'guava'
+    }
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar

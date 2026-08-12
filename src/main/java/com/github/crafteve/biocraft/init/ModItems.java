@@ -1,6 +1,7 @@
 package com.github.crafteve.biocraft.init;
 
 import com.github.crafteve.biocraft.BioCraft;
+import com.github.crafteve.biocraft.item.MoleculeCategory;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -62,8 +63,9 @@ public final class ModItems {
             String smiles = substance.get("smiles").getAsString();
             String abbreviation = substance.get("abbreviation").getAsString();
             int color = substance.get("color").getAsInt();
+            MoleculeCategory category = MoleculeCategory.byId(substance.get("category").getAsString());
             DeferredItem<MoleculeItem> item = ITEMS.register(id, () -> new MoleculeItem(
-                    new Item.Properties(), smiles, abbreviation, color));
+                    new Item.Properties(), smiles, abbreviation, color, category));
             MOLECULES.put(id, item);
             ORDERED.add(item);
         }

@@ -67,11 +67,14 @@ public class SubstanceLanguageProvider implements DataProvider {
     }
 
     /**
-     * 添加创意标签页标题翻译
+     * 添加创意标签页标题与通用 tooltip 翻译
      */
     private void addTabTranslations() {
+        boolean zh = "zh_cn".equals(language);
         translations.put("itemGroup.biocraft.molecules",
-                "zh_cn".equals(language) ? "生物工艺 · 分子" : "BioCraft: Molecules");
+                zh ? "生物工艺 · 分子" : "BioCraft: Molecules");
+        translations.put("tooltip.biocraft.molar_mass",
+                zh ? "▸ 摩尔质量 %s g/mol" : "▸ Molar Mass %s g/mol");
     }
 
     /**
@@ -91,18 +94,23 @@ public class SubstanceLanguageProvider implements DataProvider {
     }
 
     /**
-     * 添加全部物品显示名翻译
+     * 添加全部物品显示名与类别名翻译
      * <p>
-     * zh_cn 取 name_zn 字段，en_us 取 name_en 字段
+     * zh_cn 取 name_zn 字段，en_us 取 name_en 字段；
+     * 类别 key 为 category.biocraft.&lt;id&gt;，供 tooltip 类别徽章使用
      */
     private void addItemTranslations() {
         JsonObject root = SubstanceData.loadRoot();
-        JsonArray substances = root.getAsJsonArray("substances");
         String field = "zh_cn".equals(language) ? "name_zn" : "name_en";
-        for (var element : substances) {
+        for (var element : root.getAsJsonArray("substances")) {
             JsonObject substance = element.getAsJsonObject();
             translations.put("item.biocraft." + substance.get("id").getAsString(),
                     substance.get(field).getAsString());
+        }
+        for (var element : root.getAsJsonArray("categories")) {
+            JsonObject category = element.getAsJsonObject();
+            translations.put("category.biocraft." + category.get("id").getAsString(),
+                    category.get(field).getAsString());
         }
     }
 
