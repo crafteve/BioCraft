@@ -52,7 +52,7 @@
 
 - 本项目全程使用 git 进行版本管理
 - **每次对话结束时，若有任何文件修改，必须提交 commit**
-- **禁止 push 到 GitHub 或任何远程仓库**
+- **每次 commit 后必须 push 到 GitHub 远程仓库**（`https://github.com/crafteve/BioCraft`，国内网络下 push 必须携带网络参数，见 2.5）
 - Commit Message 格式遵循 Conventional Commits 规范：
   - `feat: xxx` — 新功能
   - `fix: xxx` — 修复 bug
@@ -133,6 +133,11 @@ com.github.crafteve.biocraft
 
 - `.github/workflows/build.yml` — CI：push/PR 触发，JDK 21 + `gradlew build`。CI 环境无国内镜像（走官方源），构建慢是预期的，**不要试图为 CI 配镜像**
 - 用户全局 `C:\Users\17094\.gradle\init.d\mirror.gradle` — 阿里云 Maven 镜像（前置 + 官方 fallback），**不在仓库内**。JDK 21 位于 `C:\Program Files\Java\jdk-21`（JAVA_HOME 已配好）
+- **GitHub 推送网络配置**（国内网络硬性要求，实测经验）：
+  - GitHub 直连 HTTPS 会被重置（Connection reset），git 默认也不读系统代理，且 Windows 自带 schannel TLS 后端与代理握手失败
+  - 本机代理：`127.0.0.1:7892`（系统代理已开启）。push/fetch 必须显式携带 OpenSSL 后端 + 代理参数：
+    - `git -c http.sslBackend=openssl -c http.proxy=http://127.0.0.1:7892 -c https.proxy=http://127.0.0.1:7892 push`
+  - 本地分支名为 `main`，与远端默认分支一致；远端仓库初始含 GitHub 自动生成的 `LICENSE`，已合并保留，勿删除
 
 ## 第三章 编码与开发规范
 
@@ -203,5 +208,5 @@ com.github.crafteve.biocraft
 
 ### 4.3 变更纪律
 
-- 每轮对话结束时有文件修改必须 commit（见 1.7），**禁止 push**
+- 每轮对话结束时有文件修改必须 commit 并 push（见 1.7），push 必须携带 2.5 所述网络参数
 - commit 前自查：无遗留调试代码、无未注释的关键逻辑、git status 无意外文件
