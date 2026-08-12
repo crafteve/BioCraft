@@ -11,6 +11,7 @@ import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IBond;
 import org.openscience.cdk.layout.StructureDiagramGenerator;
+import org.openscience.cdk.ringsearch.RingSearch;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.smiles.SmilesParser;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
@@ -299,6 +300,10 @@ public final class MoleculeTextureCache {
                 }
             }
 
+            // 标签碰撞处理：旋转或短键场景下 OH/NH₂ 等标签可能相互重叠，
+            // 沿连线方向互相推开（多次迭代收敛），确保各基团可读
+            resolveLabelCollisions(labelTexts, pixelPositions, labelInsets);
+
             for (IBond bond : molecule.bonds()) {
                 IAtom begin = bond.getBegin();
                 IAtom end = bond.getEnd();
@@ -307,12 +312,15 @@ public final class MoleculeTextureCache {
                 }
                 double[] p1 = pixelPositions.get(begin);
                 double[] p2 = pixelPositions.get(end);
-                // 杂原子端向内缩进其底块半宽，键线精确终止于符号底块边缘
+                // 杂原子端向内缩进其底块半宽，键线精确终止于符号底块边缘；
+                // 缩进上限 = 键长的 40%，保证短键（杂原子密集区）仍有可见的键线段
                 if (labelInsets.containsKey(begin)) {
-                    p1 = shrink(p1, p2, labelInsets.get(begin));
+                    double bondLen = Math.max(1e-6, Math.hypot(p2[0] - p1[0], p2[1] - p1[1]));
+                    p1 = shrink(p1, p2, Math.min(labelInsets.get(begin), bondLen * 0.4));
                 }
                 if (labelInsets.containsKey(end)) {
-                    p2 = shrink(p2, p1, labelInsets.get(end));
+                    double bondLen = Math.max(1e-6, Math.hypot(p1[0] - p2[0], p1[1] - p2[1]));
+                    p2 = shrink(p2, p1, Math.min(labelInsets.get(end), bondLen * 0.4));
                 }
                 IBond.Order order = bond.getOrder();
                 if (ringCenters.containsKey(bond) && order == IBond.Order.DOUBLE) {
@@ -559,7 +567,7 @@ public final class MoleculeTextureCache {
     /**
      * 计算环键连通分量的环质心（供环内双键朝内侧偏移）
      * <p>
-     * 环键判定采用图论定义：移除该键后两端点仍连通。
+     * 环键判定使用 CDK 的 RingSearch（专业环检测，语义标准可靠），
      * 覆盖芳香环（CDK Kekulize 后 isAromatic 保留）与显式 Kekulé 写法的
      * 非芳香环（如胞嘧啶/尿嘧啶的显式单双键环）
      *
@@ -569,12 +577,13 @@ public final class MoleculeTextureCache {
      */
     private static Map<IBond, double[]> ringCenters(IAtomContainer molecule, Map<IAtom, double[]> pixelPositions) {
         Map<IBond, double[]> centers = new HashMap<>();
+        RingSearch ringSearch = new RingSearch(molecule);
         List<IBond> ringBonds = new ArrayList<>();
         for (IBond bond : molecule.bonds()) {
             if (!isHeavy(bond.getBegin()) || !isHeavy(bond.getEnd())) {
                 continue;
             }
-            if (isRingBond(molecule, bond)) {
+            if (ringSearch.cyclic(bond)) {
                 ringBonds.add(bond);
             }
         }
@@ -627,46 +636,6 @@ public final class MoleculeTextureCache {
     }
 
     /**
-     * 图论环键判定：移除该键后两端点仍连通
-     * <p>
-     * 用于识别所有环上键（芳香环与显式 Kekulé 环），
-     * 使环上双键统一向环心偏移
-     *
-     * @param molecule 分子
-     * @param target   待判定的键
-     * @return true 表示该键属于某个环
-     */
-    private static boolean isRingBond(IAtomContainer molecule, IBond target) {
-        IAtom start = target.getBegin();
-        IAtom goal = target.getEnd();
-        Set<IAtom> visited = new HashSet<>();
-        ArrayDeque<IAtom> queue = new ArrayDeque<>();
-        visited.add(start);
-        queue.add(start);
-        while (!queue.isEmpty()) {
-            IAtom cur = queue.poll();
-            if (cur == goal) {
-                return true;
-            }
-            for (IBond bond : molecule.bonds()) {
-                if (bond == target) {
-                    continue;
-                }
-                IAtom next = null;
-                if (bond.getBegin() == cur) {
-                    next = bond.getEnd();
-                } else if (bond.getEnd() == cur) {
-                    next = bond.getBegin();
-                }
-                if (next != null && visited.add(next)) {
-                    queue.add(next);
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
      * 绘制三键：主键 + 两侧副键
      *
      * @param g    Graphics2D 上下文
@@ -678,6 +647,47 @@ public final class MoleculeTextureCache {
         double[] normal = normalVector(from, to, TRIPLE_BOND_OFFSET);
         drawLine(g, offset(from, normal, -1), offset(to, normal, -1));
         drawLine(g, offset(from, normal, 1), offset(to, normal, 1));
+    }
+
+    /**
+     * 标签碰撞处理：把相互重叠的杂原子标签沿连线方向推开
+     * <p>
+     * 旋转或短键场景下（如磷酸链、OH 邻接环原子），标签底块可能重叠。
+     * 判定阈值 = 两标签缩进半径之和 × 0.75；迭代 3 次收敛。
+     * 注意：此方法在键线绘制前调用，键线缩进基于推开后的位置，视觉一致
+     *
+     * @param labelTexts   标签表
+     * @param positions    原子坐标表（直接修改坐标值）
+     * @param labelInsets  标签缩进（底块半径）
+     */
+    private static void resolveLabelCollisions(Map<IAtom, AtomText> labelTexts,
+                                               Map<IAtom, double[]> positions,
+                                               Map<IAtom, Double> labelInsets) {
+        List<IAtom> atoms = new ArrayList<>(labelTexts.keySet());
+        for (int iteration = 0; iteration < 3; iteration++) {
+            for (int i = 0; i < atoms.size(); i++) {
+                for (int j = i + 1; j < atoms.size(); j++) {
+                    IAtom a = atoms.get(i);
+                    IAtom b = atoms.get(j);
+                    double[] pa = positions.get(a);
+                    double[] pb = positions.get(b);
+                    double dx = pb[0] - pa[0];
+                    double dy = pb[1] - pa[1];
+                    double dist = Math.hypot(dx, dy);
+                    double minDist = (labelInsets.getOrDefault(a, 4.0)
+                            + labelInsets.getOrDefault(b, 4.0)) * 0.75;
+                    if (dist > 1e-6 && dist < minDist) {
+                        double push = (minDist - dist) / 2;
+                        double ux = dx / dist;
+                        double uy = dy / dist;
+                        pa[0] -= ux * push;
+                        pa[1] -= uy * push;
+                        pb[0] += ux * push;
+                        pb[1] += uy * push;
+                    }
+                }
+            }
+        }
     }
 
     /**
