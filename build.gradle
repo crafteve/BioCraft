@@ -133,7 +133,8 @@ def cdkBundle = { d ->
     d.exclude group: 'com.google.guava', module: 'guava'
 }
 def cdkModules = ['cdk-silent', 'cdk-smiles', 'cdk-sdg', 'cdk-interfaces',
-                  'cdk-data', 'cdk-atomtype', 'cdk-standard', 'cdk-formula']
+                  'cdk-data', 'cdk-atomtype', 'cdk-standard', 'cdk-formula',
+                  'cdk-depict']
 
 // CDK 合并 jar 任务：把全部 CDK 模块 jar 合并为单个 cdk-all.jar
 // 必要性：CDK 各模块存在分包（split package，如 org.openscience.cdk.tools.manipulator
@@ -156,6 +157,8 @@ tasks.register('mergeCdkJar', Jar) {
         exclude 'module-info.class'
         // META-INF/services 服务描述符保留（CDK 部分功能依赖 ServiceLoader）
     }
+    // 合并多模块时存在重复条目（如 freehep 的 service 文件），保留首个
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 dependencies {

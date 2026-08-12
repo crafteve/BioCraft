@@ -70,14 +70,9 @@ public record MoleculeTooltipComponent(String smiles) implements TooltipComponen
             return;
         }
 
-        // 键线骨架：完整 4x 超采样纹理线性缩放到逻辑尺寸显示
-        // 必须用 9 参数 blit 重载：采样区域（uWidth/vHeight）取整个纹理，
-        // 目标尺寸（width/height）为逻辑尺寸；
-        // 若用 6 参数重载则 w/h 同时决定采样区域，只会显示纹理左上角局部导致线缺失/错位
-        // 杂原子符号已绘制进纹理（随分子等比缩放），此处不再叠加 MC 字体
-        int pixelWidth = image.width() * MoleculeTextureCache.SUPERSAMPLE;
-        int pixelHeight = image.height() * MoleculeTextureCache.SUPERSAMPLE;
-        guiGraphics.blit(image.texture(), x, y + 2, image.width(), image.height(),
-                0, 0, pixelWidth, pixelHeight, pixelWidth, pixelHeight);
+        // 结构图卡片：CDK 直出的白底图片 1:1 绘制
+        // （CDK 渲染已按目标尺寸输出，纹理尺寸即显示尺寸）
+        guiGraphics.blit(image.texture(), x, y + 2, 0, 0,
+                image.width(), image.height(), image.width(), image.height());
     }
 }
