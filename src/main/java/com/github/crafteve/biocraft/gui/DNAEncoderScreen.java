@@ -155,14 +155,17 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
     }
 
     /**
-     * 渲染入口：背景 + 槽位物品 + 文本 + 进度条悬停提示
+     * 渲染入口：背景 + 槽位物品 + 文本 + 物品 tooltip + 进度条悬停提示
      * <p>
-     * 悬停提示采用自绘方案（fill 背景 + drawString 文字）：
-     * 经字节码逆向确认，NeoForge 1.21.1 的容器渲染链中多个官方 tooltip
-     * 机制均不可靠——AbstractContainerScreen.render 不调用 renderTooltip
-     * 钩子（render 内联实现无该调用），renderWithTooltip 的延迟 tooltip
-     * 机制实测也未显示，故直接用最基础的 GUI 绘制 API 自绘提示框，
-     * 与本 GUI 的进度条填充（fill）同一渲染管线，必然可见
+     * 物品 tooltip 的渲染机制（经 vanilla 源码确认）：
+     * 1.21.1 重构后 AbstractContainerScreen.render 不再负责 tooltip 渲染，
+     * 而是由各子类 Screen 在 render 中显式调用 this.renderTooltip——
+     * InventoryScreen（背包）与 ContainerScreen（箱子）均如此。
+     * 我们的 GUI 覆写 render 后必须补上这一调用，否则悬停槽位时
+     * 物品 tooltip（含自研分子的分子式/结构图 tooltip）不会显示
+     * <p>
+     * 进度条悬停提示采用自绘方案（fill 背景 + drawString 文字），
+     * 与进度条填充同一渲染管线，必然可见
      *
      * @param graphics    绘制上下文
      * @param mouseX      鼠标 X（屏幕坐标，GUI 缩放后）
@@ -172,6 +175,9 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
+
+        // 悬停槽位物品 tooltip（vanilla 1.21.1 机制：子类显式调用）
+        this.renderTooltip(graphics, mouseX, mouseY);
 
         // 悬停提示：鼠标位于进度条区域内时自绘"碱基: 库存/上限"提示框
         for (int i = 0; i < 4; i++) {
