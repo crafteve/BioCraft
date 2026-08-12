@@ -1,4 +1,4 @@
-﻿{
+{
     "containers":  [
                        {
                            "id":  "beaker",
@@ -483,7 +483,7 @@
                            "name_en":  "Cytosine",
                            "container":  "flask",
                            "color":  4280790624,
-                           "smiles":  "Nc1cc[nH]c(=O)n1",
+                           "smiles":  "NC1=CC(=O)NC=N1",
                            "abbreviation":  "C",
                            "category":  "base"
                        },
@@ -503,7 +503,7 @@
                            "name_en":  "Uracil",
                            "container":  "flask",
                            "color":  4290787627,
-                           "smiles":  "O=c1cc[nH]c(=O)[nH]1",
+                           "smiles":  "O=C1NC=CC(=O)N1",
                            "abbreviation":  "U",
                            "category":  "base"
                        },

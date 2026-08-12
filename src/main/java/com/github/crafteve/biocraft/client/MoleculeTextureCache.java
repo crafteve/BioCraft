@@ -56,9 +56,9 @@ public final class MoleculeTextureCache {
     public static final int SUPERSAMPLE = 4;
 
     /** 目标最大高度（px，逻辑尺寸），大分子允许更高画布以免压缩糊成一团 */
-    private static final int TARGET_HEIGHT = 200;
+    private static final int TARGET_HEIGHT = 256;
     /** 目标最大宽度（px，逻辑尺寸），大分子允许更宽画布以免压缩糊成一团 */
-    private static final int MAX_WIDTH = 384;
+    private static final int MAX_WIDTH = 512;
     /** 画布四周留白（px，逻辑尺寸），为原子符号与键线厚度预留空间 */
     private static final int PADDING = 12;
     /** 目标平均键长（px，逻辑尺寸），决定分子的显示大小 */
@@ -221,7 +221,10 @@ public final class MoleculeTextureCache {
                 // 显式 H：杂原子的隐氢写入标签（羟基 O→OH、氨基 N→NH₂），
                 // 键线式仅省略碳上的氢，杂原子上的氢应当可见
                 int hCount = atom.getImplicitHydrogenCount() == null ? 0 : atom.getImplicitHydrogenCount();
-                String text = atom.getSymbol() + (hCount > 1 ? toSubscriptText(hCount) : "");
+                String text = atom.getSymbol();
+                if (hCount > 0) {
+                    text += "H" + (hCount > 1 ? toSubscriptText(hCount) : "");
+                }
                 labelTexts.put(atom, text);
                 // 缩进按标签估算宽度动态调整（MC 字符约 6px 宽，半宽 = 字符数 * 3）
                 labelInsets.put(atom, Math.max(SYMBOL_INSET, text.length() * 3.0 + 2.0));
@@ -280,7 +283,10 @@ public final class MoleculeTextureCache {
             g.dispose();
         }
 
-        // 转换 BufferedImage（ARGB）-> NativeImage（RGBA 字节序）
+        // 转换 BufferedImage（ARGB）-> NativeImage（RGBA 字节序，预乘 alpha）
+        // MC 的 GUI 渲染假定纹理为预乘 alpha（混合模式 GL_ONE, GL_ONE_MINUS_SRC_ALPHA），
+        // 抗锯齿产生的半透明边缘若不预乘，线性过滤插值时颜色分量与 alpha 分离插值，
+        // 会在深色背景上呈现发暗/泛蓝的杂色边缘
         NativeImage image = new NativeImage(pixelWidth, pixelHeight, true);
         for (int y = 0; y < pixelHeight; y++) {
             for (int x = 0; x < pixelWidth; x++) {
@@ -289,6 +295,9 @@ public final class MoleculeTextureCache {
                 int r = (argb >>> 16) & 0xFF;
                 int gr = (argb >>> 8) & 0xFF;
                 int b = argb & 0xFF;
+                r = r * a / 255;
+                gr = gr * a / 255;
+                b = b * a / 255;
                 image.setPixelRGBA(x, y, (r << 24) | (gr << 16) | (b << 8) | a);
             }
         }
