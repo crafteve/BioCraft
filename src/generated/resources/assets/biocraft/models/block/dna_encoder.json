@@ -1,1 +1,1 @@
-{"parent":"minecraft:block/cube_all","textures":{"all":"biocraft:block/machine_dna_encoder"}}
+{"parent":"minecraft:block/cube_bottom_top","textures":{"top":"biocraft:block/machine_dna_encoder_top","side":"biocraft:block/machine_dna_encoder_side","bottom":"biocraft:block/machine_dna_encoder_bottom"}}

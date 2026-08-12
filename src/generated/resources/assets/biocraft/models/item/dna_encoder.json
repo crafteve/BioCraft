@@ -1,1 +1,1 @@
-{"parent":"minecraft:item/generated","textures":{"layer0":"biocraft:block/machine_dna_encoder"}}
+{"parent":"minecraft:item/generated","textures":{"layer0":"biocraft:block/machine_dna_encoder_top"}}

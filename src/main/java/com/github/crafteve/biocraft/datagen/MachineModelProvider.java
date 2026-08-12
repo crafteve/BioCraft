@@ -75,7 +75,10 @@ public class MachineModelProvider implements DataProvider {
         Map<Path, JsonObject> outputs = new HashMap<>();
         String blockName = type.getId();
         ResourceLocation blockModel = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/" + blockName);
-        ResourceLocation texture = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/machine_" + blockName);
+        // 三面分离贴图：顶面设备面板（屏幕/指示灯）、侧面金属外壳、底面底座
+        ResourceLocation topTexture = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/machine_" + blockName + "_top");
+        ResourceLocation sideTexture = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/machine_" + blockName + "_side");
+        ResourceLocation bottomTexture = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/machine_" + blockName + "_bottom");
 
         // 方块状态：无朝向，单一 variant 指向方块模型
         JsonObject blockState = new JsonObject();
@@ -85,18 +88,20 @@ public class MachineModelProvider implements DataProvider {
         variants.add("", variant);
         blockState.add("variants", variants);
 
-        // 方块模型：cube_all，六面同一贴图
+        // 方块模型：cube_bottom_top，顶/侧/底三面不同贴图（比 cube_all 更有立体观感）
         JsonObject blockModelJson = new JsonObject();
-        blockModelJson.addProperty("parent", "minecraft:block/cube_all");
+        blockModelJson.addProperty("parent", "minecraft:block/cube_bottom_top");
         JsonObject textures = new JsonObject();
-        textures.addProperty("all", texture.toString());
+        textures.addProperty("top", topTexture.toString());
+        textures.addProperty("side", sideTexture.toString());
+        textures.addProperty("bottom", bottomTexture.toString());
         blockModelJson.add("textures", textures);
 
-        // 方块物品模型：item/generated 直接引用方块贴图
+        // 方块物品模型：item/generated 引用顶面贴图（手持视角看的是设备面板）
         JsonObject itemModel = new JsonObject();
         itemModel.addProperty("parent", "minecraft:item/generated");
         JsonObject itemTextures = new JsonObject();
-        itemTextures.addProperty("layer0", texture.toString());
+        itemTextures.addProperty("layer0", topTexture.toString());
         itemModel.add("textures", itemTextures);
 
         outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/blockstates/" + blockName + ".json"), blockState);
