@@ -1,0 +1,44 @@
+package com.github.crafteve.biocraft.item;
+
+import com.github.crafteve.biocraft.BioCraft;
+import com.github.crafteve.biocraft.init.ModItems;
+import net.minecraft.client.color.item.ItemColor;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
+
+/**
+ * 分子物品的客户端染色注册器
+ * <p>
+ * 双层贴图模式下 layer0（内容物层）需要通过 ItemColor 按物质着色，
+ * 以区分不同物质；vanilla 的 generated 父模型自带 layer0 tintindex，
+ * 因此只需要为所有 MoleculeItem 注册一个统一的颜色处理器即可
+ * <p>
+ * 本类仅存在于客户端（Dist.CLIENT），不会在服务端加载
+ */
+@EventBusSubscriber(modid = BioCraft.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+public class MoleculeColors {
+
+    /**
+     * 注册所有分子物品的 ItemColor
+     * <p>
+     * 颜色处理器只对 layer0 生效（layer1 瓶子层返回 -1 即不染色），
+     * 染色值直接取自各 MoleculeItem 上配置的物质颜色
+     *
+     * @param event 物品颜色注册事件
+     */
+    @SubscribeEvent
+    public static void onRegisterItemColors(RegisterColorHandlersEvent.Item event) {
+        ItemColor colorHandler = (ItemStack stack, int layer) -> {
+            if (layer != 0 || !(stack.getItem() instanceof MoleculeItem molecule)) {
+                return -1;
+            }
+            return molecule.getTintColor();
+        };
+        event.register(colorHandler,
+                ModItems.all().values().stream().map(holder -> holder.get()).toArray(Item[]::new));
+    }
+}

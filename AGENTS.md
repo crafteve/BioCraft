@@ -161,6 +161,14 @@ com.github.crafteve.biocraft
   - 传入参数（名称、含义）
   - 返回值（含义）
 
+### 3.3 文件编码约定
+
+- 所有文本文件（.java / .json / .md / .toml / .gradle）统一为**无 BOM 的 UTF-8**
+- PowerShell 5.1 的 `Get-Content` 默认按系统代码页（GBK）解析 UTF-8 文件，导致中文乱码，读取文本文件必须显式指定编码：`Get-Content -Encoding UTF8`
+- 即使正确读取，PowerShell 5.1 控制台代码页（chcp 936）输出中文仍会乱码，命令开头先设置控制台输出编码：`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`
+- Java 编译编码已由 build.gradle 的 `options.encoding = 'UTF-8'` 保证，无需额外处理
+- 若发现日志/输出中文乱码，优先检查上述读取与显示两层的编码设置，而非怀疑文件本身（write 工具写出的文件均为 UTF-8）
+
 ## 第四章 工作流程和工程标准
 
 ### 4.1 任务执行流程
