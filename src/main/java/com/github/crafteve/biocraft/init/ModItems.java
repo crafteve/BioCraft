@@ -3,6 +3,7 @@ package com.github.crafteve.biocraft.init;
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.item.MoleculeCategory;
 import com.github.crafteve.biocraft.item.MoleculeItem;
+import com.github.crafteve.biocraft.item.SequenceItem;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -39,6 +40,11 @@ public final class ModItems {
 
     /** 按 JSON 顺序排列的物品列表，供创意标签页展示 */
     private static final List<DeferredItem<MoleculeItem>> ORDERED = new ArrayList<>();
+
+    /** DNA模板：序列载体物品，由 DNA编码器产出，不走物质表（无固定化学结构） */
+    public static final DeferredItem<SequenceItem> DNA_TEMPLATE = ITEMS.register(
+            "dna_template",
+            () -> new SequenceItem(new Item.Properties().stacksTo(1)));
 
     static {
         loadSubstances();

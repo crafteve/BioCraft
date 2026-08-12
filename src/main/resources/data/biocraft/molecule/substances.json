@@ -497,16 +497,26 @@
                            "abbreviation":  "G",
                            "category":  "base"
                        },
-                       {
-                           "id":  "uracil",
-                           "name_zn":  "尿嘧啶",
-                           "name_en":  "Uracil",
-                           "container":  "flask",
-                           "color":  4290787627,
-                           "smiles":  "O=C1NC=CC(=O)N1",
-                           "abbreviation":  "U",
-                           "category":  "base"
-                       },
+                        {
+                            "id":  "uracil",
+                            "name_zn":  "尿嘧啶",
+                            "name_en":  "Uracil",
+                            "container":  "flask",
+                            "color":  4290787627,
+                            "smiles":  "O=C1NC=CC(=O)N1",
+                            "abbreviation":  "U",
+                            "category":  "base"
+                        },
+                        {
+                            "id":  "thymine",
+                            "name_zn":  "胸腺嘧啶",
+                            "name_en":  "Thymine",
+                            "container":  "flask",
+                            "color":  4289331407,
+                            "smiles":  "O=C1NC=C(C)C(=O)N1",
+                            "abbreviation":  "T",
+                            "category":  "base"
+                        },
                        {
                            "id":  "atp",
                            "name_zn":  "三磷酸腺苷",

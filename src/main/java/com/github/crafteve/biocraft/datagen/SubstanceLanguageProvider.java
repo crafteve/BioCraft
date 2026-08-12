@@ -48,6 +48,7 @@ public class SubstanceLanguageProvider implements DataProvider {
     public CompletableFuture<?> run(CachedOutput cachedOutput) {
         addConfigTranslations();
         addTabTranslations();
+        addMachineTranslations();
         addItemTranslations();
 
         JsonObject lang = new JsonObject();
@@ -73,12 +74,43 @@ public class SubstanceLanguageProvider implements DataProvider {
         boolean zh = "zh_cn".equals(language);
         translations.put("itemGroup.biocraft.molecules",
                 zh ? "生物工艺 · 分子" : "BioCraft: Molecules");
+        translations.put("itemGroup.biocraft.machines",
+                zh ? "生物工艺 · 机器" : "BioCraft: Machines");
         translations.put("tooltip.biocraft.molar_mass",
                 zh ? "摩尔质量 %s g/mol" : "Molar Mass %s g/mol");
         translations.put("tooltip.biocraft.smiles_error",
                 zh ? "§8结构数据解析失败" : "§8Structure data parse failed");
         translations.put("tooltip.biocraft.show_structure",
                 zh ? "按住 Shift 查看结构式" : "Hold Shift to view structure");
+        translations.put("tooltip.biocraft.sequence",
+                zh ? "序列: %s" : "Sequence: %s");
+    }
+
+    /**
+     * 添加机器方块、GUI 与合成状态文案翻译
+     */
+    private void addMachineTranslations() {
+        boolean zh = "zh_cn".equals(language);
+        translations.put("block.biocraft.dna_encoder",
+                zh ? "DNA 编码器" : "DNA Encoder");
+        translations.put("item.biocraft.dna_template",
+                zh ? "DNA 模板" : "DNA Template");
+        translations.put("gui.biocraft.synthesize",
+                zh ? "合成" : "Synthesize");
+        translations.put("gui.biocraft.sequence_label",
+                zh ? "DNA 序列" : "DNA Sequence");
+        translations.put("gui.biocraft.status.idle",
+                zh ? "输入序列后点击合成" : "Type a sequence and click Synthesize");
+        translations.put("gui.biocraft.status.success",
+                zh ? "合成成功" : "Synthesis successful");
+        translations.put("gui.biocraft.status.empty_sequence",
+                zh ? "序列为空" : "Sequence is empty");
+        translations.put("gui.biocraft.status.invalid_sequence",
+                zh ? "序列含非法字符" : "Sequence contains invalid characters");
+        translations.put("gui.biocraft.status.insufficient_base",
+                zh ? "碱基不足" : "Insufficient bases");
+        translations.put("gui.biocraft.status.output_full",
+                zh ? "输出槽已满" : "Output slot is full");
     }
 
     /**
