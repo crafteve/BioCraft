@@ -92,8 +92,8 @@ public class DNAEncoderBlockEntity extends MachineBlockEntity {
     /**
      * 容器内容变化时尝试吸收碱基进缓冲池（服务端）
      * <p>
-     * 吸收语义：碱基槽中的物品属于对应碱基时，全部数量并入缓冲池（截断到上限），
-     * 槽位随即清空——槽位只是"投料口"，库存一律以缓冲池为准
+     * 吸收语义：碱基槽中的物品属于对应碱基时，尽可能并入缓冲池（截断到上限），
+     * 吸收不完的剩余部分留在槽位——缓冲池满时槽位保持原样，绝不吞掉物品
      * <p>
      * 仅在服务端执行：客户端容器是同步副本，客户端执行会导致与服务端分叉
      * （客户端改动会被服务端同步覆盖）；吸收内部修改容器会递归触发本方法，
@@ -110,12 +110,15 @@ public class DNAEncoderBlockEntity extends MachineBlockEntity {
                 if (stack.isEmpty() || !isBaseForSlot(slot, stack)) {
                     continue;
                 }
-                int count = Math.min(stack.getCount(), MAX_BUFFER - buffer[slot]);
-                if (count > 0) {
-                    buffer[slot] += count;
+                // 可吸收数量 = 槽内数量与缓冲剩余空间的较小值；满时为零，槽位不动
+                int absorb = Math.min(stack.getCount(), MAX_BUFFER - buffer[slot]);
+                if (absorb <= 0) {
+                    continue;
                 }
-                // 吸收完清空槽位（含达到上限的情况，多余部分丢弃）
-                inventory.setItem(slot, ItemStack.EMPTY);
+                buffer[slot] += absorb;
+                stack.shrink(absorb);
+                // 剩余部分留在槽位（shrink 后为空栈时放回空栈以触发槽位刷新）
+                inventory.setItem(slot, stack);
             }
         } finally {
             absorbing = false;

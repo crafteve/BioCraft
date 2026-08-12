@@ -14,8 +14,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.neoforged.neoforge.network.PacketDistributor;
 
-import java.util.List;
-
 /**
  * DNA 编码器屏幕（缓冲池版 v2）
  * <p>
@@ -157,32 +155,44 @@ public class DNAEncoderScreen extends AbstractContainerScreen<DNAEncoderMenu> {
     }
 
     /**
-     * 渲染入口：背景 + 槽位物品 + 文本 + 进度条 tooltip
+     * 渲染入口：背景 + 槽位物品 + 文本 + 进度条悬停提示
      * <p>
-     * 悬停提示改用 1.21.1 官方延迟 tooltip 机制（Screen.renderWithTooltip）：
-     * 在 render 中检测鼠标位于进度条区域时，向 setTooltipForNextRenderPass
-     * 注册提示内容，由 Minecraft 渲染循环在 render 之后统一绘制——
-     * 这是 vanilla 玩家 tooltip 的实现路径，不依赖 AbstractContainerScreen
-     * 未被调用的 renderTooltip 钩子，保证必然显示
+     * 悬停提示采用自绘方案（fill 背景 + drawString 文字）：
+     * 经字节码逆向确认，NeoForge 1.21.1 的容器渲染链中多个官方 tooltip
+     * 机制均不可靠——AbstractContainerScreen.render 不调用 renderTooltip
+     * 钩子（render 内联实现无该调用），renderWithTooltip 的延迟 tooltip
+     * 机制实测也未显示，故直接用最基础的 GUI 绘制 API 自绘提示框，
+     * 与本 GUI 的进度条填充（fill）同一渲染管线，必然可见
      *
      * @param graphics    绘制上下文
-     * @param mouseX      鼠标 X（屏幕坐标）
-     * @param mouseY      鼠标 Y（屏幕坐标）
+     * @param mouseX      鼠标 X（屏幕坐标，GUI 缩放后）
+     * @param mouseY      鼠标 Y（屏幕坐标，GUI 缩放后）
      * @param partialTick 部分 tick
      */
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
 
-        // 悬停提示：鼠标位于进度条区域内时注册延迟 tooltip（显示缓冲库存）
+        // 悬停提示：鼠标位于进度条区域内时自绘"碱基: 库存/上限"提示框
         for (int i = 0; i < 4; i++) {
             int x1 = this.leftPos + BAR_X[i];
             int y1 = this.topPos + BAR_Y;
             if (mouseX >= x1 && mouseX < x1 + BAR_W && mouseY >= y1 && mouseY < y1 + BAR_H) {
-                this.setTooltipForNextRenderPass(List.of(
-                        Component.literal(BASE_CHARS.charAt(i) + ": "
-                                + this.menu.getBuffer(i) + "/" + DNAEncoderBlockEntity.MAX_BUFFER)
-                                .getVisualOrderText()));
+                String text = BASE_CHARS.charAt(i) + ": "
+                        + this.menu.getBuffer(i) + "/" + DNAEncoderBlockEntity.MAX_BUFFER;
+                int textWidth = this.font.width(text);
+                // 提示框锚点：鼠标右下方偏移，超出 GUI 区域时翻转到左侧
+                int tx = mouseX + 12;
+                int ty = mouseY + 12;
+                if (tx + textWidth + 6 > this.width) {
+                    tx = mouseX - textWidth - 12;
+                }
+                if (ty + 11 > this.height) {
+                    ty = mouseY - 14;
+                }
+                // 背景（深紫黑，接近原版 tooltip 底色）+ 文字
+                graphics.fill(tx - 3, ty - 3, tx + textWidth + 3, ty + 9, 0xF0100010);
+                graphics.drawString(this.font, text, tx, ty, 0xFFFFFFFF, false);
                 return;
             }
         }
