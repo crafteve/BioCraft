@@ -77,6 +77,8 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "摩尔质量 %s g/mol" : "Molar Mass %s g/mol");
         translations.put("tooltip.biocraft.smiles_error",
                 zh ? "§8结构数据解析失败" : "§8Structure data parse failed");
+        translations.put("tooltip.biocraft.show_structure",
+                zh ? "按住 Shift 查看结构式" : "Hold Shift to view structure");
     }
 
     /**
