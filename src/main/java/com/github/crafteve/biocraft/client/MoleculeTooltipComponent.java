@@ -12,10 +12,10 @@ import net.minecraft.world.inventory.tooltip.TooltipComponent;
  * vanilla 的 ClientTooltipComponent.create() 通过 instanceof 检查直接使用本组件，
  * 无需额外的 common/client 双层包装
  * <p>
- * 渲染流程：从 MoleculeTextureCache 获取缓存的分子图，
- * 先 blit 键线骨架纹理，再在杂原子位置用 MC 像素字体叠加元素符号，
- * 图片顶部绘制半透明分隔线，与上方文本行形成视觉分区；
- * 复杂分子（重原子 &gt; 150）或解析失败时降级为灰色提示行
+ * 渲染流程：从 MoleculeTextureCache 获取缓存的分子图（键线与杂原子符号
+ * 均已绘制进纹理），整图 blit 到 tooltip，顶部绘制半透明分隔线，
+ * 与上方文本行形成视觉分区；复杂分子（重原子 &gt; 150）或解析失败时
+ * 降级为灰色提示行
  *
  * @param smiles SMILES 结构式
  */
@@ -70,9 +70,14 @@ public record MoleculeTooltipComponent(String smiles) implements TooltipComponen
             return;
         }
 
-        // 结构图卡片：CDK 直出的白底图片 1:1 绘制
-        // （CDK 渲染已按目标尺寸输出，纹理尺寸即显示尺寸）
-        guiGraphics.blit(image.texture(), x, y + 2, 0, 0,
-                image.width(), image.height(), image.width(), image.height());
+        // 键线骨架：完整 4x 超采样纹理线性缩放到逻辑尺寸显示
+        // 必须用 9 参数 blit 重载：采样区域（uWidth/vHeight）取整个纹理，
+        // 目标尺寸（width/height）为逻辑尺寸；
+        // 若用 6 参数重载则 w/h 同时决定采样区域，只会显示纹理左上角局部导致线缺失/错位
+        // 杂原子符号已绘制进纹理（随分子等比缩放），此处不再叠加 MC 字体
+        int pixelWidth = image.width() * MoleculeTextureCache.SUPERSAMPLE;
+        int pixelHeight = image.height() * MoleculeTextureCache.SUPERSAMPLE;
+        guiGraphics.blit(image.texture(), x, y + 2, image.width(), image.height(),
+                0, 0, pixelWidth, pixelHeight, pixelWidth, pixelHeight);
     }
 }
