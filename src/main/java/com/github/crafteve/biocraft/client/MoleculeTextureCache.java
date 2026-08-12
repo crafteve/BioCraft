@@ -244,8 +244,31 @@ public final class MoleculeTextureCache {
             }
         }
 
-        // 芳香键连通分量的环质心（供 Kekulé 双键朝环内侧偏移）
+        // 环键连通分量的环质心（供环内双键朝内侧偏移）
         Map<IBond, double[]> ringCenters = ringCenters(molecule, pixelPositions);
+
+        // 竖长分子（高 > 宽）旋转 90° 横放，适配 tooltip 布局：
+        // tooltip 横向空间通常比纵向充裕（纵向受屏幕高度与鼠标位置限制）。
+        // 采用"坐标旋转 + 重绘"而非像素旋转，使元素符号保持竖直（仅位置随旋转移动）
+        if (height > width) {
+            // 顺时针旋转坐标：old(x,y) -> new(height-1-y, x)（用旋转前的画布高度）
+            int oldHeight = height;
+            for (Map.Entry<IAtom, double[]> entry : pixelPositions.entrySet()) {
+                double[] pos = entry.getValue();
+                entry.setValue(new double[]{oldHeight - 1 - pos[1], pos[0]});
+            }
+            for (Map.Entry<IBond, double[]> entry : ringCenters.entrySet()) {
+                double[] c = entry.getValue();
+                entry.setValue(new double[]{oldHeight - 1 - c[1], c[0]});
+            }
+            // 交换尺寸
+            int tmp = width;
+            width = height;
+            height = tmp;
+            tmp = pixelWidth;
+            pixelWidth = pixelHeight;
+            pixelHeight = tmp;
+        }
 
         // Java2D 抗锯齿平滑绘制键线骨架（超采样画布）
         BufferedImage buffered = new BufferedImage(pixelWidth, pixelHeight, BufferedImage.TYPE_INT_ARGB);
@@ -292,8 +315,8 @@ public final class MoleculeTextureCache {
                     p2 = shrink(p2, p1, labelInsets.get(end));
                 }
                 IBond.Order order = bond.getOrder();
-                if (bond.isAromatic() && order == IBond.Order.DOUBLE) {
-                    // CDK Kekulize 标记的环内双键（isAromatic 仍为 true），画在环内侧
+                if (ringCenters.containsKey(bond) && order == IBond.Order.DOUBLE) {
+                    // 环上双键（芳香环 Kekulé 或显式 Kekulé 环）统一画在环内侧
                     drawInwardDouble(g, p1, p2, ringCenters.get(bond));
                 } else if (order == IBond.Order.DOUBLE) {
                     // 双键偏移方向远离杂原子标签（如 C=O 双键画在碳侧），避免与符号重叠
@@ -310,19 +333,6 @@ public final class MoleculeTextureCache {
             drawSymbols(g, labelTexts, pixelPositions);
         } finally {
             g.dispose();
-        }
-
-        // 竖长分子（高 > 宽）顺时针旋转 90° 横放，适配 tooltip 布局：
-        // tooltip 横向空间通常比纵向充裕（纵向受屏幕高度与鼠标位置限制），
-        // 旋转后高度缩小、宽度增大，整体更容易完整放下
-        if (height > width) {
-            buffered = rotateClockwise(buffered);
-            int tmp = width;
-            width = height;
-            height = tmp;
-            tmp = pixelWidth;
-            pixelWidth = pixelHeight;
-            pixelHeight = tmp;
         }
 
         // 转换 BufferedImage（ARGB）-> NativeImage
@@ -547,23 +557,30 @@ public final class MoleculeTextureCache {
     }
 
     /**
-     * 计算芳香键连通分量的环质心（供 Kekulé 双键朝内侧偏移）
+     * 计算环键连通分量的环质心（供环内双键朝内侧偏移）
+     * <p>
+     * 环键判定采用图论定义：移除该键后两端点仍连通。
+     * 覆盖芳香环（CDK Kekulize 后 isAromatic 保留）与显式 Kekulé 写法的
+     * 非芳香环（如胞嘧啶/尿嘧啶的显式单双键环）
      *
      * @param molecule       分子
      * @param pixelPositions 原子坐标表
-     * @return 芳香键 -> 所属环质心
+     * @return 环键 -> 所属环分量质心
      */
     private static Map<IBond, double[]> ringCenters(IAtomContainer molecule, Map<IAtom, double[]> pixelPositions) {
         Map<IBond, double[]> centers = new HashMap<>();
-        List<IBond> aromatic = new ArrayList<>();
+        List<IBond> ringBonds = new ArrayList<>();
         for (IBond bond : molecule.bonds()) {
-            if (bond.isAromatic()) {
-                aromatic.add(bond);
+            if (!isHeavy(bond.getBegin()) || !isHeavy(bond.getEnd())) {
+                continue;
+            }
+            if (isRingBond(molecule, bond)) {
+                ringBonds.add(bond);
             }
         }
         // 按共享原子分组（连通分量）
         Set<IBond> visited = new HashSet<>();
-        for (IBond start : aromatic) {
+        for (IBond start : ringBonds) {
             if (!visited.add(start)) {
                 continue;
             }
@@ -573,7 +590,7 @@ public final class MoleculeTextureCache {
             while (!queue.isEmpty()) {
                 IBond bond = queue.poll();
                 component.add(bond);
-                for (IBond neighbor : aromatic) {
+                for (IBond neighbor : ringBonds) {
                     // 共享端点原子判定相邻
                     boolean sharesAtom = neighbor.getBegin() == bond.getBegin()
                             || neighbor.getBegin() == bond.getEnd()
@@ -610,6 +627,46 @@ public final class MoleculeTextureCache {
     }
 
     /**
+     * 图论环键判定：移除该键后两端点仍连通
+     * <p>
+     * 用于识别所有环上键（芳香环与显式 Kekulé 环），
+     * 使环上双键统一向环心偏移
+     *
+     * @param molecule 分子
+     * @param target   待判定的键
+     * @return true 表示该键属于某个环
+     */
+    private static boolean isRingBond(IAtomContainer molecule, IBond target) {
+        IAtom start = target.getBegin();
+        IAtom goal = target.getEnd();
+        Set<IAtom> visited = new HashSet<>();
+        ArrayDeque<IAtom> queue = new ArrayDeque<>();
+        visited.add(start);
+        queue.add(start);
+        while (!queue.isEmpty()) {
+            IAtom cur = queue.poll();
+            if (cur == goal) {
+                return true;
+            }
+            for (IBond bond : molecule.bonds()) {
+                if (bond == target) {
+                    continue;
+                }
+                IAtom next = null;
+                if (bond.getBegin() == cur) {
+                    next = bond.getEnd();
+                } else if (bond.getEnd() == cur) {
+                    next = bond.getBegin();
+                }
+                if (next != null && visited.add(next)) {
+                    queue.add(next);
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * 绘制三键：主键 + 两侧副键
      *
      * @param g    Graphics2D 上下文
@@ -636,27 +693,6 @@ public final class MoleculeTextureCache {
         double dy = toward[1] - pos[1];
         double length = Math.max(1e-6, Math.hypot(dx, dy));
         return new double[]{pos[0] + dx / length * inset, pos[1] + dy / length * inset};
-    }
-
-    /**
-     * 图像顺时针旋转 90°
-     * <p>
-     * 像素级旋转（不重新布局），键线/符号/底块整体随图像旋转，
-     * 映射关系：old(x,y) -> new(h-1-y, x)
-     *
-     * @param src 原图像
-     * @return 旋转后的图像（宽高互换）
-     */
-    private static BufferedImage rotateClockwise(BufferedImage src) {
-        int w = src.getWidth();
-        int h = src.getHeight();
-        BufferedImage dst = new BufferedImage(h, w, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                dst.setRGB(h - 1 - y, x, src.getRGB(x, y));
-            }
-        }
-        return dst;
     }
 
     /**
