@@ -97,12 +97,11 @@ public class MachineModelProvider implements DataProvider {
         textures.addProperty("bottom", bottomTexture.toString());
         blockModelJson.add("textures", textures);
 
-        // 方块物品模型：item/generated 引用顶面贴图（手持视角看的是设备面板）
+        // 方块物品模型：parent 直接指向方块模型——物品栏/手持时以 3D 视角
+        // 渲染立体方块（vanilla blockitem 统一风格，与石头/草方块一致），
+        // 纹理由方块模型自带，无需在此重复声明
         JsonObject itemModel = new JsonObject();
-        itemModel.addProperty("parent", "minecraft:item/generated");
-        JsonObject itemTextures = new JsonObject();
-        itemTextures.addProperty("layer0", topTexture.toString());
-        itemModel.add("textures", itemTextures);
+        itemModel.addProperty("parent", blockModel.toString());
 
         outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/blockstates/" + blockName + ".json"), blockState);
         outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/models/block/" + blockName + ".json"), blockModelJson);
