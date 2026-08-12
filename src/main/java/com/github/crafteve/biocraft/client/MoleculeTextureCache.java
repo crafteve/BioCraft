@@ -312,6 +312,19 @@ public final class MoleculeTextureCache {
             g.dispose();
         }
 
+        // 竖长分子（高 > 宽）顺时针旋转 90° 横放，适配 tooltip 布局：
+        // tooltip 横向空间通常比纵向充裕（纵向受屏幕高度与鼠标位置限制），
+        // 旋转后高度缩小、宽度增大，整体更容易完整放下
+        if (height > width) {
+            buffered = rotateClockwise(buffered);
+            int tmp = width;
+            width = height;
+            height = tmp;
+            tmp = pixelWidth;
+            pixelWidth = pixelHeight;
+            pixelHeight = tmp;
+        }
+
         // 转换 BufferedImage（ARGB）-> NativeImage
         // 字节序：NativeImage.setPixelRGBA 期望 ABGR（alpha 最高位，小端字节序 [R,G,B,A]）；
         // 此前误用 RGBA 序导致半透明边缘偏色（未预乘时泛蓝、预乘后泛红）
@@ -459,29 +472,44 @@ public final class MoleculeTextureCache {
     private static void drawInwardDouble(Graphics2D g, double[] from, double[] to, double[] ringCenter) {
         double[] inward = inwardDirection(from, to, ringCenter);
         drawLine(g, from, to);
-        drawLine(g, offset(from, inward, DOUBLE_BOND_OFFSET * 2), offset(to, inward, DOUBLE_BOND_OFFSET * 2));
+        // 内侧偏移线两端各缩短 2px（化学期刊画法：环内双键的内侧线较短）
+        double shorten = 2.0;
+        double[] inFrom = shrink(from, to, shorten);
+        double[] inTo = shrink(to, from, shorten);
+        drawLine(g, offset(inFrom, inward, DOUBLE_BOND_OFFSET * 2), offset(inTo, inward, DOUBLE_BOND_OFFSET * 2));
     }
 
     /**
      * 计算朝向环质心的内侧方向（单位向量）
+     * <p>
+     * 方法：把"键中点指向环心"的向量分解为平行键方向与垂直键方向两个分量，
+     * 垂直分量恒指向环心一侧（无需正负号判断），
+     * 对五元环/融合环等法向与环心方向接近垂直的边数值稳定
      *
      * @param from       键起点
      * @param to         键终点
      * @param ringCenter 环质心
-     * @return 朝向环心的单位向量（与键轴垂直的分量方向）
+     * @return 指向环心一侧的垂直单位向量
      */
     private static double[] inwardDirection(double[] from, double[] to, double[] ringCenter) {
-        double[] normal = normalVector(from, to, 1);
+        // 键方向单位向量
+        double bx = to[0] - from[0];
+        double by = to[1] - from[1];
+        double blen = Math.max(1e-6, Math.hypot(bx, by));
+        bx /= blen;
+        by /= blen;
+        // 键中点 -> 环心的向量
         double midX = (from[0] + to[0]) / 2;
         double midY = (from[1] + to[1]) / 2;
-        // 选择法向中指向环心的一侧
-        double toCenterX = ringCenter[0] - midX;
-        double toCenterY = ringCenter[1] - midY;
-        if (normal[0] * toCenterX + normal[1] * toCenterY < 0) {
-            normal[0] = -normal[0];
-            normal[1] = -normal[1];
-        }
-        return normal;
+        double cx = ringCenter[0] - midX;
+        double cy = ringCenter[1] - midY;
+        // 朝环心向量在键方向上的投影系数
+        double proj = cx * bx + cy * by;
+        // 垂直分量（恒指向环心一侧）
+        double vx = cx - proj * bx;
+        double vy = cy - proj * by;
+        double vlen = Math.max(1e-9, Math.hypot(vx, vy));
+        return new double[]{vx / vlen, vy / vlen};
     }
 
     /**
@@ -608,6 +636,27 @@ public final class MoleculeTextureCache {
         double dy = toward[1] - pos[1];
         double length = Math.max(1e-6, Math.hypot(dx, dy));
         return new double[]{pos[0] + dx / length * inset, pos[1] + dy / length * inset};
+    }
+
+    /**
+     * 图像顺时针旋转 90°
+     * <p>
+     * 像素级旋转（不重新布局），键线/符号/底块整体随图像旋转，
+     * 映射关系：old(x,y) -> new(h-1-y, x)
+     *
+     * @param src 原图像
+     * @return 旋转后的图像（宽高互换）
+     */
+    private static BufferedImage rotateClockwise(BufferedImage src) {
+        int w = src.getWidth();
+        int h = src.getHeight();
+        BufferedImage dst = new BufferedImage(h, w, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                dst.setRGB(h - 1 - y, x, src.getRGB(x, y));
+            }
+        }
+        return dst;
     }
 
     /**
