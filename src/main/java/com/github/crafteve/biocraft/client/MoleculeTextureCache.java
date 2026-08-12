@@ -19,6 +19,7 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,10 +33,10 @@ import java.util.Set;
  * 自绘管线：CDK 仅负责 SMILES 解析与 2D 坐标生成，图像由本类以
  * 化学期刊风格绘制（Java2D 抗锯齿平滑细键线，圆头端点）：
  * <ul>
- *   <li>单键：细抗锯齿直线（显示线宽 1.2px）</li>
+ *   <li>单键：细抗锯齿直线（显示线宽 1.0px）</li>
  *   <li>双键：法向偏移的平行双线</li>
  *   <li>三键：主键 + 两侧副键</li>
- *   <li>芳香键：虚线</li>
+ *   <li>芳香键：按 Kekulé 风格在环上交替标记单/双键（非虚线）</li>
  *   <li>碳不标符号、氢不绘制（键线式约定）</li>
  *   <li>杂原子端键线向内缩进，避免线与元素符号重叠</li>
  * </ul>
@@ -54,16 +55,16 @@ public final class MoleculeTextureCache {
     /** 超采样倍率：以 4x 分辨率绘制后线性缩小显示，细线平滑无锯齿、不错位 */
     public static final int SUPERSAMPLE = 4;
 
-    /** 目标最大高度（px，逻辑尺寸） */
-    private static final int TARGET_HEIGHT = 56;
-    /** 目标最大宽度（px，逻辑尺寸） */
-    private static final int MAX_WIDTH = 128;
+    /** 目标最大高度（px，逻辑尺寸），大分子允许更高画布以免压缩糊成一团 */
+    private static final int TARGET_HEIGHT = 140;
+    /** 目标最大宽度（px，逻辑尺寸），大分子允许更宽画布以免压缩糊成一团 */
+    private static final int MAX_WIDTH = 256;
     /** 画布四周留白（px，逻辑尺寸），为原子符号与键线厚度预留空间 */
     private static final int PADDING = 12;
     /** 目标平均键长（px，逻辑尺寸），决定分子的显示大小 */
     private static final double BOND_LENGTH_PX = 10.0;
     /** 键线显示宽度（px，逻辑尺寸） */
-    private static final float BOND_STROKE_WIDTH = 1.2f;
+    private static final float BOND_STROKE_WIDTH = 1.0f;
     /** 双键平行线偏移距离（px，逻辑尺寸） */
     private static final double DOUBLE_BOND_OFFSET = 1.4;
     /** 三键副键偏移距离（px，逻辑尺寸） */
@@ -228,6 +229,9 @@ public final class MoleculeTextureCache {
             g.setColor(BOND_COLOR);
             g.setStroke(createStroke(null));
 
+            // 芳香键按 Kekulé 风格交替标记单/双键（苯环画单双交替而非虚线）
+            Map<IBond, Boolean> kekule = kekulizeAromaticBonds(molecule);
+
             for (IBond bond : molecule.bonds()) {
                 IAtom begin = bond.getBegin();
                 IAtom end = bond.getEnd();
@@ -245,7 +249,12 @@ public final class MoleculeTextureCache {
                 }
                 IBond.Order order = bond.getOrder();
                 if (bond.isAromatic()) {
-                    drawDashedLine(g, p1, p2);
+                    // 交替结果：true 画双键、false 画单键
+                    if (Boolean.TRUE.equals(kekule.get(bond))) {
+                        drawDoubleLine(g, p1, p2);
+                    } else {
+                        drawLine(g, p1, p2);
+                    }
                 } else if (order == IBond.Order.DOUBLE) {
                     drawDoubleLine(g, p1, p2);
                 } else if (order == IBond.Order.TRIPLE) {
@@ -293,6 +302,61 @@ public final class MoleculeTextureCache {
                 .register("biocraft/molecule_" + Math.abs(smiles.hashCode()), texture);
 
         return new MoleculeImage(location, width, height, labels);
+    }
+
+    /**
+     * 为芳香键集合生成 Kekulé 交替模式
+     * <p>
+     * 化学结构式惯例：苯环等芳香环画成单双键交替（Kekulé 结构）而非虚线。
+     * 算法：从每个未处理的芳香键开始 BFS，沿共享原子的相邻芳香键交替标记
+     * 双键（true）/单键（false），形成交替模式
+     *
+     * @param molecule 分子（含芳香键）
+     * @return 芳香键 -> 是否画双键 的映射
+     */
+    private static Map<IBond, Boolean> kekulizeAromaticBonds(IAtomContainer molecule) {
+        List<IBond> aromatic = new ArrayList<>();
+        for (IBond bond : molecule.bonds()) {
+            if (bond.isAromatic()) {
+                aromatic.add(bond);
+            }
+        }
+        Map<IBond, Boolean> kekule = new HashMap<>();
+        for (IBond start : aromatic) {
+            if (kekule.containsKey(start)) {
+                continue;
+            }
+            ArrayDeque<IBond> queue = new ArrayDeque<>();
+            queue.add(start);
+            kekule.put(start, true);
+            while (!queue.isEmpty()) {
+                IBond bond = queue.poll();
+                boolean wantDouble = kekule.get(bond);
+                for (IBond neighbor : aromatic) {
+                    if (neighbor == bond || kekule.containsKey(neighbor)) {
+                        continue;
+                    }
+                    // 共享原子判定相邻
+                    if (sharesAtom(neighbor, bond)) {
+                        kekule.put(neighbor, !wantDouble);
+                        queue.add(neighbor);
+                    }
+                }
+            }
+        }
+        return kekule;
+    }
+
+    /**
+     * 判断两个键是否共享端点原子（用于芳香键相邻判定）
+     *
+     * @param a 键 a
+     * @param b 键 b
+     * @return true 表示共享端点原子
+     */
+    private static boolean sharesAtom(IBond a, IBond b) {
+        return a.getBegin() == b.getBegin() || a.getBegin() == b.getEnd()
+                || a.getEnd() == b.getBegin() || a.getEnd() == b.getEnd();
     }
 
     /**
@@ -350,19 +414,6 @@ public final class MoleculeTextureCache {
         double[] normal = normalVector(from, to, TRIPLE_BOND_OFFSET);
         drawLine(g, offset(from, normal, -1), offset(to, normal, -1));
         drawLine(g, offset(from, normal, 1), offset(to, normal, 1));
-    }
-
-    /**
-     * 绘制芳香键：沿键方向的虚线
-     *
-     * @param g    Graphics2D 上下文
-     * @param from 起点像素（逻辑坐标）
-     * @param to   终点像素（逻辑坐标）
-     */
-    private static void drawDashedLine(Graphics2D g, double[] from, double[] to) {
-        g.setStroke(createStroke(new float[]{5f, 4f}));
-        drawLine(g, from, to);
-        g.setStroke(createStroke(null));
     }
 
     /**
