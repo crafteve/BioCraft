@@ -46,8 +46,10 @@
 
 **当前进度**（2026-08-12）：
 - ✅ 物品地基第一阶段完成：62 个分子物品（20 氨基酸/13 离子/5 原子/2 无机物/4 碱基/4 NTP/3 辅酶/11 糖酵解）由 `substances.json` 数据表驱动注册，datagen 自动生成模型/语言/贴图
-- ✅ Tooltip 分子图渲染完成：CDK 解析 SMILES → 自绘 MC 风格键线式结构图 + 黄色分子式（Hill 排序 Unicode 下标）+ 类别徽章 + 摩尔质量
-- ⏳ 待实测：runClient hover 视觉效果尚未人工确认（结构图布局/字体/颜色）
+- ✅ Tooltip 分子图渲染完成（自绘管线）：CDK 负责解析/2D 坐标/Kekulize（`Kekulization`），渲染层自绘——4x 超采样抗锯齿细键线（0.8px）、Kekulé 单双交替、环内双键朝环心偏移、杂原子符号绘制进纹理（深色底块截断键线、随分子等比缩放、显式 H 如 OH/NH₂）、竖长分子自动旋转 90° 横放、标签碰撞推开
+- ✅ Tooltip 信息行：黄色分子式（Hill 排序 Unicode 下标）+ 类别徽章 + 摩尔质量；结构式改为**按住 Shift 展示**，未按时显示提示行；离子/原子/无机物不展示结构式
+- ✅ 图标缩写标注：`IItemDecorator` 在物品图标左上角绘制缩写（白字黑阴影双写、缩放 0.55、z 提升 200 层）；缩写数据使用 Unicode 上下标（H⁺/Ca²⁺/NH₄⁺/H₂O/NAD⁺，糖酵解编号如 G6P 保持原样）
+- ✅ tooltip 布局：手持物品时创意标签页标题（蓝色）自动移至 tooltip 末尾（`MoleculeTooltipLayout`）
 - ⏳ 待开发：TNT 爆炸转化、熔炉产 ATP、反应引擎、三台原始机器
 
 ### 1.6 开发流程
@@ -93,7 +95,7 @@
 ### 2.3 资源配置
 
 - `src/main/templates/META-INF/neoforge.mods.toml` — 含 `${mod_id}` 等占位符，由 `generateModMetadata` 展开到 `build/generated/sources/modMetadata`，**不要直接改生成产物**
-- `src/main/resources/assets/biocraft/lang/` — 目前只有模板 `en_us.json`，缺 `zh_cn.json`
+- `src/main/resources/assets/biocraft/lang/` — 语言文件由 datagen 生成（src/generated），源目录无手写 lang；物品名/类别/标签页/提示文案均来自 `SubstanceLanguageProvider`
 
 ### 2.4 Java 源码结构
 
@@ -110,13 +112,15 @@ com.github.crafteve.biocraft
 │   ├── ModItems.java             # 读 substances.json → 动态注册 62 个 MoleculeItem
 │   └── ModCreativeTabs.java      # 多标签页架构，现有"生物工艺 · 分子"页
 ├── item/
-│   ├── MoleculeItem.java         # 分子基类：SMILES/缩写/染色/类别 + tooltip 布局
+│   ├── MoleculeItem.java         # 分子基类：SMILES/缩写/染色/类别 + tooltip 布局（Shift 展示结构式）
 │   ├── MoleculeCategory.java     # 8 类分子类别枚举（主题色）
 │   ├── MoleculeDataCalculator.java # CDK 计算分子式（Hill 排序）与摩尔质量，缓存+防御降级
-│   └── MoleculeColors.java       # ItemColor 染色 + TooltipComponent 工厂注册（Dist.CLIENT）
+│   └── MoleculeColors.java       # ItemColor 染色 + TooltipComponent 工厂 + 装饰器注册（Dist.CLIENT）
 ├── client/
-│   ├── MoleculeTextureCache.java # CDK 解析+2D 坐标 → 自绘键线骨架 → DynamicTexture 缓存
-│   └── MoleculeTooltipComponent.java # TooltipComponent+ClientTooltipComponent：blit 图+MC 字体原子符号
+│   ├── MoleculeTextureCache.java # CDK 解析+2D 坐标+Kekulize → 自绘键线骨架（4x 超采样/环内双键/旋转/碰撞）→ DynamicTexture 缓存
+│   ├── MoleculeTooltipComponent.java # TooltipComponent+ClientTooltipComponent：blit 结构图
+│   ├── MoleculeTooltipLayout.java # 标签页标题移置 tooltip 末尾（GatherComponents 事件）
+│   └── MoleculeItemDecorator.java # 图标左上角缩写标注（IItemDecorator，白字黑阴影、z=200）
 ├── datagen/
 │   ├── ModDataGen.java           # GatherDataEvent 装配
 │   ├── SubstanceData.java        # 物质表读取工具（classpath）
@@ -144,7 +148,7 @@ com.github.crafteve.biocraft
 
 ### 2.6 CDK 依赖架构与已知注意事项（欠账）
 
-**依赖架构**（build.gradle）：CDK 化学库（`org.openscience.cdk:2.9`，8 个分拆模块）通过 `cdkDeps` 配置解析，由 `mergeCdkJar` 任务合并为单个 `build/cdk/cdk-all.jar`，随后三处引用同一产物：
+**依赖架构**（build.gradle）：CDK 化学库（`org.openscience.cdk:2.9`，9 个分拆模块：silent/smiles/sdg/interfaces/data/atomtype/standard/formula/depict）通过 `cdkDeps` 配置解析，由 `mergeCdkJar` 任务合并为单个 `build/cdk/cdk-all.jar`，随后三处引用同一产物：
 - `implementation` — 编译期
 - `additionalRuntimeClasspath` — dev 运行期（ModDevGradle 的 dev run 不包含 implementation 依赖）
 - `jarJar` — 发布打包（嵌入 mod jar 的 `META-INF/jarjar/`，玩家单 jar 可运行）
@@ -158,7 +162,11 @@ com.github.crafteve.biocraft
 4. **防御性降级**：`MoleculeDataCalculator` 解析失败返回 valid=false（tooltip 显示灰色提示），不抛异常——新增分子若写错 SMILES 不会崩游戏，但会显示"结构数据解析失败"
 5. **tooltip 组件注册**：自定义 TooltipComponent 必须经 `RegisterClientTooltipComponentFactoriesEvent` 注册（NeoForge 查表转换，非 instanceof 机制），遗漏会抛 Unknown TooltipComponent
 6. **进程残留**：runData/runClient 报错后可能残留 java 进程导致终端"卡住"，用 `--no-daemon` 运行可避免；残留进程任务管理器杀 java.exe
-7. **待实测**：tooltip 分子图视觉效果（结构图布局/杂原子字号/颜色）尚未人工确认，实测发现问题以 fix 提交
+7. **Kekulé 交替用 CDK `Kekulization`**：自研 BFS 交替对奇数环/融合环/酮基环有化学错误，已弃用（git 历史有）；环键判定用 `RingSearch`，勿改回自研
+8. **图标装饰器 z 层级**：IItemDecorator 绘制必须 `pose().translate(0,0,200)` 提升 z，否则被物品贴图覆盖（vanilla 堆叠数同款处理）
+9. **结构式按 Shift 展示**：`getTooltipImage` 用 `Screen.hasShiftDown()` 控制；离子/原子/无机物类别恒不展示
+10. **标签页标题移置**：vanilla 将标签页标题插入 tooltip index 1（物品名后），`MoleculeTooltipLayout` 遍历全列表匹配移动，勿只查首行
+11. **缩写上下标**：`substances.json` 的 abbreviation 使用 Unicode 上下标（H⁺/Ca²⁺/NH₄⁺/H₂O/NAD⁺），糖酵解编号（G6P/3PG）保持原样——新增离子/无机物缩写需按此惯例书写
 
 ## 第三章 编码与开发规范
 
