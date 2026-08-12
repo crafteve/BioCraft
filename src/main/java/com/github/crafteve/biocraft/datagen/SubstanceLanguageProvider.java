@@ -97,6 +97,10 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "DNA 模板" : "DNA Template");
         translations.put("gui.biocraft.synthesize",
                 zh ? "合成" : "Synthesize");
+        translations.put("gui.biocraft.button.promoter",
+                zh ? "启动子" : "Promoter");
+        translations.put("gui.biocraft.button.terminator",
+                zh ? "终止子" : "Terminator");
         translations.put("gui.biocraft.sequence_label",
                 zh ? "DNA 序列" : "DNA Sequence");
         translations.put("gui.biocraft.status.idle",

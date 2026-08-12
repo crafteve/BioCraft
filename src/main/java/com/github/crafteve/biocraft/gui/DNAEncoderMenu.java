@@ -18,21 +18,30 @@ import net.minecraft.world.item.ItemStack;
 /**
  * DNA 编码器菜单
  * <p>
- * 槽位布局（容器索引）：0=A 1=T 2=C 3=G（碱基输入，槽位限制对应碱基）
+ * 槽位布局（容器索引）：0=A 1=T 2=C 3=G（碱基吸收槽，槽位限制对应碱基）
  * 4=DNA模板输出（槽位限制仅可放入 dna_template），5-40=玩家背包
  * <p>
- * 同步机制：合成状态码经 ContainerData（1 个 int）每 tick 从服务端同步到客户端，
- * GUI 状态文本行按状态码显示"碱基不足/输出槽满"等提示；
- * DNA 编码器无进度条（即时合成），因此不需要进度数据
+ * 同步机制（ContainerData 5 个 int）：
+ * <ul>
+ *   <li>data[0..3]：四种碱基的缓冲池库存，驱动 GUI 进度条填充</li>
+ *   <li>data[4]：合成状态码，驱动 GUI 状态文本</li>
+ * </ul>
+ * 所有数据每 tick 由 broadcastChanges 从方块实体刷新后广播，
+ * 客户端无需额外网络包即可实时看到进度条与状态
  */
 public class DNAEncoderMenu extends AbstractContainerMenu {
-    /** 容器数据槽 0：合成状态码 */
-    private static final int DATA_STATUS = 0;
+    /** 容器数据槽 0-3：碱基缓冲池库存 */
+    public static final int DATA_BUFFER_A = 0;
+    public static final int DATA_BUFFER_T = 1;
+    public static final int DATA_BUFFER_C = 2;
+    public static final int DATA_BUFFER_G = 3;
+    /** 容器数据槽 4：合成状态码 */
+    public static final int DATA_STATUS = 4;
 
     /** 方块实体引用，菜单生命周期内保持存活（玩家与方块距离校验由 stillValid 保证） */
     private final DNAEncoderBlockEntity blockEntity;
 
-    /** 状态码容器数据，服务端写入、客户端每 tick 接收 */
+    /** 缓冲池与状态码容器数据，服务端写入、客户端每 tick 接收 */
     private final ContainerData data;
 
     /**
@@ -41,9 +50,9 @@ public class DNAEncoderMenu extends AbstractContainerMenu {
      * 从数据包读取方块位置，再按位置从世界中取回方块实体；
      * 方块已不存在时构造空容器菜单，避免崩溃
      *
-     * @param containerId 菜单容器编号
+     * @param containerId     菜单容器编号
      * @param playerInventory 玩家物品栏
-     * @param buffer      数据包缓冲（含 openMenu 时写入的 BlockPos）
+     * @param buffer          数据包缓冲（含 openMenu 时写入的 BlockPos）
      */
     public DNAEncoderMenu(int containerId, Inventory playerInventory, RegistryFriendlyByteBuf buffer) {
         this(containerId, playerInventory, findBlockEntity(playerInventory, buffer));
@@ -59,28 +68,28 @@ public class DNAEncoderMenu extends AbstractContainerMenu {
     public DNAEncoderMenu(int containerId, Inventory playerInventory, DNAEncoderBlockEntity blockEntity) {
         super(ModBlocks.DNA_ENCODER_MENU.get(), containerId);
         this.blockEntity = blockEntity;
-        this.data = new SimpleContainerData(1);
-        this.data.set(DATA_STATUS, blockEntity.getStatus().ordinal());
+        this.data = new SimpleContainerData(5);
+        refreshData();
         addDataSlots(data);
 
         Container container = blockEntity.getContainer();
 
-        // 碱基输入槽（0-3）：各槽位仅允许放入对应的碱基分子
-        addSlot(new RestrictedSlot(container, DNAEncoderBlockEntity.SLOT_BASE_A, 26, 44, ModItems.byId("adenine").get()));
-        addSlot(new RestrictedSlot(container, DNAEncoderBlockEntity.SLOT_BASE_T, 44, 44, ModItems.byId("thymine").get()));
-        addSlot(new RestrictedSlot(container, DNAEncoderBlockEntity.SLOT_BASE_C, 62, 44, ModItems.byId("cytosine").get()));
-        addSlot(new RestrictedSlot(container, DNAEncoderBlockEntity.SLOT_BASE_G, 80, 44, ModItems.byId("guanine").get()));
-        // 输出槽（4）：仅可放入 DNA模板
-        addSlot(new RestrictedSlot(container, DNAEncoderBlockEntity.SLOT_OUTPUT, 134, 44, ModItems.DNA_TEMPLATE.get()));
+        // 碱基吸收槽（0-3）：各槽位仅允许放入对应的碱基分子（y=106）
+        addSlot(new RestrictedSlot(container, DNAEncoderBlockEntity.SLOT_BASE_A, 26, 106, ModItems.byId("adenine").get()));
+        addSlot(new RestrictedSlot(container, DNAEncoderBlockEntity.SLOT_BASE_T, 44, 106, ModItems.byId("thymine").get()));
+        addSlot(new RestrictedSlot(container, DNAEncoderBlockEntity.SLOT_BASE_C, 62, 106, ModItems.byId("cytosine").get()));
+        addSlot(new RestrictedSlot(container, DNAEncoderBlockEntity.SLOT_BASE_G, 80, 106, ModItems.byId("guanine").get()));
+        // 输出槽（4）：仅可放入 DNA模板（合成按钮正下方）
+        addSlot(new RestrictedSlot(container, DNAEncoderBlockEntity.SLOT_OUTPUT, 134, 62, ModItems.DNA_TEMPLATE.get()));
 
-        // 玩家背包（5-40）：3×9 主背包 + 1×9 快捷栏
+        // 玩家背包（5-40）：3×9 主背包 + 1×9 快捷栏（y=130 起）
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInventory, col + row * 9 + 9, 8 + col * 18, 84 + row * 18));
+                addSlot(new Slot(playerInventory, col + row * 9 + 9, 8 + col * 18, 130 + row * 18));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, 8 + col * 18, 142));
+            addSlot(new Slot(playerInventory, col, 8 + col * 18, 184));
         }
     }
 
@@ -101,14 +110,25 @@ public class DNAEncoderMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 每 tick 从方块实体刷新状态码再广播
+     * 从方块实体刷新全部容器数据（缓冲池 + 状态码）
+     */
+    private void refreshData() {
+        this.data.set(DATA_BUFFER_A, blockEntity.getBuffer(0));
+        this.data.set(DATA_BUFFER_T, blockEntity.getBuffer(1));
+        this.data.set(DATA_BUFFER_C, blockEntity.getBuffer(2));
+        this.data.set(DATA_BUFFER_G, blockEntity.getBuffer(3));
+        this.data.set(DATA_STATUS, blockEntity.getStatus().ordinal());
+    }
+
+    /**
+     * 每 tick 从方块实体刷新数据再广播
      * <p>
-     * 合成结果由网络包触发（服务端执行），本方法保证客户端
-     * 在不额外发包的情况下也能在数 tick 内看到最新状态
+     * 吸收（槽位变化）与合成（网络包触发）都直接改方块实体字段，
+     * 本方法保证客户端在不额外发包的情况下数 tick 内看到最新进度条与状态
      */
     @Override
     public void broadcastChanges() {
-        this.data.set(DATA_STATUS, blockEntity.getStatus().ordinal());
+        refreshData();
         super.broadcastChanges();
     }
 
@@ -119,6 +139,16 @@ public class DNAEncoderMenu extends AbstractContainerMenu {
      */
     public DNAEncoderBlockEntity getBlockEntity() {
         return blockEntity;
+    }
+
+    /**
+     * 获取指定碱基的缓冲库存（客户端进度条渲染与预校验用）
+     *
+     * @param index 碱基索引（0=A 1=T 2=C 3=G）
+     * @return 缓冲计数
+     */
+    public int getBuffer(int index) {
+        return data.get(index);
     }
 
     /**
