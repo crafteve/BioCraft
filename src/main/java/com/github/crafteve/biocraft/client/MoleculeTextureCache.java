@@ -51,8 +51,8 @@ import java.util.Set;
  */
 public final class MoleculeTextureCache {
 
-    /** 超采样倍率：以 2x 分辨率绘制后缩小显示，抗锯齿效果显著优于同尺寸绘制 */
-    public static final int SUPERSAMPLE = 2;
+    /** 超采样倍率：以 4x 分辨率绘制后线性缩小显示，细线平滑无锯齿、不错位 */
+    public static final int SUPERSAMPLE = 4;
 
     /** 目标最大高度（px，逻辑尺寸） */
     private static final int TARGET_HEIGHT = 56;
@@ -285,7 +285,9 @@ public final class MoleculeTextureCache {
 
         // 注册纹理
         DynamicTexture texture = new DynamicTexture(image);
-        texture.setFilter(false, false);
+        // 必须使用线性过滤：超采样纹理缩放到逻辑尺寸时，线性插值才能平滑显示细线；
+        // 最近邻过滤会逐像素抽稀，导致细线断裂、位置错位、粗细不均
+        texture.setFilter(true, true);
         texture.upload();
         ResourceLocation location = Minecraft.getInstance().getTextureManager()
                 .register("biocraft/molecule_" + Math.abs(smiles.hashCode()), texture);

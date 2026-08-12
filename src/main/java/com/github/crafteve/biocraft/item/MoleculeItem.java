@@ -85,12 +85,18 @@ public class MoleculeItem extends Item {
      * vanilla 原生机制（1.20.5+）：TooltipComponent 渲染在全部文本行之后，
      * 本方法在客户端组装 tooltip 时调用，服务端不会执行
      * （返回类型为 common 的 TooltipComponent，组件类本身仅客户端加载）
+     * <p>
+     * 离子与原子类别（如 Na⁺、C）无化学结构意义，不生成结构图，
+     * tooltip 只保留分子式
      *
      * @param stack 当前物品堆
-     * @return 结构图组件（客户端针对复杂分子自动降级为提示行）
+     * @return 结构图组件（离子/原子类别返回空）
      */
     @Override
     public Optional<TooltipComponent> getTooltipImage(ItemStack stack) {
+        if (category == MoleculeCategory.ION || category == MoleculeCategory.ATOM) {
+            return Optional.empty();
+        }
         return Optional.of(new com.github.crafteve.biocraft.client.MoleculeTooltipComponent(smiles));
     }
 
