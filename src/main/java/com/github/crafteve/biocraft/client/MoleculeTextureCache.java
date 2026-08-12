@@ -16,6 +16,8 @@ import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -61,20 +63,24 @@ public final class MoleculeTextureCache {
     private static final int MAX_WIDTH = 512;
     /** 画布四周留白（px，逻辑尺寸），为原子符号与键线厚度预留空间 */
     private static final int PADDING = 12;
-    /** 目标平均键长（px，逻辑尺寸），决定分子的显示大小 */
-    private static final double BOND_LENGTH_PX = 10.0;
+    /** 目标平均键长（px，逻辑尺寸），决定分子的显示大小；放大到 14px 使符号与键比例接近化学期刊 */
+    private static final double BOND_LENGTH_PX = 14.0;
     /** 键线显示宽度（px，逻辑尺寸） */
     private static final float BOND_STROKE_WIDTH = 0.8f;
     /** 双键平行线偏移距离（px，逻辑尺寸） */
     private static final double DOUBLE_BOND_OFFSET = 1.4;
     /** 三键副键偏移距离（px，逻辑尺寸） */
     private static final double TRIPLE_BOND_OFFSET = 2.6;
-    /** 杂原子端键线最小缩进距离（px，逻辑尺寸），避免线与元素符号重叠 */
-    private static final double SYMBOL_INSET = 6.0;
+    /** 符号高度与键长的比例（化学期刊约 0.55~0.65） */
+    private static final double SYMBOL_RATIO = 0.6;
+    /** 符号深色底块与文字边缘的留白（px，逻辑尺寸） */
+    private static final double SYMBOL_BG_PADDING = 1.5;
     /** 重原子数上限，超过则判定为过于复杂的分子，不生成结构图 */
     private static final int MAX_HEAVY_ATOMS = 150;
     /** 键线颜色（亮白，深色 tooltip 背景上清晰） */
     private static final Color BOND_COLOR = new Color(0xE0, 0xE0, 0xE0);
+    /** 符号深色底块颜色（不透明，接近 tooltip 深色背景，用于截断键线） */
+    private static final Color SYMBOL_BG_COLOR = new Color(0x10, 0x10, 0x18);
 
     /** 杂原子 MC 风格色板：元素符号 -> ARGB 颜色 */
     private static final Map<String, Integer> ATOM_COLORS = new HashMap<>();
@@ -97,12 +103,12 @@ public final class MoleculeTextureCache {
     /** SMILES -> 生成的分子图 */
     private static final Map<String, MoleculeImage> CACHE = new HashMap<>();
 
-    /** 分子图：纹理引用 + 逻辑尺寸 + 杂原子标签列表 */
-    public record MoleculeImage(ResourceLocation texture, int width, int height, List<AtomLabel> labels) {
+    /** 分子图：纹理引用 + 逻辑尺寸（符号已绘制进纹理，随分子等比缩放） */
+    public record MoleculeImage(ResourceLocation texture, int width, int height) {
     }
 
-    /** 杂原子标签：符号 + 纹理内逻辑坐标 + 颜色（渲染时用 MC 字体叠加） */
-    public record AtomLabel(String symbol, int x, int y, int color) {
+    /** 杂原子标签文本：主串（含 H）+ 下标数字 + 颜色 */
+    private record AtomText(String main, String sub, int color) {
     }
 
     private MoleculeTextureCache() {
@@ -207,9 +213,8 @@ public final class MoleculeTextureCache {
 
         // 原子 -> 画布逻辑坐标（浮点；绘制时统一乘超采样倍率）
         Map<IAtom, double[]> pixelPositions = new HashMap<>();
-        // 杂原子标签文本（含显式 H，如 OH/NH₂）与其缩进距离
-        Map<IAtom, String> labelTexts = new HashMap<>();
-        Map<IAtom, Double> labelInsets = new HashMap<>();
+        // 杂原子标签信息（含显式 H 与颜色；符号绘制进纹理，随分子等比缩放）
+        Map<IAtom, AtomText> labelTexts = new HashMap<>();
         for (IAtom atom : molecule.atoms()) {
             if (atom.getAtomicNumber() == 1) {
                 continue;
@@ -221,13 +226,16 @@ public final class MoleculeTextureCache {
                 // 显式 H：杂原子的隐氢写入标签（羟基 O→OH、氨基 N→NH₂），
                 // 键线式仅省略碳上的氢，杂原子上的氢应当可见
                 int hCount = atom.getImplicitHydrogenCount() == null ? 0 : atom.getImplicitHydrogenCount();
-                String text = atom.getSymbol();
+                String main = atom.getSymbol();
+                String sub = "";
                 if (hCount > 0) {
-                    text += "H" + (hCount > 1 ? toSubscriptText(hCount) : "");
+                    main += "H";
+                    if (hCount > 1) {
+                        sub = String.valueOf(hCount);
+                    }
                 }
-                labelTexts.put(atom, text);
-                // 缩进按标签估算宽度动态调整（MC 字符约 6px 宽，半宽 = 字符数 * 3）
-                labelInsets.put(atom, Math.max(SYMBOL_INSET, text.length() * 3.0 + 2.0));
+                labelTexts.put(atom, new AtomText(main, sub,
+                        ATOM_COLORS.getOrDefault(atom.getSymbol(), 0xFFD0D0D0)));
             }
         }
 
@@ -254,12 +262,14 @@ public final class MoleculeTextureCache {
                 }
                 double[] p1 = pixelPositions.get(begin);
                 double[] p2 = pixelPositions.get(end);
-                // 杂原子端向内缩进，避免线与元素符号重叠（碳端画到中心，键线交汇即碳）
-                if (labelInsets.containsKey(begin)) {
-                    p1 = shrink(p1, p2, labelInsets.get(begin));
+                // 杂原子端向内缩进符号半径，避免线与符号重叠（碳端画到中心，键线交汇即碳）；
+                // 符号画进纹理后缩进量 = 符号半高 + 留白
+                double symbolInset = BOND_LENGTH_PX * SYMBOL_RATIO / 2 + SYMBOL_BG_PADDING;
+                if (labelTexts.containsKey(begin)) {
+                    p1 = shrink(p1, p2, symbolInset);
                 }
-                if (labelInsets.containsKey(end)) {
-                    p2 = shrink(p2, p1, labelInsets.get(end));
+                if (labelTexts.containsKey(end)) {
+                    p2 = shrink(p2, p1, symbolInset);
                 }
                 IBond.Order order = bond.getOrder();
                 if (bond.isAromatic()) {
@@ -279,14 +289,18 @@ public final class MoleculeTextureCache {
                     drawLine(g, p1, p2);
                 }
             }
+
+            // 绘制杂原子符号（深色底块 + 彩色文字，随分子等比缩放）
+            drawSymbols(g, labelTexts, pixelPositions);
         } finally {
             g.dispose();
         }
 
-        // 转换 BufferedImage（ARGB）-> NativeImage（RGBA 字节序，预乘 alpha）
-        // MC 的 GUI 渲染假定纹理为预乘 alpha（混合模式 GL_ONE, GL_ONE_MINUS_SRC_ALPHA），
-        // 抗锯齿产生的半透明边缘若不预乘，线性过滤插值时颜色分量与 alpha 分离插值，
-        // 会在深色背景上呈现发暗/泛蓝的杂色边缘
+        // 转换 BufferedImage（ARGB）-> NativeImage
+        // 字节序：NativeImage.setPixelRGBA 期望 ABGR（alpha 最高位，小端字节序 [R,G,B,A]）；
+        // 此前误用 RGBA 序导致半透明边缘偏色（未预乘时泛蓝、预乘后泛红）
+        // 预乘 alpha：MC 的 GUI 渲染假定纹理预乘（混合模式 GL_ONE, GL_ONE_MINUS_SRC_ALPHA），
+        // 抗锯齿半透明边缘不预乘会在深色背景上出现杂色边缘
         NativeImage image = new NativeImage(pixelWidth, pixelHeight, true);
         for (int y = 0; y < pixelHeight; y++) {
             for (int x = 0; x < pixelWidth; x++) {
@@ -298,17 +312,8 @@ public final class MoleculeTextureCache {
                 r = r * a / 255;
                 gr = gr * a / 255;
                 b = b * a / 255;
-                image.setPixelRGBA(x, y, (r << 24) | (gr << 16) | (b << 8) | a);
+                image.setPixelRGBA(x, y, (a << 24) | (b << 16) | (gr << 8) | r);
             }
-        }
-
-        // 收集杂原子标签（键线式约定：碳不标符号、氢不绘制；杂原子显式 H 含在标签中）
-        List<AtomLabel> labels = new ArrayList<>();
-        for (Map.Entry<IAtom, String> entry : labelTexts.entrySet()) {
-            IAtom atom = entry.getKey();
-            double[] pos = pixelPositions.get(atom);
-            labels.add(new AtomLabel(entry.getValue(), (int) Math.round(pos[0]), (int) Math.round(pos[1]),
-                    ATOM_COLORS.getOrDefault(atom.getSymbol(), 0xFFD0D0D0)));
         }
 
         // 注册纹理
@@ -320,7 +325,7 @@ public final class MoleculeTextureCache {
         ResourceLocation location = Minecraft.getInstance().getTextureManager()
                 .register("biocraft/molecule_" + Math.abs(smiles.hashCode()), texture);
 
-        return new MoleculeImage(location, width, height, labels);
+        return new MoleculeImage(location, width, height);
     }
 
     /**
@@ -376,6 +381,61 @@ public final class MoleculeTextureCache {
     private static boolean sharesAtom(IBond a, IBond b) {
         return a.getBegin() == b.getBegin() || a.getBegin() == b.getEnd()
                 || a.getEnd() == b.getBegin() || a.getEnd() == b.getEnd();
+    }
+
+    /**
+     * 绘制杂原子符号：深色不透明底块 + 彩色文字，随分子等比缩放
+     * <p>
+     * 符号绘制进纹理（而非渲染期叠加 MC 字体），使符号与键线随分子
+     * 一起缩放（符号高 = 键长 × 0.6），避免固定字号符号遮挡短键；
+     * 深色底块采用化学期刊惯例：截断穿过符号区域的键线，视觉干净
+     *
+     * @param g              Graphics2D 上下文（超采样画布）
+     * @param labelTexts     标签表
+     * @param pixelPositions 原子坐标表
+     */
+    private static void drawSymbols(Graphics2D g, Map<IAtom, AtomText> labelTexts,
+                                    Map<IAtom, double[]> pixelPositions) {
+        double symbolHeight = BOND_LENGTH_PX * SYMBOL_RATIO * SUPERSAMPLE;
+        Font font = new Font(Font.SANS_SERIF, Font.BOLD, (int) Math.round(symbolHeight));
+        Font subFont = new Font(Font.SANS_SERIF, Font.BOLD, (int) Math.round(symbolHeight * 0.55));
+        FontMetrics mainMetrics = g.getFontMetrics(font);
+        FontMetrics subMetrics = g.getFontMetrics(subFont);
+
+        for (Map.Entry<IAtom, AtomText> entry : labelTexts.entrySet()) {
+            double[] pos = pixelPositions.get(entry.getKey());
+            AtomText text = entry.getValue();
+            double cx = pos[0] * SUPERSAMPLE;
+            double cy = pos[1] * SUPERSAMPLE;
+
+            String full = text.main() + text.sub();
+            int mainWidth = mainMetrics.stringWidth(text.main());
+            int totalWidth = mainWidth + (text.sub().isEmpty() ? 0 : subMetrics.stringWidth(text.sub()));
+            int textHeight = mainMetrics.getAscent() + mainMetrics.getDescent();
+
+            // 深色不透明底块（圆角矩形），盖住穿过符号的键线
+            int bgX = (int) Math.round(cx - totalWidth / 2.0 - SYMBOL_BG_PADDING * SUPERSAMPLE);
+            int bgY = (int) Math.round(cy - textHeight / 2.0 - SYMBOL_BG_PADDING * SUPERSAMPLE);
+            int bgW = (int) Math.round(totalWidth + SYMBOL_BG_PADDING * 2 * SUPERSAMPLE);
+            int bgH = (int) Math.round(textHeight + SYMBOL_BG_PADDING * 2 * SUPERSAMPLE);
+            g.setColor(SYMBOL_BG_COLOR);
+            g.fillRoundRect(bgX, bgY, bgW, bgH,
+                    (int) Math.round(symbolHeight * 0.3), (int) Math.round(symbolHeight * 0.3));
+
+            // 主串居中绘制
+            Color symbolColor = new Color(text.color());
+            g.setColor(symbolColor);
+            g.setFont(font);
+            int baseline = (int) Math.round(cy + (mainMetrics.getAscent() - mainMetrics.getDescent()) / 2.0);
+            g.drawString(text.main(), (int) Math.round(cx - totalWidth / 2.0), baseline);
+            // 下标数字（小号，绘制在主串右下）
+            if (!text.sub().isEmpty()) {
+                g.setFont(subFont);
+                g.drawString(text.sub(),
+                        (int) Math.round(cx - totalWidth / 2.0 + mainWidth),
+                        (int) Math.round(baseline + subMetrics.getAscent() * 0.2));
+            }
+        }
     }
 
     /**
@@ -476,7 +536,7 @@ public final class MoleculeTextureCache {
      */
     private static double[] awayFromLabels(double[] from, double[] to,
                                            IAtom begin, IAtom end,
-                                           Map<IAtom, String> labelTexts,
+                                           Map<IAtom, AtomText> labelTexts,
                                            Map<IAtom, double[]> pixelPositions) {
         double[] normal = normalVector(from, to, 1);
         // 无标签端点：默认方向即可（对称双线无方向性）
@@ -553,20 +613,6 @@ public final class MoleculeTextureCache {
             }
         }
         return centers;
-    }
-
-    /**
-     * 数字转 Unicode 下标（2 → ₂），用于显式氢标签（NH₂）
-     *
-     * @param number 数字
-     * @return 下标字符串
-     */
-    private static String toSubscriptText(int number) {
-        StringBuilder sb = new StringBuilder();
-        for (char c : String.valueOf(number).toCharArray()) {
-            sb.append((char) (c - '0' + '\u2080'));
-        }
-        return sb.toString();
     }
 
     /**
