@@ -5,6 +5,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
+import org.openscience.cdk.aromaticity.Kekulization;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
@@ -141,6 +142,10 @@ public final class MoleculeTextureCache {
             IAtomContainer container = parser.parseSmiles(smiles);
             AtomContainerManipulator.percieveAtomTypesAndConfigureAtoms(container);
 
+            // 用 CDK 专业 Kekulize 算法把芳香键转为显式单/双键（带价态检查，
+            // 化学正确），替代自研 BFS 交替；isAromatic 标志保留用于识别环内双键
+            Kekulization.kekulize(container);
+
             int heavyAtoms = 0;
             for (IAtom atom : container.atoms()) {
                 if (atom.getAtomicNumber() != 1) {
@@ -251,9 +256,6 @@ public final class MoleculeTextureCache {
             g.setColor(BOND_COLOR);
             g.setStroke(createStroke(null));
 
-            // 芳香键按 Kekulé 风格交替标记单/双键（苯环画单双交替而非虚线）
-            Map<IBond, Boolean> kekule = kekulizeAromaticBonds(molecule);
-
             // 预计算每个标签的实际宽度，缩进 = 底块半宽 + 留白（精确匹配，键线终止于底块边缘，
             // 既不会穿入符号也不会因缩进过大吞掉短键）
             Map<IAtom, Double> labelInsets = new HashMap<>();
@@ -290,13 +292,9 @@ public final class MoleculeTextureCache {
                     p2 = shrink(p2, p1, labelInsets.get(end));
                 }
                 IBond.Order order = bond.getOrder();
-                if (bond.isAromatic()) {
-                    // 交替结果：true 画双键（朝环内侧偏移）、false 画单键
-                    if (Boolean.TRUE.equals(kekule.get(bond))) {
-                        drawInwardDouble(g, p1, p2, ringCenters.get(bond));
-                    } else {
-                        drawLine(g, p1, p2);
-                    }
+                if (bond.isAromatic() && order == IBond.Order.DOUBLE) {
+                    // CDK Kekulize 标记的环内双键（isAromatic 仍为 true），画在环内侧
+                    drawInwardDouble(g, p1, p2, ringCenters.get(bond));
                 } else if (order == IBond.Order.DOUBLE) {
                     // 双键偏移方向远离杂原子标签（如 C=O 双键画在碳侧），避免与符号重叠
                     double[] away = awayFromLabels(p1, p2, begin, end, labelTexts, pixelPositions);
@@ -344,61 +342,6 @@ public final class MoleculeTextureCache {
                 .register("biocraft/molecule_" + Math.abs(smiles.hashCode()), texture);
 
         return new MoleculeImage(location, width, height);
-    }
-
-    /**
-     * 为芳香键集合生成 Kekulé 交替模式
-     * <p>
-     * 化学结构式惯例：苯环等芳香环画成单双键交替（Kekulé 结构）而非虚线。
-     * 算法：从每个未处理的芳香键开始 BFS，沿共享原子的相邻芳香键交替标记
-     * 双键（true）/单键（false），形成交替模式
-     *
-     * @param molecule 分子（含芳香键）
-     * @return 芳香键 -> 是否画双键 的映射
-     */
-    private static Map<IBond, Boolean> kekulizeAromaticBonds(IAtomContainer molecule) {
-        List<IBond> aromatic = new ArrayList<>();
-        for (IBond bond : molecule.bonds()) {
-            if (bond.isAromatic()) {
-                aromatic.add(bond);
-            }
-        }
-        Map<IBond, Boolean> kekule = new HashMap<>();
-        for (IBond start : aromatic) {
-            if (kekule.containsKey(start)) {
-                continue;
-            }
-            ArrayDeque<IBond> queue = new ArrayDeque<>();
-            queue.add(start);
-            kekule.put(start, true);
-            while (!queue.isEmpty()) {
-                IBond bond = queue.poll();
-                boolean wantDouble = kekule.get(bond);
-                for (IBond neighbor : aromatic) {
-                    if (neighbor == bond || kekule.containsKey(neighbor)) {
-                        continue;
-                    }
-                    // 共享原子判定相邻
-                    if (sharesAtom(neighbor, bond)) {
-                        kekule.put(neighbor, !wantDouble);
-                        queue.add(neighbor);
-                    }
-                }
-            }
-        }
-        return kekule;
-    }
-
-    /**
-     * 判断两个键是否共享端点原子（用于芳香键相邻判定）
-     *
-     * @param a 键 a
-     * @param b 键 b
-     * @return true 表示共享端点原子
-     */
-    private static boolean sharesAtom(IBond a, IBond b) {
-        return a.getBegin() == b.getBegin() || a.getBegin() == b.getEnd()
-                || a.getEnd() == b.getBegin() || a.getEnd() == b.getEnd();
     }
 
     /**
@@ -603,7 +546,12 @@ public final class MoleculeTextureCache {
                 IBond bond = queue.poll();
                 component.add(bond);
                 for (IBond neighbor : aromatic) {
-                    if (!visited.contains(neighbor) && sharesAtom(neighbor, bond)) {
+                    // 共享端点原子判定相邻
+                    boolean sharesAtom = neighbor.getBegin() == bond.getBegin()
+                            || neighbor.getBegin() == bond.getEnd()
+                            || neighbor.getEnd() == bond.getBegin()
+                            || neighbor.getEnd() == bond.getEnd();
+                    if (!visited.contains(neighbor) && sharesAtom) {
                         visited.add(neighbor);
                         queue.add(neighbor);
                     }
