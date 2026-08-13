@@ -2,7 +2,7 @@
     "providers": [
         {
             "type": "ttf",
-            "file": "biocraft:font/simhei.ttf",
+            "file": "biocraft:simhei.ttf",
             "shift": 0.0,
             "size": 10.0,
             "oversample": 8
