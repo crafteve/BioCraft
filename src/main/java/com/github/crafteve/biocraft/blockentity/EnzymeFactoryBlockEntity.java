@@ -61,6 +61,11 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     private int cachedProgressX1000;
     private int cachedStallCode;
 
+    /** v-t 通量历史环形缓冲（100 tick = 5 秒，打开 GUI 时一次性下发，不存档） */
+    private static final int HISTORY_LENGTH = 100;
+    private final int[] fluxHistory = new int[HISTORY_LENGTH];
+    private int historyIndex;
+
     /**
      * @param pos   方块位置
      * @param state 方块状态（其方块必须是酶工厂 MachineBlock）
@@ -203,6 +208,8 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             projectToSlots();
         }
         updateCachedData(behavior);
+        fluxHistory[historyIndex] = cachedFluxX1000;
+        historyIndex = (historyIndex + 1) % HISTORY_LENGTH;
 
         if (level.getGameTime() % 20 == 0) {
             BioCraft.LOGGER.debug("酶工厂 [{}] 槽位: {}, 浓度: {}, 通量×1000: {}, 停摆: {}",
@@ -349,7 +356,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
-     * 创建菜单（M4 实现 MachineMenu，本阶段返回 null——GUI 不可开）
+     * 创建菜单：酶工厂菜单（服务端，历史快照传入供客户端初始化 v-t 图）
      *
      * @param containerId     菜单容器编号
      * @param playerInventory 玩家物品栏
@@ -358,6 +365,54 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      */
     @Override
     public AbstractContainerMenu createMenu(int containerId, Inventory playerInventory, Player player) {
-        return null;
+        return new com.github.crafteve.biocraft.gui.MachineMenu(containerId, playerInventory, this, historySnapshot());
+    }
+
+    /**
+     * 打开菜单时向客户端写入自定义数据（NeoForge 扩展点）
+     * <p>
+     * 写入内容：酶 id（校验用）+ v-t 历史数组（按时间展开为旧→新顺序）
+     *
+     * @param menu   刚创建的服务端菜单
+     * @param buffer 打开数据包缓冲
+     */
+    @Override
+    public void writeClientSideData(AbstractContainerMenu menu, net.minecraft.network.RegistryFriendlyByteBuf buffer) {
+        buffer.writeUtf(enzymeData.id());
+        int[] snapshot = historySnapshot();
+        buffer.writeVarInt(snapshot.length);
+        for (int value : snapshot) {
+            buffer.writeVarInt(value);
+        }
+    }
+
+    /**
+     * 按时间顺序展开历史环形缓冲（最旧 → 最新），客户端 v-t 图直接按序绘制
+     *
+     * @return 历史快照数组
+     */
+    private int[] historySnapshot() {
+        int[] snapshot = new int[HISTORY_LENGTH];
+        for (int i = 0; i < HISTORY_LENGTH; i++) {
+            snapshot[i] = fluxHistory[(historyIndex + i) % HISTORY_LENGTH];
+        }
+        return snapshot;
+    }
+
+    /** 观测数据缓存读取（Menu ContainerData 数据源） */
+    public int getCachedTempX100() {
+        return cachedTempX100;
+    }
+
+    public int getCachedFluxX1000() {
+        return cachedFluxX1000;
+    }
+
+    public int getCachedProgressX1000() {
+        return cachedProgressX1000;
+    }
+
+    public int getCachedStallCode() {
+        return cachedStallCode;
     }
 }

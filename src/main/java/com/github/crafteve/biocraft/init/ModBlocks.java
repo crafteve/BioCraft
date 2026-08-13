@@ -73,6 +73,17 @@ public final class ModBlocks {
             MENUS.register(MachineType.DNA_ENCODER.getId(),
                     () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(DNAEncoderMenu::new));
 
+    /**
+     * 酶工厂共享菜单类型（全部酶实例一个 MenuType）
+     * <p>
+     * 打开数据包内容：BlockPos（NeoForge 自动写入）→ 酶 id → v-t 历史数组
+     * （由 EnzymeFactoryBlockEntity.writeClientSideData 写入）
+     */
+    public static final DeferredHolder<MenuType<?>, MenuType<com.github.crafteve.biocraft.gui.MachineMenu>> ENZYME_FACTORY_MENU =
+            MENUS.register("enzyme_factory",
+                    () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(
+                            com.github.crafteve.biocraft.gui.MachineMenu::new));
+
     /** 全部酶工厂方块（数据驱动注册，注册名 = 酶 id） */
     private static final List<DeferredBlock<MachineBlock>> ENZYME_BLOCKS = new ArrayList<>();
 
