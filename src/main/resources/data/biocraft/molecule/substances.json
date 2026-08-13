@@ -238,12 +238,12 @@
                            "category":  "amino_acid"
                        },
                        {
-                            "id":  "lysine",
-                            "name_zn":  "赖氨酸",
-                            "name_en":  "Lysine",
-                            "container":  "beaker",
-                            "color":  4289690309,
-                            "smiles":  "NCCCCC(N)C(=O)O",
+                           "id":  "lysine",
+                           "name_zn":  "赖氨酸",
+                           "name_en":  "Lysine",
+                           "container":  "beaker",
+                           "color":  4289690309,
+                           "smiles":  "NCCCCC(N)C(=O)O",
                            "abbreviation":  "Lys",
                            "category":  "amino_acid"
                        },
