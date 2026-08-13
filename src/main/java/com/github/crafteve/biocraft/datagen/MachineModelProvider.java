@@ -1,7 +1,9 @@
 package com.github.crafteve.biocraft.datagen;
 
 import com.github.crafteve.biocraft.BioCraft;
+import com.github.crafteve.biocraft.block.MachineBlock;
 import com.github.crafteve.biocraft.blockentity.MachineType;
+import com.github.crafteve.biocraft.init.ModBlocks;
 import com.google.common.hash.HashCode;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -9,6 +11,7 @@ import net.minecraft.data.CachedOutput;
 import net.minecraft.data.DataProvider;
 import net.minecraft.data.PackOutput;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.registries.DeferredBlock;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -19,16 +22,15 @@ import java.util.concurrent.CompletableFuture;
 /**
  * 机器方块与序列物品模型生成器（datagen）
  * <p>
- * 为每种机器类型生成三类资源：
+ * 生成三类资源：
  * <ul>
- *   <li>方块状态 JSON（无朝向，单一 variant）</li>
- *   <li>方块模型 JSON（cube_all，引用方块贴图）</li>
- *   <li>物品模型 JSON（item/generated，方块物品直接引用方块贴图）</li>
+ *   <li>原始机器（MachineType 枚举）：方块状态 + 方块模型（cube_bottom_top
+ *       三面分离贴图）+ 物品模型，每类型一份</li>
+ *   <li>酶工厂（数据驱动）：方块状态 + 方块模型（简化白底 cube + tintindex
+ *       按类别色染色）+ 物品模型，每实例一份</li>
+ *   <li>序列物品：item/generated 单层模型</li>
  * </ul>
- * 序列物品（DNA模板等）生成单层 item/generated 模型
- * <p>
- * 模型以手写 JsonObject 形式输出（与 SubstanceModelProvider 风格一致），
- * 新增机器只需在 MachineType 枚举追加条目并放入对应贴图
+ * 模型以手写 JsonObject 形式输出（与 SubstanceModelProvider 风格一致）
  */
 public class MachineModelProvider implements DataProvider {
     private final PackOutput packOutput;
@@ -52,6 +54,7 @@ public class MachineModelProvider implements DataProvider {
         for (MachineType type : MachineType.values()) {
             outputs.putAll(machineResources(type));
         }
+        outputs.putAll(enzymeFactoryResources());
         outputs.putAll(sequenceItemResources());
 
         for (Map.Entry<Path, JsonObject> entry : outputs.entrySet()) {
@@ -63,6 +66,60 @@ public class MachineModelProvider implements DataProvider {
             }
         }
         return CompletableFuture.completedFuture(null);
+    }
+
+    /**
+     * 生成全部酶工厂方块模型（第一版简化：白底 cube + tint 上色）
+     * <p>
+     * 简化策略（里程碑 A 已确认）：每实例生成 blockstate（单一 variant）与
+     * 方块模型（cube_all 引用原版白混凝土贴图 + tintindex 0，由 BlockColors
+     * 按类别主题色染色），物品模型直接引用方块模型（立体渲染）；
+     * EC 六类形状拼装模型（双罐/塔式/V 形/环台）在里程碑 E 美化
+     *
+     * @return 输出路径到 JSON 内容的映射
+     */
+    private Map<Path, JsonObject> enzymeFactoryResources() {
+        Map<Path, JsonObject> outputs = new HashMap<>();
+        for (DeferredBlock<MachineBlock> block : ModBlocks.enzymeBlocks()) {
+            String blockName = block.getId().getPath();
+            ResourceLocation blockModel = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/" + blockName);
+
+            JsonObject blockState = new JsonObject();
+            JsonObject variants = new JsonObject();
+            JsonObject variant = new JsonObject();
+            variant.addProperty("model", blockModel.toString());
+            variants.add("", variant);
+            blockState.add("variants", variants);
+
+            JsonObject blockModelJson = new JsonObject();
+            blockModelJson.addProperty("parent", "minecraft:block/cube_all");
+            JsonObject textures = new JsonObject();
+            textures.addProperty("all", "minecraft:block/white_concrete");
+            blockModelJson.add("textures", textures);
+            JsonArray elements = new JsonArray();
+            // tintindex 0：整块方块按类别主题色染色（BlockColors 注册）
+            JsonObject tintedElement = new JsonObject();
+            JsonObject faces = new JsonObject();
+            for (String direction : new String[]{"north", "south", "east", "west", "up", "down"}) {
+                JsonObject face = new JsonObject();
+                face.addProperty("uv", "[0.0, 0.0, 16.0, 16.0]");
+                JsonArray tint = new JsonArray();
+                tint.add(0);
+                face.add("tintindex", tint);
+                faces.add(direction, face);
+            }
+            tintedElement.add("faces", faces);
+            elements.add(tintedElement);
+            blockModelJson.add("elements", elements);
+
+            JsonObject itemModel = new JsonObject();
+            itemModel.addProperty("parent", blockModel.toString());
+
+            outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/blockstates/" + blockName + ".json"), blockState);
+            outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/models/block/" + blockName + ".json"), blockModelJson);
+            outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/models/item/" + blockName + ".json"), itemModel);
+        }
+        return outputs;
     }
 
     /**

@@ -49,6 +49,7 @@ public class SubstanceLanguageProvider implements DataProvider {
         addConfigTranslations();
         addTabTranslations();
         addMachineTranslations();
+        addEnzymeTranslations();
         addItemTranslations();
 
         JsonObject lang = new JsonObject();
@@ -88,6 +89,9 @@ public class SubstanceLanguageProvider implements DataProvider {
 
     /**
      * 添加机器方块、GUI 与合成状态文案翻译
+     * <p>
+     * 酶工厂方块的显示名不在此处：酶数据表自带中文 name 字段，
+     * 由 EnzymeLanguageProvider 按数据驱动生成翻译键
      */
     private void addMachineTranslations() {
         boolean zh = "zh_cn".equals(language);
@@ -115,6 +119,19 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "碱基不足" : "Insufficient bases");
         translations.put("gui.biocraft.status.output_full",
                 zh ? "输出槽已满" : "Output slot is full");
+    }
+
+    /**
+     * 添加酶工厂方块翻译（数据驱动：酶数据表自带中文 name）
+     * <p>
+     * 酶方块显示名是权威数据（策略方提供的显示名），
+     * en_us 缺省回退为 id（英文命名后续本地化轮次补充）
+     */
+    private void addEnzymeTranslations() {
+        boolean zh = "zh_cn".equals(language);
+        com.github.crafteve.biocraft.init.EnzymeFactoryRegistry.ordered().forEach(data ->
+                translations.put("block.biocraft." + data.id(),
+                        zh ? data.name() : data.id()));
     }
 
     /**

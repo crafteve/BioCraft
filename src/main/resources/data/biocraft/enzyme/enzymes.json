@@ -1,0 +1,121 @@
+{
+    "enzymes":  [
+                   {
+                       "id":  "phosphoglucose_isomerase",
+                       "name":  "磷酸葡萄糖异构酶",
+                       "category":  "EC5",
+                       "kinetic":  "ISOMERASE",
+                       "reaction":  {
+                                        "reversible":  true,
+                                        "reactants":  [
+                                                         {
+                                                             "item":  "glucose_6_phosphate",
+                                                             "count":  1,
+                                                             "km":  0.43
+                                                         }
+                                                     ],
+                                        "products":  [
+                                                       {
+                                                           "item":  "fructose_6_phosphate",
+                                                           "count":  1,
+                                                           "km":  0.046
+                                                       }
+                                                   ]
+                                    },
+                       "keq":  0.3104,
+                       "deltaH":  null,
+                       "kcat":  79.0,
+                       "tempOptimum":  298.15,
+                       "stallMessage":  "底物浓度不足",
+                       "activators":  []
+                   },
+                   {
+                       "id":  "hexokinase",
+                       "name":  "己糖激酶",
+                       "category":  "EC2",
+                       "kinetic":  "LIMITING",
+                       "reaction":  {
+                                        "reversible":  false,
+                                        "reactants":  [
+                                                         {
+                                                             "item":  "glucose",
+                                                             "count":  1,
+                                                             "km":  0.049
+                                                         },
+                                                         {
+                                                             "item":  "atp",
+                                                             "count":  1,
+                                                             "km":  1.12
+                                                         }
+                                                     ],
+                                        "products":  [
+                                                       {
+                                                           "item":  "glucose_6_phosphate",
+                                                           "count":  1,
+                                                           "km":  0
+                                                       },
+                                                       {
+                                                           "item":  "adp",
+                                                           "count":  1,
+                                                           "km":  0
+                                                       }
+                                                   ]
+                                    },
+                       "keq":  4800.0,
+                       "deltaH":  -64.0,
+                       "kcat":  54.1,
+                       "tempOptimum":  298.15,
+                       "stallMessage":  "ATP 耗尽",
+                       "activators":  []
+                   },
+                   {
+                       "id":  "glyceraldehyde_3_phosphate_dehydrogenase",
+                       "name":  "甘油醛-3-磷酸脱氢酶",
+                       "category":  "EC1",
+                       "kinetic":  "OXIDO_LYASE",
+                       "reaction":  {
+                                        "reversible":  true,
+                                        "reactants":  [
+                                                         {
+                                                             "item":  "glyceraldehyde_3_phosphate",
+                                                             "count":  1,
+                                                             "km":  0.137
+                                                         },
+                                                         {
+                                                             "item":  "nad_plus",
+                                                             "count":  1,
+                                                             "km":  0.045
+                                                         },
+                                                         {
+                                                             "item":  "phosphate_ion",
+                                                             "count":  1,
+                                                             "km":  4.0
+                                                         }
+                                                     ],
+                                        "products":  [
+                                                       {
+                                                           "item":  "1_3_bisphosphoglycerate",
+                                                           "count":  1,
+                                                           "km":  0.137
+                                                       },
+                                                       {
+                                                           "item":  "nadh",
+                                                           "count":  1,
+                                                           "km":  0.045
+                                                       },
+                                                       {
+                                                           "item":  "hydrogen_ion",
+                                                           "count":  1,
+                                                           "km":  0
+                                                       }
+                                                   ]
+                                    },
+                       "keq":  0.0963,
+                       "deltaH":  null,
+                       "kcat":  199.0,
+                       "tempOptimum":  298.15,
+                       "stallMessage":  "NAD⁺ 耗尽",
+                       "activators":  []
+                   }
+               ]
+}
