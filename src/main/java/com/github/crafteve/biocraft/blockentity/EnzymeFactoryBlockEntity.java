@@ -71,24 +71,50 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      * @param state 方块状态（其方块必须是酶工厂 MachineBlock）
      */
     public EnzymeFactoryBlockEntity(BlockPos pos, BlockState state) {
-        super(ModBlocks.ENZYME_FACTORY_BE.get(), pos, state, enzymeContainerSize(state));
-        MachineBlock block = (MachineBlock) state.getBlock();
-        this.enzymeData = block.getEnzymeFactoryData();
+        this(pos, state, enzymeDataFromState(state));
+    }
+
+    /**
+     * 回退构造：菜单打开竞态（方块已被破坏）时，用数据表档案 + AIR 状态
+     * 构造占位实体，避免菜单崩溃；仅由 MachineMenu 的防御降级路径调用
+     *
+     * @param pos  方块位置
+     * @param data 酶数据档案
+     */
+    public EnzymeFactoryBlockEntity(BlockPos pos, EnzymeFactoryData data) {
+        this(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), data);
+    }
+
+    /**
+     * 统一私有构造：槽位数从酶数据推导，不再依赖方块状态强转
+     *
+     * @param pos   方块位置
+     * @param state 方块状态
+     * @param data  酶数据档案
+     */
+    private EnzymeFactoryBlockEntity(BlockPos pos, BlockState state, EnzymeFactoryData data) {
+        super(ModBlocks.ENZYME_FACTORY_BE.get(), pos, state,
+                data.reactants().size() + data.products().size());
+        this.enzymeData = data;
         this.simulator = enzymeData.buildSimulator();
         this.speciesIds = simulator.getDefinition().getSpeciesIds();
         this.remainder = new double[speciesIds.length];
     }
 
     /**
-     * 从方块状态取回酶数据并换算容器槽位数（每物种一槽）
+     * 从方块状态安全提取酶数据档案
+     * <p>
+     * 非 MachineBlock 方块（如菜单回退路径的 AIR）不直接强转，抛异常
+     * 快速暴露错误而非静默产生空实体
      *
      * @param state 方块状态
-     * @return 物种总数（反应物 + 产物）
+     * @return 酶数据档案
      */
-    private static int enzymeContainerSize(BlockState state) {
-        MachineBlock block = (MachineBlock) state.getBlock();
-        EnzymeFactoryData data = block.getEnzymeFactoryData();
-        return data.reactants().size() + data.products().size();
+    private static EnzymeFactoryData enzymeDataFromState(BlockState state) {
+        if (state.getBlock() instanceof MachineBlock block && block.getEnzymeFactoryData() != null) {
+            return block.getEnzymeFactoryData();
+        }
+        throw new IllegalArgumentException("酶工厂方块实体挂到了非酶工厂方块上: " + state);
     }
 
     /**
@@ -283,9 +309,12 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     private void updateCachedData(KineticBehavior.Result behavior) {
         cachedTempX100 = (int) Math.round(simulator.getState().getTemperature() * 100.0);
         double[] x = simulator.getState().getConcentrations();
-        String mainProduct = enzymeData.products().get(enzymeData.products().size() - 1).item();
-        int productIndex = simulator.getDefinition().getSpeciesIndex(mainProduct);
-        cachedProgressX1000 = (int) Math.round(x[Math.max(productIndex, 0)] * 1000.0);
+        cachedProgressX1000 = 0;
+        if (!enzymeData.products().isEmpty()) {
+            String mainProduct = enzymeData.products().get(enzymeData.products().size() - 1).item();
+            int productIndex = simulator.getDefinition().getSpeciesIndex(mainProduct);
+            cachedProgressX1000 = (int) Math.round(x[Math.max(productIndex, 0)] * 1000.0);
+        }
         cachedStallCode = behavior.stallReason() == null ? 0 : 1;
     }
 

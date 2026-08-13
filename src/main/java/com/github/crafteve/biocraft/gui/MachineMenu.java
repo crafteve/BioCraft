@@ -1,6 +1,7 @@
 package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
+import com.github.crafteve.biocraft.init.EnzymeFactoryRegistry;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
@@ -139,8 +140,12 @@ public class MachineMenu extends AbstractContainerMenu {
         EnzymeFactoryBlockEntity be = playerInventory.player.level().getBlockEntity(pos)
                 instanceof EnzymeFactoryBlockEntity factory ? factory : null;
         if (be == null) {
-            // 防御降级：方块已被破坏时构造一个空实体，避免菜单崩溃
-            be = new EnzymeFactoryBlockEntity(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            // 防御降级：方块已被破坏时按数据表档案构造占位实体，避免菜单崩溃
+            EnzymeFactoryData data = EnzymeFactoryRegistry.byId(enzymeId);
+            if (data == null) {
+                throw new IllegalStateException("打开数据包含未知酶 id: " + enzymeId);
+            }
+            be = new EnzymeFactoryBlockEntity(pos, data);
         }
         if (!enzymeId.equals(be.getEnzymeData().id())) {
             throw new IllegalStateException("酶 id 不一致: 包内 " + enzymeId + " / 实体 " + be.getEnzymeData().id());

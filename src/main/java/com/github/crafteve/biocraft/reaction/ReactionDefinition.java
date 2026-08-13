@@ -53,9 +53,6 @@ public final class ReactionDefinition {
     /** 固定活性反应物下标：浓度耗尽时反应停供（供料门，未来水解反应用） */
     private final int[] supplyReactants;
 
-    /** 固定活性产物下标：仅用于反应式反渲染显示（如 ENO 产出的水） */
-    private final int[] fixedActivityProducts;
-
     /** 反应是否可逆（可逆才有逆向 Vmax 与逆向项） */
     private final boolean reversible;
 
@@ -76,7 +73,7 @@ public final class ReactionDefinition {
      */
     private ReactionDefinition(String[] speciesIds, boolean[] fixedActivity, double[] stoich,
                                List<SpeciesEntry> rateReactants, List<SpeciesEntry> rateProducts,
-                               int[] supplyReactants, int[] fixedActivityProducts, boolean reversible,
+                               int[] supplyReactants, boolean reversible,
                                double vmaxF, double kmRatio, double keq, Double deltaHKjPerMol) {
         this.speciesIds = speciesIds;
         this.fixedActivity = fixedActivity;
@@ -84,7 +81,6 @@ public final class ReactionDefinition {
         this.rateReactants = List.copyOf(rateReactants);
         this.rateProducts = List.copyOf(rateProducts);
         this.supplyReactants = supplyReactants;
-        this.fixedActivityProducts = fixedActivityProducts;
         this.reversible = reversible;
         this.vmaxF = vmaxF;
         this.kmRatio = kmRatio;
@@ -117,7 +113,6 @@ public final class ReactionDefinition {
         List<SpeciesEntry> rateReactants = new ArrayList<>();
         List<SpeciesEntry> rateProducts = new ArrayList<>();
         List<Integer> supply = new ArrayList<>();
-        List<Integer> fixedProducts = new ArrayList<>();
 
         for (EnzymeFactoryData.SpeciesSpec spec : data.reactants()) {
             int i = index.get(spec.item());
@@ -135,7 +130,6 @@ public final class ReactionDefinition {
             stoich[i] += spec.count();
             if (KineticConstants.FIXED_ACTIVITY_SPECIES.contains(spec.item())) {
                 fixed[i] = true;
-                fixedProducts.add(i);
             } else if (data.reversible()) {
                 rateProducts.add(new SpeciesEntry(i, spec.count(),
                         KineticsCalculator.toKmFraction(spec.kmMillimolar())));
@@ -147,7 +141,6 @@ public final class ReactionDefinition {
 
         ReactionDefinition def = new ReactionDefinition(ids, fixed, stoich, rateReactants,
                 rateProducts, supply.stream().mapToInt(Integer::intValue).toArray(),
-                fixedProducts.stream().mapToInt(Integer::intValue).toArray(),
                 data.reversible(), vmaxF, kmRatio, data.keq(), data.deltaHKjPerMol());
         def.assertValid();
         return def;
@@ -189,6 +182,16 @@ public final class ReactionDefinition {
         if (!(keq > 0.0) || !Double.isFinite(keq)) {
             throw new IllegalArgumentException("Keq 必须为正有限值: " + keq);
         }
+        boolean hasProduct = false;
+        for (double s : stoich) {
+            if (s > 0.0) {
+                hasProduct = true;
+                break;
+            }
+        }
+        if (!hasProduct) {
+            throw new IllegalArgumentException("反应缺少产物");
+        }
         if (reversible) {
             double vmaxB0 = vmaxBForTemperature(KineticConstants.T0);
             if (!(vmaxB0 > 0.0) || !Double.isFinite(vmaxB0)) {
@@ -212,7 +215,7 @@ public final class ReactionDefinition {
             return 0.0;
         }
         double keqT = ThermoUtil.keqAtTemperature(keq, deltaHKjPerMol, temperatureK);
-        return vmaxF * kmRatio / keqT;
+        return KineticsCalculator.toVmaxB(vmaxF, kmRatio, keqT);
     }
 
     /**
@@ -287,33 +290,5 @@ public final class ReactionDefinition {
 
     public Double getDeltaHKjPerMol() {
         return deltaHKjPerMol;
-    }
-
-    /**
-     * 反渲染可读反应式文本（GUI 显示用，如 "G3P + NAD⁺ + Pi ⇌ 1,3BPG + NADH + H⁺"）
-     * <p>
-     * 本方法仅用于显示，引擎计算不依赖字符串；物品注册名的显示缩写
-     * 由客户端语言层在 GUI 阶段映射（M4）
-     *
-     * @return 人类可读的反应式字符串
-     */
-    public String renderReactionString() {
-        StringBuilder sb = new StringBuilder();
-        appendSide(sb, rateReactants, supplyReactants, speciesIds);
-        sb.append(' ').append(reversible ? "⇌" : "→").append(' ');
-        appendSide(sb, rateProducts, fixedActivityProducts, speciesIds);
-        return sb.toString();
-    }
-
-    private static void appendSide(StringBuilder sb, List<SpeciesEntry> rateEntries,
-                                   int[] fixedIndices, String[] ids) {
-        List<String> parts = new ArrayList<>();
-        for (SpeciesEntry entry : rateEntries) {
-            parts.add(entry.coeff() > 1 ? entry.coeff() + ids[entry.index()] : ids[entry.index()]);
-        }
-        for (int idx : fixedIndices) {
-            parts.add(ids[idx]);
-        }
-        sb.append(String.join(" + ", parts));
     }
 }
