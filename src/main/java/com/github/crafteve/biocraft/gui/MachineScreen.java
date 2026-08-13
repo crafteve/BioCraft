@@ -425,13 +425,12 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.blit(SLOT, slot.x - 1, slot.y - 1, 0, 0, 18, 18, 18, 18);
         ItemStack stack = slot.getItem();
         if (!stack.isEmpty()) {
-            graphics.renderItem(stack, slot.x, slot.y);
-            if (stack.getCount() > 1) {
-                String count = String.valueOf(stack.getCount());
-                graphics.drawString(this.font, count,
-                        slot.x + 16 - this.font.width(count),
-                        slot.y + 8, 0xFFFFFFFF, true);
-            }
+            // seed 用槽位位置（vanilla 同款），防止多个相同物品同帧闪烁
+            graphics.renderItem(stack, slot.x, slot.y, slot.x + slot.y * this.imageWidth);
+            // 数量文字与 IItemDecorator（G6P 缩写等）必须经 renderItemDecorations：
+            // 其内部 z 提升 200，保证盖过物品（z=150）与槽贴图（z=0），
+            // 手动 drawString 在 z=0 会被物品遮挡（曾踩坑：数量显示在物品贴图下方）
+            graphics.renderItemDecorations(this.font, stack, slot.x, slot.y, null);
         }
     }
 
