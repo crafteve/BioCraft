@@ -371,25 +371,37 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     /**
      * 方程式的缩写渲染（长度超宽时截断）
+     * <p>
+     * 含化学计量系数（系数 > 1 时前缀）与固定活性物种（H₂O/H⁺），
+     * 显示逻辑集中在客户端，引擎不再提供反渲染字符串
      */
     private String renderEquation() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < enzymeData.reactants().size(); i++) {
-            if (i > 0) {
-                sb.append('+');
-            }
-            sb.append(itemBySpecies.get(enzymeData.reactants().get(i).item()).getAbbreviation());
-        }
+        appendSpeciesSide(sb, enzymeData.reactants());
         sb.append(' ').append(enzymeData.reversible() ? '⇌' : '→').append(' ');
-        for (int i = 0; i < enzymeData.products().size(); i++) {
-            if (i > 0) {
-                sb.append('+');
-            }
-            sb.append(itemBySpecies.get(enzymeData.products().get(i).item()).getAbbreviation());
-        }
+        appendSpeciesSide(sb, enzymeData.products());
         String equation = sb.toString();
         // 仪表盘宽 92，7px 字体下每字符约 4px，超 21 字符截断
         return equation.length() > 21 ? equation.substring(0, 21) : equation;
+    }
+
+    /**
+     * 拼装一侧物种：化学计量系数（>1 时前缀）+ 缩写，'+' 连接
+     *
+     * @param sb    目标字符串构建器
+     * @param specs 物种条目列表（反应物或产物）
+     */
+    private void appendSpeciesSide(StringBuilder sb, List<EnzymeFactoryData.SpeciesSpec> specs) {
+        for (int i = 0; i < specs.size(); i++) {
+            if (i > 0) {
+                sb.append('+');
+            }
+            EnzymeFactoryData.SpeciesSpec spec = specs.get(i);
+            if (spec.count() > 1) {
+                sb.append(spec.count());
+            }
+            sb.append(itemBySpecies.get(spec.item()).getAbbreviation());
+        }
     }
 
     /**

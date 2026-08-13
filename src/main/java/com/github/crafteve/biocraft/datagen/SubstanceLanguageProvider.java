@@ -1,5 +1,6 @@
 package com.github.crafteve.biocraft.datagen;
 
+import com.github.crafteve.biocraft.data.SubstanceData;
 import com.google.common.hash.HashCode;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -19,8 +20,7 @@ import java.util.concurrent.CompletableFuture;
  * 读取 substances.json 的 name_zn/name_en，为指定语言生成 lang JSON；
  * en_us 与 zh_cn 各实例化一次
  * <p>
- * 除物品显示名外，还输出创意标签页标题与配置界面翻译
- * （原模板语言文件中的配置 key 由此处接管，模板 en_us.json 移除）
+ * 除物品显示名外，还输出创意标签页标题、机器与酶显示名、工具提示翻译
  */
 public class SubstanceLanguageProvider implements DataProvider {
     private final PackOutput packOutput;
@@ -39,14 +39,13 @@ public class SubstanceLanguageProvider implements DataProvider {
     /**
      * 收集全部翻译条目并写出语言文件
      * <p>
-     * 条目顺序：物品显示名（按物质表顺序）→ 标签页标题 → 配置界面文案
+     * 条目顺序：物品显示名（按物质表顺序）→ 标签页标题 → 机器与酶显示名
      *
      * @param cachedOutput 输出写入器
      * @return 完成信号
      */
     @Override
     public CompletableFuture<?> run(CachedOutput cachedOutput) {
-        addConfigTranslations();
         addTabTranslations();
         addMachineTranslations();
         addEnzymeTranslations();
@@ -132,22 +131,6 @@ public class SubstanceLanguageProvider implements DataProvider {
         com.github.crafteve.biocraft.init.EnzymeFactoryRegistry.ordered().forEach(data ->
                 translations.put("block.biocraft." + data.id(),
                         zh ? data.nameZn() : data.nameEn()));
-    }
-
-    /**
-     * 添加配置界面翻译（沿用原模板文案，防止配置界面 key 丢失）
-     */
-    private void addConfigTranslations() {
-        boolean zh = "zh_cn".equals(language);
-        translations.put("biocraft.configuration.title", zh ? "生物工艺配置" : "BioCraft Configs");
-        translations.put("biocraft.configuration.section.biocraft.common.toml",
-                zh ? "生物工艺配置" : "BioCraft Configs");
-        translations.put("biocraft.configuration.section.biocraft.common.toml.title",
-                zh ? "生物工艺配置" : "BioCraft Configs");
-        translations.put("biocraft.configuration.items", zh ? "物品列表" : "Item List");
-        translations.put("biocraft.configuration.logDirtBlock", zh ? "记录泥土方块" : "Log Dirt Block");
-        translations.put("biocraft.configuration.magicNumberIntroduction", zh ? "魔法数字文案" : "Magic Number Text");
-        translations.put("biocraft.configuration.magicNumber", zh ? "魔法数字" : "Magic Number");
     }
 
     /**

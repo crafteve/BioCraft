@@ -1,5 +1,6 @@
 package com.github.crafteve.biocraft.datagen;
 
+import com.github.crafteve.biocraft.data.SubstanceData;
 import com.google.common.hash.HashCode;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;

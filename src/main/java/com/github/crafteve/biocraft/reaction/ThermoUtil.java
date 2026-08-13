@@ -20,6 +20,9 @@ public final class ThermoUtil {
      * Keq = exp(−ΔG°′/RT)，ΔG°′ 单位为 kJ/mol 故乘 1000 转 J/mol。
      * 该换算在数据准备阶段执行一次（enzymes.json 直接存 Keq），
      * 引擎运行期不再持有 ΔG，保证"Keq 绝不缩放"的红线只有一处数据源头
+     * <p>
+     * 本方法为数据准备期工具（M0 数据表生成时调用），运行期无调用方，
+     * 是"ΔG°′ → Keq"换算的唯一公式来源，勿因无运行时引用而删除
      *
      * @param deltaGKjPerMol 生化标准反应吉布斯能（kJ/mol，eQuilibrator I=0.25 值）
      * @param temperatureK   温度（K），参考温度取 KineticConstants.T0

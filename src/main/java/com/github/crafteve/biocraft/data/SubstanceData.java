@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.datagen;
+package com.github.crafteve.biocraft.data;
 
 import com.google.gson.JsonObject;
 import net.minecraft.util.GsonHelper;
@@ -9,12 +9,12 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 物质数据表读取工具，供 datagen 各 Provider 使用
+ * 物质数据表读取工具（classpath 读取 substances.json）
  * <p>
- * 与运行时 ModItems 共用同一份 substances.json（classpath 读取），
+ * 供运行时注册（ModItems）与 datagen 各 Provider 共用同一份读取逻辑，
  * 保证 datagen 生成的资源与游戏内注册的物品始终一致
  * <p>
- * 本工具只读不写，只负责把 JSON 解析为内存对象，具体生成逻辑在各 Provider 中
+ * 本工具只读不写，只负责把 JSON 解析为内存对象，具体生成/注册逻辑在各调用方
  */
 public final class SubstanceData {
 

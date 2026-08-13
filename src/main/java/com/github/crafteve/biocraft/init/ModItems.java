@@ -1,6 +1,7 @@
 package com.github.crafteve.biocraft.init;
 
 import com.github.crafteve.biocraft.BioCraft;
+import com.github.crafteve.biocraft.data.SubstanceData;
 import com.github.crafteve.biocraft.item.MoleculeCategory;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.item.SequenceItem;
@@ -11,10 +12,6 @@ import net.minecraft.world.item.Item;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -61,7 +58,7 @@ public final class ModItems {
      * 避免因数据错误导致静默的空物品注册表
      */
     private static void loadSubstances() {
-        JsonObject root = readSubstancesJson();
+        JsonObject root = SubstanceData.loadRoot();
         JsonArray substances = root.getAsJsonArray("substances");
         for (JsonElement element : substances) {
             JsonObject substance = element.getAsJsonObject();
@@ -76,24 +73,6 @@ public final class ModItems {
             ORDERED.add(item);
         }
         BioCraft.LOGGER.info("已从物质表注册 {} 个分子物品", MOLECULES.size());
-    }
-
-    /**
-     * 从 mod jar 的 classpath 读取物质数据表
-     *
-     * @return 解析后的 JSON 根对象
-     */
-    private static JsonObject readSubstancesJson() {
-        String path = "/data/biocraft/molecule/substances.json";
-        InputStream stream = ModItems.class.getResourceAsStream(path);
-        if (stream == null) {
-            throw new IllegalStateException("未找到物质数据表: " + path);
-        }
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            return net.minecraft.util.GsonHelper.parse(reader);
-        } catch (Exception e) {
-            throw new IllegalStateException("解析物质数据表失败: " + path, e);
-        }
     }
 
     /**
