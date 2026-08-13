@@ -131,7 +131,7 @@ public class SubstanceLanguageProvider implements DataProvider {
         boolean zh = "zh_cn".equals(language);
         com.github.crafteve.biocraft.init.EnzymeFactoryRegistry.ordered().forEach(data ->
                 translations.put("block.biocraft." + data.id(),
-                        zh ? data.name() : data.id()));
+                        zh ? data.nameZn() : data.nameEn()));
     }
 
     /**

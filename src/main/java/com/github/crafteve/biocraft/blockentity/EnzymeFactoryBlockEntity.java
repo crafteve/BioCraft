@@ -345,7 +345,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      */
     @Override
     public net.minecraft.network.chat.Component getDisplayName() {
-        return net.minecraft.network.chat.Component.literal(enzymeData.name());
+        return net.minecraft.network.chat.Component.literal(enzymeData.nameZn());
     }
 
     /**

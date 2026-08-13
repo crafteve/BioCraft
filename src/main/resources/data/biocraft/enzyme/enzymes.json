@@ -2,7 +2,9 @@
     "enzymes": [
         {
             "id": "phosphoglucose_isomerase",
-            "name": "磷酸葡萄糖异构酶",
+            "name_zn": "磷酸葡萄糖异构酶",
+            "name_en": "Phosphoglucose Isomerase",
+            "abbreviation": "PGI",
             "category": "EC5",
             "kinetic": "ISOMERASE",
             "reaction": {
@@ -31,7 +33,9 @@
         },
         {
             "id": "hexokinase",
-            "name": "己糖激酶",
+            "name_zn": "己糖激酶",
+            "name_en": "Hexokinase",
+            "abbreviation": "HK",
             "category": "EC2",
             "kinetic": "LIMITING",
             "reaction": {
@@ -70,7 +74,9 @@
         },
         {
             "id": "glyceraldehyde_3_phosphate_dehydrogenase",
-            "name": "甘油醛-3-磷酸脱氢酶",
+            "name_zn": "甘油醛-3-磷酸脱氢酶",
+            "name_en": "Glyceraldehyde-3-phosphate Dehydrogenase",
+            "abbreviation": "GAPDH",
             "category": "EC1",
             "kinetic": "OXIDO_LYASE",
             "reaction": {

@@ -18,7 +18,9 @@ import java.util.List;
  * </ul>
  *
  * @param id            酶注册名（lower_snake_case，与方块注册名一致）
- * @param name          显示名（中文，GUI 标题用）
+ * @param nameZn        中文显示名（GUI 标题用）
+ * @param nameEn        英文显示名（GUI 副标题，M4 标题卡）
+ * @param abbreviation  酶缩写（如 PGI/HK/GAPDH，M4 标题卡紫框）
  * @param category      EC 类别（EC1~EC6 字符串，决定方块形状与 GUI 结构，不决定颜色）
  * @param kinetic       动力学变体（LIMITING/ISOMERASE/OXIDO_LYASE，策略层分派用）
  * @param reactants     反应物条目列表（系数 + Km）
@@ -35,7 +37,9 @@ import java.util.List;
  */
 public record EnzymeFactoryData(
         String id,
-        String name,
+        String nameZn,
+        String nameEn,
+        String abbreviation,
         String category,
         String kinetic,
         List<SpeciesSpec> reactants,

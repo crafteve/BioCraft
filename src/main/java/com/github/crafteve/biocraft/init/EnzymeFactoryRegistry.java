@@ -80,7 +80,9 @@ public final class EnzymeFactoryRegistry {
      */
     private static EnzymeFactoryData parseEnzyme(JsonObject enzyme) {
         String id = enzyme.get("id").getAsString();
-        String name = enzyme.get("name").getAsString();
+        String nameZn = enzyme.get("name_zn").getAsString();
+        String nameEn = enzyme.get("name_en").getAsString();
+        String abbreviation = enzyme.get("abbreviation").getAsString();
         String category = enzyme.get("category").getAsString();
         String kinetic = enzyme.get("kinetic").getAsString();
 
@@ -103,8 +105,8 @@ public final class EnzymeFactoryRegistry {
             }
         }
 
-        return new EnzymeFactoryData(id, name, category, kinetic, reactants, products,
-                reversible, keq, deltaH, kcat, tempOptimum,
+        return new EnzymeFactoryData(id, nameZn, nameEn, abbreviation, category, kinetic,
+                reactants, products, reversible, keq, deltaH, kcat, tempOptimum,
                 reactants.size(), products.size(), stallMessage, activators);
     }
 
