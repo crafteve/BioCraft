@@ -2,13 +2,15 @@ package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
-import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
 import com.github.crafteve.biocraft.reaction.ReactionDefinition;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.font.FontSet;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -65,11 +67,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private static final int PURPLE_DARK = 0xFF503080;
     private static final int PURPLE_TAG_BG = 0xFFE8E0F0;
     private static final int BAR_TRACK = 0xFFE0E0E0;
-    private static final int ENV_BG = 0xFFF0F0F0;
-    private static final int ENV_BORDER = 0xFFAAAAAA;
 
     // 布局（GUI 坐标）
-    private static final int TITLE_X = 8, TITLE_Y = 8, TITLE_W = 240, TITLE_H = 44;
+    private static final int TITLE_X = 8, TITLE_Y = 8, TITLE_W = 240, TITLE_H = 32;
     private static final int SIDE_CARD_X = 8, OUTPUT_CARD_X = 174, SIDE_CARD_W = 66;
     private static final int DASH_X = 78, DASH_W = 92;
     private static final int CARD_Y = 60, CARD_H = 106;
@@ -90,11 +90,13 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     private final EnzymeFactoryBlockEntity blockEntity;
     private final EnzymeFactoryData enzymeData;
-    private final MachineCategory category;
     private final List<String> speciesIds;
     private final Map<String, MoleculeItem> itemBySpecies;
     private final int[] vHistory = new int[100];
     private int vHistoryCount;
+
+    /** 矢量字体（simhei 黑体，assets/biocraft/font/enzyme.json，size 10） */
+    private final Font vectorFont;
 
     /**
      * @param menu             菜单实例
@@ -107,7 +109,13 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         this.imageHeight = GUI_H;
         this.blockEntity = menu.getBlockEntity();
         this.enzymeData = menu.getEnzymeData();
-        this.category = MachineCategory.byId(enzymeData.category());
+
+        // 加载自定义矢量字体（替代 MC 位图字体）：FontSet 按字体 id 从资源包读取
+        // assets/biocraft/font/enzyme.json（ttf provider，simhei.ttf），
+        // Font 以该 FontSet 为唯一字形来源，所有绘制走矢量渲染
+        FontSet fontSet = new FontSet(Minecraft.getInstance().getTextureManager(),
+                ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "enzyme"));
+        this.vectorFont = new Font(id -> fontSet, false);
 
         // 物种顺序重建（与引擎构建一致：反应物顺序 + 产物顺序，去重）
         this.speciesIds = new ArrayList<>();
@@ -170,45 +178,43 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 标题卡：方块 3D 贴图 + 大类名（中/英）+ 紫框缩写 + 中英全名 + T/P/pH + 状态灯
+     * 标题卡（上下压缩，简洁布局）：
+     * 方块 3D 贴图（左侧垂直居中）→ 紫框缩写 → displayname，右侧 T/pH 横排
      */
     private void drawTitleCard(GuiGraphics graphics) {
         drawCard(graphics, TITLE_X, TITLE_Y, TITLE_W, TITLE_H);
 
+        // 方块 3D 贴图：左侧上下居中（卡片高 32，图标 16×16 → y 偏移 8）
         ItemStack blockStack = new ItemStack(blockEntity.getBlockState().getBlock());
-        graphics.renderItem(blockStack, this.leftPos + TITLE_X + 4, this.topPos + TITLE_Y + 4);
+        graphics.renderItem(blockStack, this.leftPos + TITLE_X + 4, this.topPos + TITLE_Y + 8);
 
-        graphics.drawString(this.font, category.getDisplayName() + "工厂",
-                this.leftPos + TITLE_X + 25, this.topPos + TITLE_Y + 9, INK, false);
-        graphics.drawString(this.font, categoryEn(category) + " FACTORY",
-                this.leftPos + TITLE_X + 25, this.topPos + TITLE_Y + 24, GRAY_TEXT, false);
+        // 紫框缩写（宽度按内容自适应，垂直居中）
+        String abbr = enzymeData.abbreviation();
+        int abbrW = this.vectorFont.width(abbr) + 10;
+        int abbrX = TITLE_X + 26;
+        int abbrY = TITLE_Y + (TITLE_H - 20) / 2;
+        graphics.fill(this.leftPos + abbrX, this.topPos + abbrY,
+                this.leftPos + abbrX + abbrW, this.topPos + abbrY + 20, PURPLE_TAG_BG);
+        graphics.renderOutline(this.leftPos + abbrX, this.topPos + abbrY, abbrW, 20, PURPLE);
+        graphics.drawString(this.vectorFont, abbr,
+                this.leftPos + abbrX + 5, this.topPos + abbrY + 5, PURPLE, false);
 
-        // 紫框缩写
-        int abbrX = TITLE_X + 88;
-        graphics.fill(this.leftPos + abbrX, this.topPos + TITLE_Y + 8,
-                this.leftPos + abbrX + 30, this.topPos + TITLE_Y + 28, PURPLE_TAG_BG);
-        graphics.renderOutline(this.leftPos + abbrX, this.topPos + TITLE_Y + 8, 30, 20, PURPLE);
-        graphics.drawString(this.font, enzymeData.abbreviation(),
-                this.leftPos + abbrX + 4, this.topPos + TITLE_Y + 13, PURPLE, false);
+        // displayname（紫框右侧，垂直居中；超出与 T/pH 的间隙时按宽度截断）
+        int nameX = abbrX + abbrW + 8;
+        int nameY = TITLE_Y + (TITLE_H - 10) / 2;
+        String env = "T " + (int) Math.round(menu.getTemperature()) + "K  pH 7.00";
+        int envX = TITLE_X + TITLE_W - 8 - this.vectorFont.width(env);
+        int availW = envX - nameX - 6;
+        String name = enzymeData.nameZn();
+        if (this.vectorFont.width(name) > availW) {
+            name = this.vectorFont.plainSubstrByWidth(name, Math.max(availW - 10, 10)) + "…";
+        }
+        graphics.drawString(this.vectorFont, name,
+                this.leftPos + nameX, this.topPos + nameY, INK, false);
 
-        // 中英全名
-        int nameX = abbrX + 36;
-        graphics.drawString(this.font, enzymeData.nameZn(),
-                this.leftPos + nameX, this.topPos + TITLE_Y + 9, INK, false);
-        graphics.drawString(this.font, enzymeData.nameEn(),
-                this.leftPos + nameX, this.topPos + TITLE_Y + 24, GRAY_TEXT, false);
-
-        // T/P/pH 环境框（右上）
-        int envX = TITLE_X + TITLE_W - 58;
-        graphics.fill(this.leftPos + envX, this.topPos + TITLE_Y + 4,
-                this.leftPos + envX + 54, this.topPos + TITLE_Y + 40, ENV_BG);
-        graphics.renderOutline(this.leftPos + envX, this.topPos + TITLE_Y + 4, 54, 36, ENV_BORDER);
-        graphics.drawString(this.font, "T " + (int) Math.round(menu.getTemperature()) + "K",
-                this.leftPos + envX + 4, this.topPos + TITLE_Y + 10, INK, false);
-        graphics.drawString(this.font, "P 1.00 atm",
-                this.leftPos + envX + 4, this.topPos + TITLE_Y + 19, INK, false);
-        graphics.drawString(this.font, "pH 7.00",
-                this.leftPos + envX + 4, this.topPos + TITLE_Y + 28, INK, false);
+        // T / pH 横排（右侧，垂直居中）
+        graphics.drawString(this.vectorFont, env,
+                this.leftPos + envX, this.topPos + nameY, GRAY_TEXT, false);
     }
 
     /**
@@ -216,7 +222,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      */
     private void drawSpeciesCard(GuiGraphics graphics, int cardX, String title, int slotStart, int slotEnd) {
         drawCard(graphics, cardX, CARD_Y, SIDE_CARD_W, CARD_H);
-        graphics.drawString(this.font, title,
+        graphics.drawString(this.vectorFont, title,
                 this.leftPos + cardX + 2, this.topPos + CARD_Y + 3, INK, false);
 
         int row = 0;
@@ -234,18 +240,18 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             ItemStack stack = this.menu.getSlot(slotIndex).getItem();
 
             // 缩写
-            graphics.drawString(this.font, item.getAbbreviation(),
+            graphics.drawString(this.vectorFont, item.getAbbreviation(),
                     this.leftPos + subX + 24, this.topPos + subY - 2, INK, false);
             // 数量
-            graphics.drawString(this.font, "×" + stack.getCount(),
-                    this.leftPos + subX + 24, this.topPos + subY + 8, GRAY_TEXT, false);
+            graphics.drawString(this.vectorFont, "×" + stack.getCount(),
+                    this.leftPos + subX + 24, this.topPos + subY + 7, GRAY_TEXT, false);
             // 浓度条（数量 + 引擎余量，语义色 = 物品染色）
             double concentration = (stack.getCount() + blockEntity.getRemainder(slotIndex)) / 64.0;
             int barColor = 0xFF000000 | item.getTintColor();
-            graphics.fill(this.leftPos + subX + 24, this.topPos + subY + 17,
-                    this.leftPos + subX + 56, this.topPos + subY + 23, BAR_TRACK);
-            graphics.fill(this.leftPos + subX + 24, this.topPos + subY + 17,
-                    this.leftPos + subX + 24 + (int) (32 * Math.min(concentration, 1.0)), this.topPos + subY + 23, barColor);
+            graphics.fill(this.leftPos + subX + 24, this.topPos + subY + 18,
+                    this.leftPos + subX + 56, this.topPos + subY + 24, BAR_TRACK);
+            graphics.fill(this.leftPos + subX + 24, this.topPos + subY + 18,
+                    this.leftPos + subX + 24 + (int) (32 * Math.min(concentration, 1.0)), this.topPos + subY + 24, barColor);
             row++;
         }
     }
@@ -258,13 +264,13 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
         // 反应方程式
         String equation = renderEquation();
-        graphics.drawString(this.font, equation,
+        graphics.drawString(this.vectorFont, equation,
                 this.leftPos + DASH_X + 4, this.topPos + EQ_Y, PURPLE, false);
-        graphics.drawString(this.font, enzymeData.reversible() ? "可逆反应" : "不可逆反应",
+        graphics.drawString(this.vectorFont, enzymeData.reversible() ? "可逆反应" : "不可逆反应",
                 this.leftPos + DASH_X + 30, this.topPos + REVERSIBLE_Y, GRAY_TEXT, false);
 
         // 净速率条
-        graphics.drawString(this.font, "净速率 v",
+        graphics.drawString(this.vectorFont, "净速率 v",
                 this.leftPos + DASH_X + 4, this.topPos + RATE_LABEL_Y, INK, false);
         double vmaxF = enzymeData.kcat() / KineticConstants.TIME_SCALE;
         double flux = menu.getFlux();
@@ -273,7 +279,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 this.leftPos + DASH_X + 4 + DASH_W - 14, this.topPos + RATE_BAR_Y + 6, BAR_TRACK);
         graphics.fill(this.leftPos + DASH_X + 4, this.topPos + RATE_BAR_Y,
                 this.leftPos + DASH_X + 4 + (int) (ratio * (DASH_W - 14)), this.topPos + RATE_BAR_Y + 6, PURPLE);
-        graphics.drawString(this.font, String.format("%.2f", flux),
+        graphics.drawString(this.vectorFont, String.format("%.2f", flux),
                 this.leftPos + DASH_X + 40, this.topPos + RATE_LABEL_Y, PURPLE, false);
 
         // 方向箭头
@@ -285,11 +291,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         } else {
             arrow = "≈ 平衡";
         }
-        graphics.drawString(this.font, arrow,
+        graphics.drawString(this.vectorFont, arrow,
                 this.leftPos + DASH_X + 30, this.topPos + ARROW_Y, PURPLE, false);
 
         // 平衡条（紫白渐变贴图 + Keq 菱形指针 + Q 圆点指针）
-        graphics.drawString(this.font, "平衡",
+        graphics.drawString(this.vectorFont, "平衡",
                 this.leftPos + DASH_X + 4, this.topPos + BALANCE_LABEL_Y, INK, false);
         int barX = DASH_X + 4;
         int barW = 78;
@@ -302,11 +308,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int pointY = BALANCE_BAR_Y + 1;
         graphics.blit(KEQ_POINT, this.leftPos + keqX, this.topPos + pointY, 0, 0, 9, 9, 9, 9);
         graphics.blit(Q_POINT, this.leftPos + qX, this.topPos + pointY, 0, 0, 9, 9, 9, 9);
-        graphics.drawString(this.font, String.format("Q/Keq=%.2f", q / keq),
+        graphics.drawString(this.vectorFont, String.format("Q/Keq=%.2f", q / keq),
                 this.leftPos + DASH_X + 22, this.topPos + QK_EQ_Y, GRAY_TEXT, false);
 
         // v-t 图（5 秒窗口，粒度秒）
-        graphics.drawString(this.font, "v-t 图（5s）",
+        graphics.drawString(this.vectorFont, "v-t 图（5s）",
                 this.leftPos + DASH_X + 4, this.topPos + VT_LABEL_Y, INK, false);
         drawVtChart(graphics);
     }
@@ -341,7 +347,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         }
         for (int sec = 0; sec <= 5; sec++) {
             int tx = chartX + sec * chartW / 5;
-            graphics.drawString(this.font, sec + "s",
+            graphics.drawString(this.vectorFont, sec + "s",
                     this.leftPos + tx - 2, this.topPos + VT_Y + VT_H + 1, GRAY_TEXT, false);
         }
     }
@@ -422,23 +428,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             // 数量文字与 IItemDecorator（G6P 缩写等）必须经 renderItemDecorations：
             // 其内部 z 提升 200，保证盖过物品（z=150）与槽贴图（z=0），
             // 手动 drawString 在 z=0 会被物品遮挡（曾踩坑：数量显示在物品贴图下方）
-            graphics.renderItemDecorations(this.font, stack, slot.x, slot.y, null);
+            graphics.renderItemDecorations(this.vectorFont, stack, slot.x, slot.y, null);
         }
-    }
-
-    /**
-     * 大类英文名（标题卡副标题）
-     */
-    private static String categoryEn(MachineCategory category) {
-        return switch (category) {
-            case EC1 -> "OXIDOREDUCTASE";
-            case EC2 -> "TRANSFERASE";
-            case EC3 -> "HYDROLASE";
-            case EC4 -> "LYASE";
-            case EC5 -> "ISOMERASE";
-            case EC6 -> "LIGASE";
-            default -> "MACHINE";
-        };
     }
 
     /**
