@@ -143,8 +143,8 @@ com.github.crafteve.biocraft
 │   ├── StepResult.java           # 通量报告（fwd/rev/net）
 │   ├── ThermoUtil.java           # Keq 换算/van't Hoff+Q10/Arrhenius
 │   └── KineticConstants.java     # 缩放常量（TIME_SCALE=1000 唯一节奏旋钮，待 M6 调参）
-├── machine/                      # 3 种酶动力学行为策略（未开发）
-├── gui/                          # MachineMenu + MachineScreen（未开发）
+├── machine/                      # 已废弃删除：原策略层停机判定（activity 恒 1，机器运转完全由引擎计算决定）
+├── gui/                          # MachineMenu + MachineScreen（已完成）
 ├── network/                      # 同步数据包（DNA编码器序列包在用）
 ├── event/                        # TNT 爆炸转化、熔炉燃烧产 ATP（未开发）
 └── organelle/                    # 纪元三：相邻检测 + 控制核心（未开发）

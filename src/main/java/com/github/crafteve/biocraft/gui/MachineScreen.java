@@ -64,8 +64,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private static final int PURPLE_LIGHT = 0xFF9060D0;
     private static final int PURPLE_DARK = 0xFF503080;
     private static final int PURPLE_TAG_BG = 0xFFE8E0F0;
-    private static final int DANGER_RED = 0xFFD7252F;
-    private static final int GREEN_OK = 0xFF40C040;
     private static final int BAR_TRACK = 0xFFE0E0E0;
     private static final int ENV_BG = 0xFFF0F0F0;
     private static final int ENV_BORDER = 0xFFAAAAAA;
@@ -211,12 +209,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 this.leftPos + envX + 4, this.topPos + TITLE_Y + 19, INK, false);
         graphics.drawString(this.font, "pH 7.00",
                 this.leftPos + envX + 4, this.topPos + TITLE_Y + 28, INK, false);
-
-        // 状态灯（环境框左侧，含停摆文案）
-        int statusColor = menu.getStallCode() == 0 ? GREEN_OK : DANGER_RED;
-        String statusText = menu.getStallCode() == 0 ? "正常运行" : "停摆:" + enzymeData.stallMessage();
-        graphics.drawString(this.font, statusText,
-                this.leftPos + TITLE_X + 4, this.topPos + TITLE_Y + 37, statusColor, false);
     }
 
     /**
@@ -259,7 +251,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 仪表盘：方程式 + 速率条 + 方向箭头 + 平衡条双指针 + v-t 图（停摆文案在标题栏）
+     * 仪表盘：方程式 + 速率条 + 方向箭头 + 平衡条双指针 + v-t 图
      */
     private void drawDashboard(GuiGraphics graphics) {
         drawCard(graphics, DASH_X, CARD_Y, DASH_W, CARD_H);

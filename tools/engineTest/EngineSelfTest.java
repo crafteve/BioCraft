@@ -43,9 +43,7 @@ public final class EngineSelfTest {
         run("12 随机稳定性：无 NaN 无越界", EngineSelfTest::test12Stability);
         run("13 相对快慢：TPI/PGI 初速比 ≈ 科学 kcat 比", EngineSelfTest::test13RelativeSpeed);
         run("14 PGI 黄金值快照", EngineSelfTest::test14Snapshot);
-        run("15 策略层：异构酶底物<8 停摆", EngineSelfTest::test15IsomeraseStall);
-        run("16 策略层：氧化裂解 NAD⁺ 耗尽停摆", EngineSelfTest::test16OxidoStall);
-        run("17 策略层：限速酶恒全速（激活剂留空）", EngineSelfTest::test17LimitingRunning);
+        run("15 产物堆积时底物稀少仍逆向反应（无停机判定）", EngineSelfTest::test15ReverseWithLowSubstrate);
 
         if (failures > 0) {
             System.err.println("引擎单测失败: " + failures + "/" + total);
@@ -384,45 +382,19 @@ public final class EngineSelfTest {
         checkNear(totalFlux, 4.690124653, 1e-6, "快照累计净通量偏离黄金值");
     }
 
-    /** 异构酶策略：主底物堆叠 <8 停摆，≥8 正常 */
-    private static void test15IsomeraseStall() {
-        EnzymeSimulator pgi = TestEnzymes.pgi().buildSimulator();
-        var behavior = com.github.crafteve.biocraft.machine.KineticBehavior.forKinetic("ISOMERASE");
-
-        pgi.getState().getConcentrations()[idx(pgi, "glucose_6_phosphate")] = 0.1 / 64.0;
-        var stalled = behavior.evaluate(TestEnzymes.pgi(), pgi.getDefinition(), pgi.getState());
-        check(stalled.activity() == 0.0 && stalled.stallReason() != null,
-                "主底物 <8 个时应停摆");
-
-        pgi.getState().getConcentrations()[idx(pgi, "glucose_6_phosphate")] = 8.0 / 64.0;
-        var running = behavior.evaluate(TestEnzymes.pgi(), pgi.getDefinition(), pgi.getState());
-        check(running.activity() == 1.0 && running.stallReason() == null,
-                "主底物 ≥8 个时应正常运行");
-    }
-
-    /** 氧化裂解策略：NAD⁺ 耗尽停摆，有 NAD⁺ 正常 */
-    private static void test16OxidoStall() {
-        EnzymeSimulator gapdh = TestEnzymes.gapdh().buildSimulator();
-        var behavior = com.github.crafteve.biocraft.machine.KineticBehavior.forKinetic("OXIDO_LYASE");
-
-        gapdh.getState().getConcentrations()[idx(gapdh, "glyceraldehyde_3_phosphate")] = 0.5;
-        var stalled = behavior.evaluate(TestEnzymes.gapdh(), gapdh.getDefinition(), gapdh.getState());
-        check(stalled.activity() == 0.0 && stalled.stallReason() != null,
-                "NAD⁺ 耗尽时应停摆报警");
-
-        gapdh.getState().getConcentrations()[idx(gapdh, "nad_plus")] = 0.5;
-        var running = behavior.evaluate(TestEnzymes.gapdh(), gapdh.getDefinition(), gapdh.getState());
-        check(running.activity() == 1.0 && running.stallReason() == null,
-                "有 NAD⁺ 时应正常运行");
-    }
-
-    /** 限速酶策略：激活剂留空恒全速 */
-    private static void test17LimitingRunning() {
-        EnzymeSimulator hk = TestEnzymes.hk().buildSimulator();
-        var behavior = com.github.crafteve.biocraft.machine.KineticBehavior.forKinetic("LIMITING");
-        var result = behavior.evaluate(TestEnzymes.hk(), hk.getDefinition(), hk.getState());
-        check(result.activity() == 1.0 && result.stallReason() == null,
-                "激活剂留空时限速酶应恒全速");
+    /**
+     * 回归守护：F6P 大量堆积而 G6P 稀少（仅 1 个）时，净通量必须为逆向（负值）
+     * <p>
+     * 机器是否运转完全由引擎计算决定，不得有任何"底物过少直接停机"的
+     * 外部判定——产物回压应把反应推向逆向（策划：副产物不回收则产线堵塞）
+     */
+    private static void test15ReverseWithLowSubstrate() {
+        EnzymeSimulator sim = TestEnzymes.pgi().buildSimulator();
+        double[] x = sim.getState().getConcentrations();
+        x[idx(sim, "glucose_6_phosphate")] = 1.0 / 64.0;
+        x[idx(sim, "fructose_6_phosphate")] = 48.0 / 64.0;
+        check(sim.step(KineticConstants.TICK_SECONDS).fluxNet() < 0.0,
+                "产物大量堆积且底物稀少时应逆向净流（不得因底物少而停机）");
     }
 
     private EngineSelfTest() {

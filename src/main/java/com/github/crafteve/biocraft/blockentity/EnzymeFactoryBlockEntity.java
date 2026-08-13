@@ -4,7 +4,6 @@ import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.block.MachineBlock;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModItems;
-import com.github.crafteve.biocraft.machine.KineticBehavior;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.github.crafteve.biocraft.reaction.EnzymeSimulator;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
@@ -59,7 +58,6 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     private int cachedFluxX1000;
     private int cachedTempX100;
     private int cachedProgressX1000;
-    private int cachedStallCode;
 
     /** v-t 通量历史环形缓冲（100 tick = 5 秒，打开 GUI 时一次性下发，不存档） */
     private static final int HISTORY_LENGTH = 100;
@@ -200,8 +198,12 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
 
     /**
      * 单 tick 完整流水线（仅服务端）：
-     * 槽位合法性防呆 → 事件回写兜底 → 策略层活性 → 引擎 step →
+     * 槽位合法性防呆 → 事件回写兜底 → 引擎 step →
      * 浓度投影回槽位 → 观测数据缓存
+     * <p>
+     * 活性恒为 1.0（默认）：机器是否运转完全由化学引擎计算决定
+     * （底物耗尽、产物回压、平衡状态等），不存在任何外部停机判定——
+     * 玩家通过观察浓度变化即可判断机器状态，无需提示
      * <p>
      * 防呆：漏斗可绕过 Slot.mayPlace 直接向容器塞任意物品，
      * 每 tick 检查槽位物品类型，非法物品弹出世界（防呆而非拒绝）
@@ -214,10 +216,6 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         syncFromSlots();
 
         double[] x = simulator.getState().getConcentrations();
-        KineticBehavior.Result behavior = KineticBehavior
-                .forKinetic(enzymeData.kinetic())
-                .evaluate(enzymeData, simulator.getDefinition(), simulator.getState());
-        simulator.getState().setActivity(behavior.activity());
 
         boolean asleep = true;
         for (double value : x) {
@@ -233,13 +231,13 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             cachedFluxX1000 = (int) Math.round(result.fluxNet() * 1000.0);
             projectToSlots();
         }
-        updateCachedData(behavior);
+        updateCachedData();
         fluxHistory[historyIndex] = cachedFluxX1000;
         historyIndex = (historyIndex + 1) % HISTORY_LENGTH;
 
         if (level.getGameTime() % 20 == 0) {
-            BioCraft.LOGGER.debug("酶工厂 [{}] 槽位: {}, 浓度: {}, 通量×1000: {}, 停摆: {}",
-                    enzymeData.id(), slotSummary(), concentrationSummary(), cachedFluxX1000, cachedStallCode);
+            BioCraft.LOGGER.debug("酶工厂 [{}] 槽位: {}, 浓度: {}, 通量×1000: {}",
+                    enzymeData.id(), slotSummary(), concentrationSummary(), cachedFluxX1000);
         }
     }
 
@@ -301,12 +299,9 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      *   <li>温度×100（M5 温度机制接入前恒为参考温度）</li>
      *   <li>净通量×1000（GUI 速率条，在 tick 流水线中由 step 结果更新）</li>
      *   <li>主产物浓度×1000（GUI 平衡条进度）</li>
-     *   <li>停摆原因编码：0 正常 / 1 停摆（具体文案客户端从酶数据表取）</li>
      * </ul>
-     *
-     * @param behavior 本 tick 策略判定结果
      */
-    private void updateCachedData(KineticBehavior.Result behavior) {
+    private void updateCachedData() {
         cachedTempX100 = (int) Math.round(simulator.getState().getTemperature() * 100.0);
         double[] x = simulator.getState().getConcentrations();
         cachedProgressX1000 = 0;
@@ -315,7 +310,6 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             int productIndex = simulator.getDefinition().getSpeciesIndex(mainProduct);
             cachedProgressX1000 = (int) Math.round(x[Math.max(productIndex, 0)] * 1000.0);
         }
-        cachedStallCode = behavior.stallReason() == null ? 0 : 1;
     }
 
     private String slotSummary() {
@@ -439,9 +433,5 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
 
     public int getCachedProgressX1000() {
         return cachedProgressX1000;
-    }
-
-    public int getCachedStallCode() {
-        return cachedStallCode;
     }
 }

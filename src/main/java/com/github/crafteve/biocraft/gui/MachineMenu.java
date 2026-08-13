@@ -27,12 +27,11 @@ import net.minecraft.world.item.ItemStack;
  *       输出卡条目 = 产物槽（x=179），y = 82 + 行号×42</li>
  *   <li>n..n+35：玩家背包（主背包 3×9 @x=12 y=248 起，行距 20）+ 快捷栏 @y=308</li>
  * </ul>
- * 同步通道（ContainerData 4 个 int，服务端权威）：
+ * 同步通道（ContainerData 3 个 int，服务端权威）：
  * <ul>
  *   <li>DATA_TEMP：温度×100</li>
  *   <li>DATA_FLUX：净通量×1000（速率条与 v-t 图实时增补）</li>
  *   <li>DATA_PROGRESS：主产物浓度×1000</li>
- *   <li>DATA_STALL：停摆编码（0 正常 / 1 停摆，文案客户端查酶数据表）</li>
  * </ul>
  * v-t 历史：打开 GUI 时经 writeClientSideData 一次性下发 100 tick（5 秒）环形缓冲，
  * 打开期间客户端每 tick 从 DATA_FLUX 追加（零额外常态流量）
@@ -44,8 +43,6 @@ public class MachineMenu extends AbstractContainerMenu {
     public static final int DATA_FLUX = 1;
     /** 容器数据下标：主产物浓度×1000 */
     public static final int DATA_PROGRESS = 2;
-    /** 容器数据下标：停摆编码 */
-    public static final int DATA_STALL = 3;
 
     /** 方块实体引用，菜单生命周期内保持存活 */
     private final EnzymeFactoryBlockEntity blockEntity;
@@ -95,7 +92,7 @@ public class MachineMenu extends AbstractContainerMenu {
         this.blockEntity = blockEntity;
         this.enzymeData = blockEntity.getEnzymeData();
         this.fluxHistory = fluxHistory == null ? new int[0] : fluxHistory;
-        this.data = new SimpleContainerData(4);
+        this.data = new SimpleContainerData(3);
         refreshData();
         addDataSlots(data);
 
@@ -169,7 +166,6 @@ public class MachineMenu extends AbstractContainerMenu {
         data.set(DATA_TEMP, blockEntity.getCachedTempX100());
         data.set(DATA_FLUX, blockEntity.getCachedFluxX1000());
         data.set(DATA_PROGRESS, blockEntity.getCachedProgressX1000());
-        data.set(DATA_STALL, blockEntity.getCachedStallCode());
     }
 
     /**
@@ -263,11 +259,6 @@ public class MachineMenu extends AbstractContainerMenu {
     /** 主产物浓度（0~1，ContainerData 还原） */
     public double getMainProductProgress() {
         return data.get(DATA_PROGRESS) / 1000.0;
-    }
-
-    /** 停摆编码（0 正常 / 1 停摆） */
-    public int getStallCode() {
-        return data.get(DATA_STALL);
     }
 
     /** 物种槽位总数 */
