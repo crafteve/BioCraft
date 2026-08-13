@@ -45,7 +45,7 @@ import java.util.Map;
 public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     // 贴图资产
     private static final ResourceLocation ENZYME_BG = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/enzyme_background.png");
-    private static final ResourceLocation SLOT_LIGHT = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/slot_light.png");
+    private static final ResourceLocation SLOT = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/slot.png");
     private static final ResourceLocation BALANCE_BAR = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/balance_bar.png");
     private static final ResourceLocation KEQ_POINT = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/keq_point.png");
     private static final ResourceLocation Q_POINT = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/q_point.png");
@@ -410,21 +410,16 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 槽位渲染覆写：物种槽用浅色贴图背景，背包槽保持 vanilla
+     * 槽位渲染覆写：全部槽位（物种槽 + 背包槽）统一用用户手绘 slot.png
      * <p>
-     * 槽位贴图 18×18 blit 于 slot.x-1（槽位视觉左上角），
-     * 物品与数量由 renderSlotContents 绘制（图标 16×16 于 slot.x+1 居中）
+     * 槽位贴图 18×18（中央 16×16 内容区 + 1px 边框），blit 于 slot.x-1（贴图左上角）；
+     * 物品图标由 renderSlotContents 绘制（16×16 于 slot.x+1 居中在内容区）
      */
     @Override
     protected void renderSlot(GuiGraphics graphics, Slot slot) {
-        int speciesCount = menu.getSpeciesSlotCount();
-        if (slot.index < speciesCount) {
-            graphics.blit(SLOT_LIGHT, this.leftPos + slot.x - 1, this.topPos + slot.y - 1,
-                    0, 0, 18, 18, 18, 18);
-            renderSlotContents(graphics, slot.getItem(), slot, null);
-        } else {
-            super.renderSlot(graphics, slot);
-        }
+        graphics.blit(SLOT, this.leftPos + slot.x - 1, this.topPos + slot.y - 1,
+                0, 0, 18, 18, 18, 18);
+        renderSlotContents(graphics, slot.getItem(), slot, null);
     }
 
     /**
