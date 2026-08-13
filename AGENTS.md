@@ -42,7 +42,7 @@
 3. **真核纪元**：TCA 循环 + ETC 机器群 → 工业级 ATP/FE 输出
 4. **合成生物纪元**：自定义酶"编程" + 合成细胞核，实现近乎创造模式的合成，且完全依赖生化产线供能
 
-纪元一的开发分批顺序：物品地基（原子/分子注册 + 视觉）→ TNT 爆炸转化 + 熔炉产 ATP → 反应引擎（ReactionParser）→ 三台原始机器
+纪元一的开发分批顺序：物品地基（原子/分子注册 + 视觉）→ 反应引擎（已完成：多底物可逆米氏乘积速率 + RK4，JSON 结构化反应无字符串解析）→ TNT 爆炸转化 + 熔炉产 ATP → 三台原始机器
 
 **当前进度**（2026-08-12）：
 - ✅ 物品地基第一阶段完成：62 个分子物品（20 氨基酸/13 离子/5 原子/2 无机物/4 碱基/4 NTP/3 辅酶/11 糖酵解）由 `substances.json` 数据表驱动注册，datagen 自动生成模型/语言/贴图
@@ -51,7 +51,8 @@
 - ✅ 图标缩写标注：`IItemDecorator` 在物品图标左上角绘制缩写（白字黑阴影双写、缩放 0.55、z 提升 200 层）；缩写数据使用 Unicode 上下标（H⁺/Ca²⁺/NH₄⁺/H₂O/NAD⁺，糖酵解编号如 G6P 保持原样）
 - ✅ tooltip 布局：手持物品时创意标签页标题（蓝色）自动移至 tooltip 末尾（`MoleculeTooltipLayout`）
 - ✅ 视觉校验闭环：`.opencode/agents/vision.md` 视觉审查子代理（opencode-go/qwen3.7-plus 多模态）+ `tools/texturegen/` 程序化贴图工具链（PixelCanvas DSL，生成 PNG 后派 vision 子代理读图审查）
-- ⏳ 待开发：TNT 爆炸转化、熔炉产 ATP、反应引擎、三台原始机器
+- ✅ 化学引擎内核完成（纯 Java 零 MC 依赖，`tools/engineTest/` 独立单测 14 用例全绿）：多底物可逆米氏乘积速率方程（共享分母，平衡精确 = Keq 绝不缩放 + 饱和有界 + 产物回压 + 全底物平等，ATP/NAD⁺ 参与速率）、RK4 积分（Δt=0.05）、温度修正（van't Hoff/Q10 + 0.1K 缓存）、固定活性物种（H₂O/H⁺ 只结算不进速率）、三断言数据防火墙（配平/数值健康/Keq 红线）；PGI 平衡收敛误差 <1%、黄金值快照防回归
+- ⏳ 待开发：糖酵解热力学数据 JSON 化（enzymes.json）、酶工厂注册体系、BE 桥接、TNT 爆炸转化、熔炉产 ATP、三台原始机器
 
 ### 1.6 开发流程
 
@@ -88,6 +89,7 @@
 - `README.md` — 仍是模板默认内容，待改写
 - `TEMPLATE_LICENSE.txt` — 模板许可
 - `tools/texturegen/` — 程序化贴图工具链（`PixelCanvas.java` 像素画 DSL + `TextureScript.java` 示例脚本），纯 JDK 21 AWT 零依赖，与 Gradle 构建完全隔离。编译 `javac -encoding UTF-8 -d tools/texturegen/out tools/texturegen/*.java`，运行 `java -cp tools/texturegen/out TextureScript [输出目录]`；输出目录 `tools/texturegen/output/` 已 gitignore，正式贴图确定后拷入 `src/main/resources`
+- `tools/engineTest/` — 化学引擎独立单测（14 用例），纯 JDK 零依赖扮演"伪方块实体"验证引擎纯函数契约。运行前需先 `gradlew build`（生成主代码 class），再 `javac -encoding UTF-8 -cp build/classes/java/main -d tools/engineTest/out tools/engineTest/*.java` + `java -cp "build/classes/java/main;tools/engineTest/out" engineTest.EngineSelfTest`；退出码 0=全绿、1=有失败。输出目录 `tools/engineTest/out/` 已 gitignore
 
 ### 2.2 构建与运行目录
 
@@ -130,12 +132,20 @@ com.github.crafteve.biocraft
 │   ├── SubstanceData.java        # 物质表读取工具（classpath）
 │   ├── SubstanceModelProvider.java # 每物质两层模型 JSON
 │   └── SubstanceLanguageProvider.java # en_us/zh_cn 语言生成（含类别/摩尔质量 key）
-├── block/MachineBlock.java       # 唯一机器方块类（未开发）
-├── blockentity/                  # MachineType + MachineBlockEntity（未开发）
-├── reaction/                     # 反应引擎（未开发）
+├── block/MachineBlock.java       # 唯一机器方块类（DNA编码器在用，酶工厂改造待 M2）
+├── blockentity/                  # MachineType + MachineBlockEntity（DNA编码器在用，酶工厂 BE 待 M3）
+├── reaction/                     # 化学引擎内核（纯 Java 零 MC 依赖，已完成 + 14 用例单测）
+│   ├── EnzymeFactoryData.java    # 酶数据档案 record（物品 id 直填/每物种自带 Km/直存 Keq）
+│   ├── EnzymeSimulator.java      # 每机一实例：RK4 积分 + 温度缓存 + 边界缩放
+│   ├── ReactionDefinition.java   # 不可变网络档案（物种表/化学计量/Haldane Vmax_b(T)）
+│   ├── KineticsCalculator.java   # 共享分母乘积速率方程 + 缩放换算
+│   ├── ReactionState.java        # 浓度/温度/活性容器（BE 与引擎共享）
+│   ├── StepResult.java           # 通量报告（fwd/rev/net）
+│   ├── ThermoUtil.java           # Keq 换算/van't Hoff+Q10/Arrhenius
+│   └── KineticConstants.java     # 缩放常量（TIME_SCALE=1000 唯一节奏旋钮，待 M6 调参）
 ├── machine/                      # 3 种酶动力学行为策略（未开发）
 ├── gui/                          # MachineMenu + MachineScreen（未开发）
-├── network/                      # 同步数据包（未开发）
+├── network/                      # 同步数据包（DNA编码器序列包在用）
 ├── event/                        # TNT 爆炸转化、熔炉燃烧产 ATP（未开发）
 └── organelle/                    # 纪元三：相邻检测 + 控制核心（未开发）
 ```
@@ -177,6 +187,10 @@ com.github.crafteve.biocraft
 14. **BlockEntity.setRemoved 双触发陷阱**：`setRemoved()` 不只方块破坏时调用，**世界卸载/区块卸载同样触发**（Level 卸载 chunk 时清理 BE）。掉落实体/玩家反馈类逻辑**禁止放 setRemoved**，否则进出存档会误触发（实测：DNA 编码器缓冲池碱基每次进出存档爆一地）。正确位置是方块类的 `Block.onRemove`（仅方块被破坏/替换时触发），通过 `BlockEntity` 的 `dropExtraContents(Level, BlockPos)` 类钩子统一调用
 15. **视觉审查子代理**：vision agent 定义在 `.opencode/agents/`，启动时加载，修改后必须重启 opencode 才生效；Task 派发时给出图片绝对路径与审查要点，子代理无 edit 权限只能读图返回文字；mimo-v2.5 描述精度不足已弃用，主用 qwen3.7-plus，若在 OpenCode Go 订阅出现额度/速率限制或精度下降，换备选视觉模型（qwen3.6-plus / qwen3.8-max / gpt-5.6-luna）
 16. **贴图工具链编码**：`tools/texturegen` 的 javac 必须带 `-encoding UTF-8`（Windows 默认 GBK 会编译失败），输出目录 gitignore，正式贴图需手动拷入 `src/main/resources`，工具脚本不进 mod 源码源集
+17. **引擎零依赖隔离门禁**：`reaction/` 包只能 import `java.*`（当前仅 java.util.*）；`tools/engineTest` 的 javac classpath 只含 `build/classes/java/main`（无 MC 类），引擎若意外引入 MC 依赖编译直接失败——这是天然门禁，新增引擎代码时保持此约束
+18. **引擎速率公式三大数学性质（勿改坏）**：①平衡精确——可逆多底物共享分母乘积形式下 v=0 时 ∏产物/∏底物 = Keq（Haldane 保证），Keq 绝不缩放红线由构建断言+收敛测试双重守护；②逆向 Vmax 由 `Vmax_f·∏KmP/(∏KmS·Keq)` 决定而非独立逆向数据（Keq 小时逆向极强是正确行为）；③饱和有界——高浓度速率 ≤ Vmax_f 不爆表
+19. **边界截断是正确物流行为不是 bug**：RK4 终值越界时全局同比缩放（scale=0 反应冻结）——产物满堆、逆向底物满堆、固定活性资源耗尽（水解缺水/H⁺ 耗尽无法逆向）都会表现为"反应停摆"，物理语义正确，测试场景设计时必须给预期方向的产物留出容量空间
+20. **固定活性物种约定**：`{water, hydrogen_ion}` 不进速率方程（eQuilibrator 变换值已隐含 H₂O 活度 1/pH7）但参与化学计量结算（ENO 产水物品），反应物侧耗尽停供（水解必须供水）
 
 ## 第三章 编码与开发规范
 

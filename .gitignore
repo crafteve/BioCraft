@@ -42,3 +42,6 @@ run-client-log.txt
 
 ### 程序化贴图工具产物 ###
 tools/texturegen/output/
+
+### 化学引擎单测编译产物 ###
+tools/engineTest/out/
