@@ -40,6 +40,7 @@ public class BioCraftClient {
         // 将机器菜单类型与对应的屏幕类绑定，打开 GUI 时客户端按 MenuType 实例化屏幕
         // NeoForge 1.21.1 的 MenuScreens.register 为私有方法，必须经本事件注册
         event.register(ModBlocks.DNA_ENCODER_MENU.get(), DNAEncoderScreen::new);
+        event.register(ModBlocks.ENZYME_FACTORY_MENU.get(), com.github.crafteve.biocraft.gui.MachineScreen::new);
     }
 
     /**
