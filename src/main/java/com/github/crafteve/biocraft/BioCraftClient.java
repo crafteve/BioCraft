@@ -4,12 +4,10 @@ import com.github.crafteve.biocraft.block.MachineBlock;
 import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.gui.DNAEncoderScreen;
 import com.github.crafteve.biocraft.init.ModBlocks;
-import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
@@ -18,13 +16,6 @@ import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 // 客户端装配事件统一挂在 mod 总线上（菜单屏幕注册事件均在此总线派发）
 @EventBusSubscriber(modid = BioCraft.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 public class BioCraftClient {
-
-    @SubscribeEvent
-    static void onClientSetup(FMLClientSetupEvent event) {
-        // 临时强制整数 GUI scale：位图字体在非整数缩放（如 Windows DPI 缩放 125%）
-        // 下会模糊/错位，先强制 2x 验证字体清晰度（后续可移除或做成配置）
-        Minecraft.getInstance().options.guiScale().set(2);
-    }
 
     @SubscribeEvent
     static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
