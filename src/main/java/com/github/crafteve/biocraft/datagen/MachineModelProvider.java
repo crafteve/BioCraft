@@ -96,16 +96,32 @@ public class MachineModelProvider implements DataProvider {
             JsonObject textures = new JsonObject();
             textures.addProperty("all", "minecraft:block/white_concrete");
             blockModelJson.add("textures", textures);
-            JsonArray elements = new JsonArray();
             // tintindex 0：整块方块按类别主题色染色（BlockColors 注册）
+            // 必须提供 from/to 六面立方体坐标，否则模型 JSON 非法（missing from）
+            JsonArray elements = new JsonArray();
             JsonObject tintedElement = new JsonObject();
+            JsonArray from = new JsonArray();
+            from.add(0);
+            from.add(0);
+            from.add(0);
+            tintedElement.add("from", from);
+            JsonArray to = new JsonArray();
+            to.add(16);
+            to.add(16);
+            to.add(16);
+            tintedElement.add("to", to);
             JsonObject faces = new JsonObject();
             for (String direction : new String[]{"north", "south", "east", "west", "up", "down"}) {
                 JsonObject face = new JsonObject();
-                face.addProperty("uv", "[0.0, 0.0, 16.0, 16.0]");
-                JsonArray tint = new JsonArray();
-                tint.add(0);
-                face.add("tintindex", tint);
+                face.addProperty("texture", "#all");
+                face.addProperty("cullface", direction);
+                JsonArray uv = new JsonArray();
+                uv.add(0);
+                uv.add(0);
+                uv.add(16);
+                uv.add(16);
+                face.add("uv", uv);
+                face.addProperty("tintindex", 0);
                 faces.add(direction, face);
             }
             tintedElement.add("faces", faces);

@@ -123,20 +123,25 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 解析打开数据包（客户端）：BlockPos（NeoForge 自动写入）→ 酶 id → 历史数组
+     * 解析打开数据包（客户端）
+     * <p>
+     * 读取顺序必须与 NeoForge 服务端写入顺序对齐：IPlayerExtension.openMenu 的
+     * extraDataWriter（BlockPos）在 writeClientSideData（酶 id + 历史）之后写入，
+     * 故此处先读酶 id → 历史，最后读 BlockPos（与 DNA 编码器相反——它未覆写
+     * writeClientSideData，buffer 只有 BlockPos 所以先读）
      *
      * @param playerInventory 玩家物品栏
      * @param buffer          打开数据包缓冲
      * @return 初始化数据（实体 + 历史）
      */
     private static InitData parseOpenBuffer(Inventory playerInventory, RegistryFriendlyByteBuf buffer) {
-        BlockPos pos = buffer.readBlockPos();
         String enzymeId = buffer.readUtf();
         int historyLength = buffer.readVarInt();
         int[] history = new int[historyLength];
         for (int i = 0; i < historyLength; i++) {
             history[i] = buffer.readVarInt();
         }
+        BlockPos pos = buffer.readBlockPos();
         EnzymeFactoryBlockEntity be = playerInventory.player.level().getBlockEntity(pos)
                 instanceof EnzymeFactoryBlockEntity factory ? factory : null;
         if (be == null) {
