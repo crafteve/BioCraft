@@ -412,14 +412,25 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /**
      * 槽位渲染覆写：全部槽位（物种槽 + 背包槽）统一用用户手绘 slot.png
      * <p>
-     * 槽位贴图 18×18（中央 16×16 内容区 + 1px 边框），blit 于 slot.x-1（贴图左上角）；
-     * 物品图标由 renderSlotContents 绘制（16×16 于 slot.x+1 居中在内容区）
+     * 坐标语义：Slot 坐标 = 16×16 内容区左上角（用户定位点），
+     * 槽位贴图 18×18（内容区 + 1px 边框）blit 于 slot.x-1；
+     * 物品图标 16×16 画于 slot.x 正好填满内容区（不复用 vanilla 的
+     * renderSlotContents——其物品偏移约定与本贴图结构不符）
      */
     @Override
     protected void renderSlot(GuiGraphics graphics, Slot slot) {
         graphics.blit(SLOT, this.leftPos + slot.x - 1, this.topPos + slot.y - 1,
                 0, 0, 18, 18, 18, 18);
-        renderSlotContents(graphics, slot.getItem(), slot, null);
+        ItemStack stack = slot.getItem();
+        if (!stack.isEmpty()) {
+            graphics.renderItem(stack, this.leftPos + slot.x, this.topPos + slot.y);
+            if (stack.getCount() > 1) {
+                String count = String.valueOf(stack.getCount());
+                graphics.drawString(this.font, count,
+                        this.leftPos + slot.x + 16 - this.font.width(count),
+                        this.topPos + slot.y + 8, 0xFFFFFFFF, true);
+            }
+        }
     }
 
     /**

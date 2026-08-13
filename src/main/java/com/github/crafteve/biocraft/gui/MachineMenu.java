@@ -112,16 +112,17 @@ public class MachineMenu extends AbstractContainerMenu {
                     ModItems.byId(blockEntity.getSpeciesId(i)).get()));
         }
 
-        // 玩家背包：主背包 3×9（视觉起点 (48,174)）、快捷栏 1×9（视觉起点 (48,232)）
-        // 槽位贴图 18×18（中央 16×16 内容区 + 1px 边框），步进 18（16 内容 + 2 间距）
-        // Slot 坐标 = 贴图左上角 + 1（槽背景 blit 于 slot.x-1，物品图标画于 slot.x+1 居中）
+        // 玩家背包：主背包 3×9、快捷栏 1×9
+        // 用户定位点 (48,174)/(48,232) 是 16×16 内容区左上角（= Slot 坐标语义），
+        // 槽位贴图 18×18 由 renderSlot 于 slot.x-1 blit（内容区左上 - 1 = 贴图左上），
+        // 步进 18（16 内容 + 2 间距 = 两个 1px 边框）
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInventory, col + row * 9 + 9, 49 + col * 18, 175 + row * 18));
+                addSlot(new Slot(playerInventory, col + row * 9 + 9, 48 + col * 18, 174 + row * 18));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, 49 + col * 18, 233));
+            addSlot(new Slot(playerInventory, col, 48 + col * 18, 232));
         }
     }
 
