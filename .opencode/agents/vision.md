@@ -1,7 +1,7 @@
 ---
 description: 视觉审查子代理，读取 PNG 贴图/游戏截图/渲染结果并用中文输出结构化审查反馈，用于 Minecraft 像素贴图与 GUI 效果校验
 mode: subagent
-model: opencode-go/mimo-v2.5
+model: opencode-go/qwen3.7-plus
 permission:
   edit: deny
 ---
