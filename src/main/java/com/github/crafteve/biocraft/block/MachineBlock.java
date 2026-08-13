@@ -15,6 +15,8 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
@@ -88,6 +90,29 @@ public class MachineBlock extends Block implements EntityBlock {
         return switch (machineType) {
             case DNA_ENCODER -> new DNAEncoderBlockEntity(pos, state);
         };
+    }
+
+    /**
+     * 方块实体每 tick 调度器（1.21.1 机制：getTicker 属于 EntityBlock 接口，
+     * 不在 BlockEntityType 侧，与 1.20 及更早版本不同）
+     * <p>
+     * 仅酶工厂注册 ticker（服务端每 tick 执行引擎桥接流水线）；
+     * DNA 编码器为事件驱动（吸收与合成均即时），无 tick 逻辑返回 null
+     *
+     * @param level 所在世界
+     * @param state 方块状态
+     * @param type  方块实体类型
+     * @return 服务端 ticker（酶工厂），客户端或非酶工厂返回 null
+     */
+    @Nullable
+    @Override
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(
+            net.minecraft.world.level.Level level, BlockState state, BlockEntityType<T> type) {
+        if (level.isClientSide || enzymeFactoryData == null) {
+            return null;
+        }
+        return (lvl, pos, st, be) ->
+                EnzymeFactoryBlockEntity.serverTick(lvl, pos, st, (EnzymeFactoryBlockEntity) be);
     }
 
     /**

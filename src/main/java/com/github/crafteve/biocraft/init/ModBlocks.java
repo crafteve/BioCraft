@@ -84,15 +84,16 @@ public final class ModBlocks {
      * <p>
      * 实体工厂从 BlockState 取回本机酶数据（MachineBlock 持有），
      * 因此无需为每个酶单独注册 BE 类型
+     * <p>
+     * 注意：1.21.1 的 ticker 机制不在 BlockEntityType 侧（该类无 getTicker），
+     * 而是 EntityBlock 接口的 getTicker 方法（MachineBlock 覆写），见方块类
      */
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<EnzymeFactoryBlockEntity>> ENZYME_FACTORY_BE =
             BE_TYPES.register("enzyme_factory",
-                    () -> {
-                        Block[] validBlocks = ENZYME_BLOCKS.stream()
-                                .map(DeferredBlock::get)
-                                .toArray(Block[]::new);
-                        return BlockEntityType.Builder.of(EnzymeFactoryBlockEntity::new, validBlocks).build(null);
-                    });
+                    () -> BlockEntityType.Builder.of(
+                                    EnzymeFactoryBlockEntity::new,
+                                    ENZYME_BLOCKS.stream().map(DeferredBlock::get).toArray(Block[]::new))
+                            .build(null));
 
     static {
         registerEnzymeFactories();
