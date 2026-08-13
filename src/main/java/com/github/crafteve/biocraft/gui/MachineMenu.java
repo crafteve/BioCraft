@@ -103,22 +103,24 @@ public class MachineMenu extends AbstractContainerMenu {
         int reactantCount = enzymeData.reactants().size();
         int totalCount = enzymeData.reactants().size() + enzymeData.products().size();
 
-        // 物种槽：输入卡（反应物 x=13）与输出卡（产物 x=179），y = 82 + 行号×42
+        // 物种槽：输入卡（反应物 x=11）与输出卡（产物 x=177），y = 65 + 行号×32
+        // 槽位贴图 18×18 渲染于 slot.x-1 起，故 Slot 坐标为视觉起点 + 1
         for (int i = 0; i < totalCount; i++) {
-            int x = i < reactantCount ? 13 : 179;
-            int y = 82 + (i < reactantCount ? i : i - reactantCount) * 42;
+            int x = i < reactantCount ? 11 : 177;
+            int y = 65 + (i < reactantCount ? i : i - reactantCount) * 32;
             addSlot(new RestrictedSlot(container, i, x, y,
                     ModItems.byId(blockEntity.getSpeciesId(i)).get()));
         }
 
-        // 玩家背包：主背包 3×9（x=12 y=248 起，行距 20）+ 快捷栏 1×9（y=308）
+        // 玩家背包：主背包 3×9（视觉起点 (48,174)，槽位 18×18、间距 2px = 步进 20）
+        // 快捷栏 1×9（视觉起点 (48,232)）；Slot 坐标 = 视觉起点 + 1
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInventory, col + row * 9 + 9, 12 + col * 18, 248 + row * 20));
+                addSlot(new Slot(playerInventory, col + row * 9 + 9, 49 + col * 20, 175 + row * 20));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, 12 + col * 18, 308));
+            addSlot(new Slot(playerInventory, col, 49 + col * 20, 233));
         }
     }
 

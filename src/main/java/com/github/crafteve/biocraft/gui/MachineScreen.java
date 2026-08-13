@@ -22,30 +22,39 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 酶工厂仪表盘屏幕（248×360 卡片式单页布局）
+ * 酶工厂仪表盘屏幕（256×256 贴图优先架构）
  * <p>
- * 五张卡片：
+ * 渲染分层：
  * <ul>
- *   <li>标题卡：方块 3D 贴图 + 大类名（中/英）+ 紫框缩写 + 中英全名 + T/P/pH 环境框 + 状态灯</li>
- *   <li>输入卡（左）/ 输出卡（右）：物种子卡列表（浅色槽位 + 缩写 + 数量 + 浓度条，
- *       悬停槽位显示物品 tooltip）</li>
- *   <li>仪表盘（中）：反应方程式 + 净速率条 + 方向箭头 + 平衡条（紫白渐变 +
- *       Keq 菱形指针 + Q 圆点指针）+ v-t 折线图（5 秒窗口）+ 停摆红字</li>
- *   <li>背包卡（底，居中）：标准 vanilla 槽位渲染 4×9</li>
+ *   <li>底层：enzyme_background.png（用户手绘，256×256，含背包区视觉），
+ *       renderBg 第一步 1:1 blit 整张（无缩放无虚化）</li>
+ *   <li>卡片框架：标题/输入/输出/仪表盘四张卡片由代码绘制（fill+描边，
+ *       背包区不画框——背景贴图已含）</li>
+ *   <li>贴图元素：槽位（slot_light 18×18）、平衡条（balance_bar）、
+ *       Keq/Q 指针（keq_point/q_point）</li>
+ *   <li>动态元素（代码）：全部文字（shadow=false 防重影）、浓度/速率填充条、
+ *       v-t 折线、物品图标</li>
  * </ul>
- * 全部视觉 GuiGraphics 自绘（纸白学术风，主题紫），仅槽位/平衡条/指针用贴图资产；
- * 槽位浅色化通过覆写 renderSlot 实现（物种槽用自绘贴图，背包槽保持 vanilla）
+ * 布局坐标（256×256）：
+ * <ul>
+ *   <li>标题栏 y8~52；输入卡 x8~74 / 仪表盘 x78~170 / 输出卡 x174~240，y60~166</li>
+ *   <li>背包区由背景贴图提供：主背包视觉起点 (48,174)、快捷栏 (48,232)，
+ *       槽位 18×18 间距 2px（步进 20），Slot 坐标 = 视觉起点 + 1</li>
+ * </ul>
  */
 public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     // 贴图资产
+    private static final ResourceLocation ENZYME_BG = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/enzyme_background.png");
     private static final ResourceLocation SLOT_LIGHT = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/slot_light.png");
     private static final ResourceLocation BALANCE_BAR = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/balance_bar.png");
     private static final ResourceLocation KEQ_POINT = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/keq_point.png");
     private static final ResourceLocation Q_POINT = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/q_point.png");
 
-    // 主题色（纸白学术风）
-    private static final int PAPER_WHITE = 0xFFF7F5F0;
-    private static final int CARD_WHITE = 0xFFFFFFFF;
+    // GUI 尺寸 = 底层贴图尺寸（1:1 blit，杜绝缩放虚化）
+    private static final int GUI_W = 256;
+    private static final int GUI_H = 256;
+
+    // 主题色
     private static final int INK = 0xFF1A1A1A;
     private static final int GRAY_TEXT = 0xFF777777;
     private static final int CARD_BORDER = 0xFF888888;
@@ -62,26 +71,24 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private static final int ENV_BORDER = 0xFFAAAAAA;
 
     // 布局（GUI 坐标）
-    private static final int GUI_W = 248;
-    private static final int GUI_H = 360;
-    private static final int TITLE_X = 8, TITLE_Y = 8, TITLE_W = 232, TITLE_H = 44;
+    private static final int TITLE_X = 8, TITLE_Y = 8, TITLE_W = 240, TITLE_H = 44;
     private static final int SIDE_CARD_X = 8, OUTPUT_CARD_X = 174, SIDE_CARD_W = 66;
     private static final int DASH_X = 78, DASH_W = 92;
-    private static final int CARD_Y = 60, CARD_H = 164;
-    private static final int SPECIES_Y0 = 82, SPECIES_GAP = 42;
-    private static final int INV_Y = 232, INV_H = 120;
+    private static final int CARD_Y = 60, CARD_H = 106;
+    // 物种子卡：槽位 Slot 坐标 x=11/177，y = 65 + 行号×32（每行高 32）
+    private static final int SPECIES_Y0 = 65, SPECIES_GAP = 32;
 
-    // 仪表盘元素
-    private static final int EQ_Y = 72;
-    private static final int RATE_LABEL_Y = 94;
-    private static final int RATE_BAR_Y = 99;
-    private static final int ARROW_Y = 114;
-    private static final int BALANCE_LABEL_Y = 128;
-    private static final int BALANCE_BAR_Y = 134;
-    private static final int QK_EQ_Y = 150;
-    private static final int VT_LABEL_Y = 164;
-    private static final int VT_Y = 170, VT_H = 22;
-    private static final int STALL_Y = 214;
+    // 仪表盘元素（紧凑布局，y 60~166）
+    private static final int EQ_Y = 69;
+    private static final int REVERSIBLE_Y = 79;
+    private static final int RATE_LABEL_Y = 90;
+    private static final int RATE_BAR_Y = 95;
+    private static final int ARROW_Y = 105;
+    private static final int BALANCE_LABEL_Y = 116;
+    private static final int BALANCE_BAR_Y = 122;
+    private static final int QK_EQ_Y = 134;
+    private static final int VT_LABEL_Y = 141;
+    private static final int VT_Y = 147, VT_H = 18;
 
     private final EnzymeFactoryBlockEntity blockEntity;
     private final EnzymeFactoryData enzymeData;
@@ -128,9 +135,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     /**
      * 每 tick 追加通量到 v-t 环形缓冲（打开期间 DATA_FLUX 每 tick 同步，零额外流量）
-     * <p>
-     * AbstractContainerScreen.tick 为 final 方法，必须覆写 containerTick
-     * （tick 内部调用）实现每 tick 逻辑
      */
     @Override
     protected void containerTick() {
@@ -145,9 +149,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     /**
      * 渲染入口：super（背景 + 槽位 + 物品）+ 悬停物品 tooltip
-     * <p>
-     * 1.21.1 机制（AGENTS.md 13 条）：AbstractContainerScreen.render 不渲染
-     * hoveredSlot 的 tooltip，必须子类显式调用 renderTooltip
      */
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
@@ -156,19 +157,18 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 主画布：纸白背景 + 五张卡片 + 全部仪表元素
+     * 主画布：底层贴图 1:1 blit + 卡片框架 + 全部仪表元素
      */
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
-        // 纸白背景
-        graphics.fill(0, 0, this.width, this.height, PAPER_WHITE);
+        // 底层贴图（用户手绘，256×256，含背包区；1:1 blit 无缩放）
+        graphics.blit(ENZYME_BG, this.leftPos, this.topPos, 0, 0, GUI_W, GUI_H, GUI_W, GUI_H);
 
         drawTitleCard(graphics);
         drawSpeciesCard(graphics, SIDE_CARD_X, "输入（底物）", 0, enzymeData.reactants().size());
         drawSpeciesCard(graphics, OUTPUT_CARD_X, "输出（产物）", enzymeData.reactants().size(),
                 enzymeData.reactants().size() + enzymeData.products().size());
         drawDashboard(graphics);
-        drawInventoryTitle(graphics);
     }
 
     /**
@@ -177,11 +177,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private void drawTitleCard(GuiGraphics graphics) {
         drawCard(graphics, TITLE_X, TITLE_Y, TITLE_W, TITLE_H);
 
-        // 方块 3D 贴图（物品渲染，含立体模型）
         ItemStack blockStack = new ItemStack(blockEntity.getBlockState().getBlock());
         graphics.renderItem(blockStack, this.leftPos + TITLE_X + 4, this.topPos + TITLE_Y + 4);
 
-        // 大类名（中上英下）
         graphics.drawString(this.font, category.getDisplayName() + "工厂",
                 this.leftPos + TITLE_X + 25, this.topPos + TITLE_Y + 9, INK, false);
         graphics.drawString(this.font, categoryEn(category) + " FACTORY",
@@ -193,7 +191,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 this.leftPos + abbrX + 30, this.topPos + TITLE_Y + 28, PURPLE_TAG_BG);
         graphics.renderOutline(this.leftPos + abbrX, this.topPos + TITLE_Y + 8, 30, 20, PURPLE);
         graphics.drawString(this.font, enzymeData.abbreviation(),
-                this.leftPos + abbrX + 4, this.topPos + TITLE_Y + 13, PURPLE, true);
+                this.leftPos + abbrX + 4, this.topPos + TITLE_Y + 13, PURPLE, false);
 
         // 中英全名
         int nameX = abbrX + 36;
@@ -204,46 +202,40 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
         // T/P/pH 环境框（右上）
         int envX = TITLE_X + TITLE_W - 58;
-        graphics.fill(this.leftPos + envX, this.topPos + TITLE_Y + 6,
-                this.leftPos + envX + 54, this.topPos + TITLE_Y + 38, ENV_BG);
-        graphics.renderOutline(this.leftPos + envX, this.topPos + TITLE_Y + 6, 54, 32, ENV_BORDER);
+        graphics.fill(this.leftPos + envX, this.topPos + TITLE_Y + 4,
+                this.leftPos + envX + 54, this.topPos + TITLE_Y + 40, ENV_BG);
+        graphics.renderOutline(this.leftPos + envX, this.topPos + TITLE_Y + 4, 54, 36, ENV_BORDER);
         graphics.drawString(this.font, "T " + (int) Math.round(menu.getTemperature()) + "K",
-                this.leftPos + envX + 4, this.topPos + TITLE_Y + 12, INK, false);
+                this.leftPos + envX + 4, this.topPos + TITLE_Y + 10, INK, false);
         graphics.drawString(this.font, "P 1.00 atm",
-                this.leftPos + envX + 4, this.topPos + TITLE_Y + 21, INK, false);
+                this.leftPos + envX + 4, this.topPos + TITLE_Y + 19, INK, false);
         graphics.drawString(this.font, "pH 7.00",
-                this.leftPos + envX + 4, this.topPos + TITLE_Y + 30, INK, false);
+                this.leftPos + envX + 4, this.topPos + TITLE_Y + 28, INK, false);
 
-        // 状态灯（环境框下方左侧）
+        // 状态灯（环境框左侧，含停摆文案）
         int statusColor = menu.getStallCode() == 0 ? GREEN_OK : DANGER_RED;
-        String statusText = menu.getStallCode() == 0 ? "正常运行" : "停摆";
+        String statusText = menu.getStallCode() == 0 ? "正常运行" : "停摆:" + enzymeData.stallMessage();
         graphics.drawString(this.font, statusText,
                 this.leftPos + TITLE_X + 4, this.topPos + TITLE_Y + 37, statusColor, false);
     }
 
     /**
-     * 输入/输出卡：卡片 + 每物种子卡（槽位由 renderSlot 覆写画浅色背景）
-     *
-     * @param graphics  绘制上下文
-     * @param cardX     卡片 x
-     * @param title     卡片标题
-     * @param slotStart 槽位起点（输入 0 / 输出 reactants.size()）
-     * @param slotEnd   槽位终点
+     * 输入/输出卡：卡片框架 + 每物种子卡（槽位由 renderSlot 覆写画浅色背景）
      */
     private void drawSpeciesCard(GuiGraphics graphics, int cardX, String title, int slotStart, int slotEnd) {
         drawCard(graphics, cardX, CARD_Y, SIDE_CARD_W, CARD_H);
         graphics.drawString(this.font, title,
-                this.leftPos + cardX + 2, this.topPos + CARD_Y + 4, INK, false);
+                this.leftPos + cardX + 2, this.topPos + CARD_Y + 3, INK, false);
 
         int row = 0;
         for (int slotIndex = slotStart; slotIndex < slotEnd; slotIndex++) {
             int subY = SPECIES_Y0 + row * SPECIES_GAP;
             int subX = cardX + 2;
-            // 子卡背景
-            graphics.fill(this.leftPos + subX, this.topPos + subY - 4,
-                    this.leftPos + subX + SIDE_CARD_W - 4, this.topPos + subY + 34, SUB_CARD_BG);
-            graphics.renderOutline(this.leftPos + subX, this.topPos + subY - 4,
-                    SIDE_CARD_W - 4, 38, SUB_CARD_BORDER);
+            // 子卡背景（槽位区域 18×18 + 右侧信息区）
+            graphics.fill(this.leftPos + subX, this.topPos + subY - 3,
+                    this.leftPos + subX + SIDE_CARD_W - 4, this.topPos + subY + 28, SUB_CARD_BG);
+            graphics.renderOutline(this.leftPos + subX, this.topPos + subY - 3,
+                    SIDE_CARD_W - 4, 31, SUB_CARD_BORDER);
 
             String speciesId = speciesIds.get(slotIndex);
             MoleculeItem item = itemBySpecies.get(speciesId);
@@ -251,33 +243,33 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
             // 缩写
             graphics.drawString(this.font, item.getAbbreviation(),
-                    this.leftPos + subX + 24, this.topPos + subY + 2, INK, true);
+                    this.leftPos + subX + 24, this.topPos + subY - 2, INK, false);
             // 数量
             graphics.drawString(this.font, "×" + stack.getCount(),
-                    this.leftPos + subX + 24, this.topPos + subY + 13, GRAY_TEXT, false);
+                    this.leftPos + subX + 24, this.topPos + subY + 8, GRAY_TEXT, false);
             // 浓度条（数量 + 引擎余量，语义色 = 物品染色）
             double concentration = (stack.getCount() + blockEntity.getRemainder(slotIndex)) / 64.0;
             int barColor = 0xFF000000 | item.getTintColor();
-            graphics.fill(this.leftPos + subX + 24, this.topPos + subY + 22,
-                    this.leftPos + subX + 56, this.topPos + subY + 28, BAR_TRACK);
-            graphics.fill(this.leftPos + subX + 24, this.topPos + subY + 22,
-                    this.leftPos + subX + 24 + (int) (32 * Math.min(concentration, 1.0)), this.topPos + subY + 28, barColor);
+            graphics.fill(this.leftPos + subX + 24, this.topPos + subY + 17,
+                    this.leftPos + subX + 56, this.topPos + subY + 23, BAR_TRACK);
+            graphics.fill(this.leftPos + subX + 24, this.topPos + subY + 17,
+                    this.leftPos + subX + 24 + (int) (32 * Math.min(concentration, 1.0)), this.topPos + subY + 23, barColor);
             row++;
         }
     }
 
     /**
-     * 仪表盘：方程式 + 速率条 + 方向箭头 + 平衡条双指针 + v-t 图 + 停摆红字
+     * 仪表盘：方程式 + 速率条 + 方向箭头 + 平衡条双指针 + v-t 图（停摆文案在标题栏）
      */
     private void drawDashboard(GuiGraphics graphics) {
         drawCard(graphics, DASH_X, CARD_Y, DASH_W, CARD_H);
 
-        // 反应方程式（缩写渲染，⇌ 自绘双箭头避免字体缺字）
+        // 反应方程式
         String equation = renderEquation();
         graphics.drawString(this.font, equation,
-                this.leftPos + DASH_X + 4, this.topPos + EQ_Y, PURPLE, true);
+                this.leftPos + DASH_X + 4, this.topPos + EQ_Y, PURPLE, false);
         graphics.drawString(this.font, enzymeData.reversible() ? "可逆反应" : "不可逆反应",
-                this.leftPos + DASH_X + 30, this.topPos + EQ_Y + 11, GRAY_TEXT, false);
+                this.leftPos + DASH_X + 30, this.topPos + REVERSIBLE_Y, GRAY_TEXT, false);
 
         // 净速率条
         graphics.drawString(this.font, "净速率 v",
@@ -290,7 +282,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.fill(this.leftPos + DASH_X + 4, this.topPos + RATE_BAR_Y,
                 this.leftPos + DASH_X + 4 + (int) (ratio * (DASH_W - 14)), this.topPos + RATE_BAR_Y + 6, PURPLE);
         graphics.drawString(this.font, String.format("%.2f", flux),
-                this.leftPos + DASH_X + 40, this.topPos + RATE_LABEL_Y, PURPLE, true);
+                this.leftPos + DASH_X + 40, this.topPos + RATE_LABEL_Y, PURPLE, false);
 
         // 方向箭头
         String arrow;
@@ -302,7 +294,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             arrow = "≈ 平衡";
         }
         graphics.drawString(this.font, arrow,
-                this.leftPos + DASH_X + 30, this.topPos + ARROW_Y, PURPLE, true);
+                this.leftPos + DASH_X + 30, this.topPos + ARROW_Y, PURPLE, false);
 
         // 平衡条（紫白渐变贴图 + Keq 菱形指针 + Q 圆点指针）
         graphics.drawString(this.font, "平衡",
@@ -325,12 +317,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.drawString(this.font, "v-t 图（5s）",
                 this.leftPos + DASH_X + 4, this.topPos + VT_LABEL_Y, INK, false);
         drawVtChart(graphics);
-
-        // 停摆红字
-        if (menu.getStallCode() == 1) {
-            graphics.drawString(this.font, enzymeData.stallMessage(),
-                    this.leftPos + DASH_X + 4, this.topPos + STALL_Y, DANGER_RED, false);
-        }
     }
 
     /**
@@ -361,7 +347,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             int y2 = VT_Y + VT_H - 1 - (vHistory[i] - min) * (VT_H - 2) / (max - min);
             drawLine(graphics, this.leftPos + x1, this.topPos + y1, this.leftPos + x2, this.topPos + y2, PURPLE);
         }
-        // 秒刻度（每 20 tick = 1 秒）
         for (int sec = 0; sec <= 5; sec++) {
             int tx = chartX + sec * chartW / 5;
             graphics.drawString(this.font, sec + "s",
@@ -370,10 +355,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 方程式的缩写渲染（长度超宽时截断）
-     * <p>
-     * 含化学计量系数（系数 > 1 时前缀）与固定活性物种（H₂O/H⁺），
-     * 显示逻辑集中在客户端，引擎不再提供反渲染字符串
+     * 方程式的缩写渲染（含化学计量系数前缀，长度超宽截断）
      */
     private String renderEquation() {
         StringBuilder sb = new StringBuilder();
@@ -381,15 +363,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         sb.append(' ').append(enzymeData.reversible() ? '⇌' : '→').append(' ');
         appendSpeciesSide(sb, enzymeData.products());
         String equation = sb.toString();
-        // 仪表盘宽 92，7px 字体下每字符约 4px，超 21 字符截断
         return equation.length() > 21 ? equation.substring(0, 21) : equation;
     }
 
     /**
      * 拼装一侧物种：化学计量系数（>1 时前缀）+ 缩写，'+' 连接
-     *
-     * @param sb    目标字符串构建器
-     * @param specs 物种条目列表（反应物或产物）
      */
     private void appendSpeciesSide(StringBuilder sb, List<EnzymeFactoryData.SpeciesSpec> specs) {
         for (int i = 0; i < specs.size(); i++) {
@@ -405,10 +383,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 计算当前浓度商 Q = ∏产物浓度^系数 / ∏底物浓度^系数
-     * <p>
-     * 仅用速率项物种（固定活性 H₂O/H⁺ 不参与平衡式），
-     * 浓度从槽位 count/64 派生（客户端本地，零流量）
+     * 计算当前浓度商 Q = ∏产物浓度^系数 / ∏底物浓度^系数（客户端派生，零流量）
      */
     private double computeQ() {
         ReactionDefinition definition = blockEntity.getSimulator().getDefinition();
@@ -426,29 +401,19 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 卡片背景：白底 + 灰描边
+     * 卡片框架：白底 + 灰描边（背包区不画——背景贴图已含）
      */
     private void drawCard(GuiGraphics graphics, int x, int y, int w, int h) {
         graphics.fill(this.leftPos + x, this.topPos + y,
-                this.leftPos + x + w, this.topPos + y + h, CARD_WHITE);
+                this.leftPos + x + w, this.topPos + y + h, 0xFFFFFFFF);
         graphics.renderOutline(this.leftPos + x, this.topPos + y, w, h, CARD_BORDER);
-    }
-
-    /**
-     * 背包卡标题（槽位本身由 vanilla renderSlot 渲染）
-     */
-    private void drawInventoryTitle(GuiGraphics graphics) {
-        graphics.fill(this.leftPos + TITLE_X, this.topPos + INV_Y,
-                this.leftPos + TITLE_X + TITLE_W, this.topPos + INV_Y + INV_H, CARD_WHITE);
-        graphics.renderOutline(this.leftPos + TITLE_X, this.topPos + INV_Y, TITLE_W, INV_H, CARD_BORDER);
-        graphics.drawString(this.font, "背包物品栏",
-                this.leftPos + TITLE_X + 4, this.topPos + INV_Y + 4, INK, false);
     }
 
     /**
      * 槽位渲染覆写：物种槽用浅色贴图背景，背包槽保持 vanilla
      * <p>
-     * 物种槽背景 = slot_light（浅色柔和），物品与数量由 renderSlotContents 绘制
+     * 槽位贴图 18×18 blit 于 slot.x-1（槽位视觉左上角），
+     * 物品与数量由 renderSlotContents 绘制（图标 16×16 于 slot.x+1 居中）
      */
     @Override
     protected void renderSlot(GuiGraphics graphics, Slot slot) {
@@ -478,7 +443,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 画水平折线段（Bresenham 简化版：按 x 步进的整数插值）
+     * 画水平折线段（按 x 步进的整数插值）
      */
     private static void drawLine(GuiGraphics graphics, int x1, int y1, int x2, int y2, int color) {
         int dx = x2 - x1;
@@ -495,10 +460,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 不绘制 vanilla 标签（标题卡已自绘，避免"物品栏"等默认文字叠加）
+     * 不绘制 vanilla 标签（全部文字由 renderBg 自绘）
      */
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        // 空实现：全部文字由 renderBg 自绘
+        // 空实现
     }
 }
