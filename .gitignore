@@ -39,3 +39,6 @@ run/
 repo/
 !**/src/**/repo/
 run-client-log.txt
+
+### 程序化贴图工具产物 ###
+tools/texturegen/output/

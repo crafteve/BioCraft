@@ -50,11 +50,14 @@
 - ✅ Tooltip 信息行：黄色分子式（Hill 排序 Unicode 下标）+ 类别徽章 + 摩尔质量；结构式改为**按住 Shift 展示**，未按时显示提示行；离子/原子/无机物不展示结构式
 - ✅ 图标缩写标注：`IItemDecorator` 在物品图标左上角绘制缩写（白字黑阴影双写、缩放 0.55、z 提升 200 层）；缩写数据使用 Unicode 上下标（H⁺/Ca²⁺/NH₄⁺/H₂O/NAD⁺，糖酵解编号如 G6P 保持原样）
 - ✅ tooltip 布局：手持物品时创意标签页标题（蓝色）自动移至 tooltip 末尾（`MoleculeTooltipLayout`）
+- ✅ 视觉校验闭环：`.opencode/agents/vision.md` 视觉审查子代理（opencode-go/mimo-v2.5 多模态）+ `tools/texturegen/` 程序化贴图工具链（PixelCanvas DSL，生成 PNG 后派 vision 子代理读图审查）
 - ⏳ 待开发：TNT 爆炸转化、熔炉产 ATP、反应引擎、三台原始机器
 
 ### 1.6 开发流程
 
 迭代循环：编写代码 → `gradlew build` 验证编译 → `gradlew runClient` 进游戏实测 → `gradlew runData` 生成资源 → 提交 commit。具体命令见第二章，任务执行规范见第四章
+
+贴图迭代循环：`TextureScript` 生成贴图 → Task 派 vision 子代理读图审查 → 改脚本重新生成，满意后拷入 `src/main/resources` 正式使用
 
 ### 1.7 Git 管理规范
 
@@ -84,6 +87,7 @@
 - `.gitattributes` — 行尾/文本属性
 - `README.md` — 仍是模板默认内容，待改写
 - `TEMPLATE_LICENSE.txt` — 模板许可
+- `tools/texturegen/` — 程序化贴图工具链（`PixelCanvas.java` 像素画 DSL + `TextureScript.java` 示例脚本），纯 JDK 21 AWT 零依赖，与 Gradle 构建完全隔离。编译 `javac -encoding UTF-8 -d tools/texturegen/out tools/texturegen/*.java`，运行 `java -cp tools/texturegen/out TextureScript [输出目录]`；输出目录 `tools/texturegen/output/` 已 gitignore，正式贴图确定后拷入 `src/main/resources`
 
 ### 2.2 构建与运行目录
 
@@ -145,6 +149,7 @@ com.github.crafteve.biocraft
   - 本机代理：`127.0.0.1:7892`（系统代理已开启）。push/fetch 必须显式携带 OpenSSL 后端 + 代理参数：
     - `git -c http.sslBackend=openssl -c http.proxy=http://127.0.0.1:7892 -c https.proxy=http://127.0.0.1:7892 push`
   - 本地分支名为 `main`，与远端默认分支一致；远端仓库初始含 GitHub 自动生成的 `LICENSE`，已合并保留，勿删除
+- `.opencode/agents/vision.md` — 视觉审查子代理（mode: subagent，`edit: deny` 只读），模型 `opencode-go/mimo-v2.5`（多模态 text+image+audio+video，价格便宜优先），备选 `opencode-go/qwen3.7-plus` / `opencode-go/gpt-5.6-luna`（均多模态）。用法：Task 工具派发，子代理用 Read 读 PNG 后返回中文结构化审查；opencode 配置非热加载，新增/修改 agent 后必须重启 opencode 才生效
 
 ### 2.6 CDK 依赖架构与已知注意事项（欠账）
 
@@ -170,6 +175,8 @@ com.github.crafteve.biocraft
 12. **MC 源码查找方法（重要排查手段）**：ModDevGradle 在本地缓存了已映射（mojmap）的反编译 MC 源码，路径：`%USERPROFILE%\.gradle\caches\neoformruntime\intermediate_results\decompile_*.jar`（按 jar 内 `net/minecraft/.../*.java` 路径直接 `jar xf` 提取即可，比 javap 字节码逆向高效得多）。另有 `sourcesAndCompiledWithNeoForge_*_output.jar` 可 javap 查 NeoForge patch 后的类（混淆 jar `minecraft_1.21.1_client.jar` 无映射名不可用）。排查"vanilla 机制行为"类问题时优先查源码而非猜
 13. **1.21.1 容器 GUI 的 tooltip 渲染机制**：`AbstractContainerScreen.render` 本身**不**渲染 hoveredSlot 物品 tooltip（1.21 重构移除），`renderTooltip(GuiGraphics,int,int)` 改由**各子类 Screen 在 render 中显式调用**（源码实证：`InventoryScreen`、`ContainerScreen` 覆写 render 后调用 `this.renderTooltip(...)`）。自定义容器 Screen 覆写 render 时必须在 super 之后补调 `this.renderTooltip(graphics, mouseX, mouseY)`，否则悬停槽位无物品 tooltip（含自研 tooltip 组件）。另：`renderWithTooltip`（final）是 Minecraft 渲染入口，延迟 tooltip 走 `setTooltipForNextRenderPass`
 14. **BlockEntity.setRemoved 双触发陷阱**：`setRemoved()` 不只方块破坏时调用，**世界卸载/区块卸载同样触发**（Level 卸载 chunk 时清理 BE）。掉落实体/玩家反馈类逻辑**禁止放 setRemoved**，否则进出存档会误触发（实测：DNA 编码器缓冲池碱基每次进出存档爆一地）。正确位置是方块类的 `Block.onRemove`（仅方块被破坏/替换时触发），通过 `BlockEntity` 的 `dropExtraContents(Level, BlockPos)` 类钩子统一调用
+15. **视觉审查子代理**：vision agent 定义在 `.opencode/agents/`，启动时加载，修改后必须重启 opencode 才生效；Task 派发时给出图片绝对路径与审查要点，子代理无 edit 权限只能读图返回文字；mimo-v2.5 若在 OpenCode Go 订阅出现额度/速率限制，换备选视觉模型（qwen3.7-plus / gpt-5.6-luna）
+16. **贴图工具链编码**：`tools/texturegen` 的 javac 必须带 `-encoding UTF-8`（Windows 默认 GBK 会编译失败），输出目录 gitignore，正式贴图需手动拷入 `src/main/resources`，工具脚本不进 mod 源码源集
 
 ## 第三章 编码与开发规范
 
