@@ -412,23 +412,25 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /**
      * 槽位渲染覆写：全部槽位（物种槽 + 背包槽）统一用用户手绘 slot.png
      * <p>
-     * 坐标语义：Slot 坐标 = 16×16 内容区左上角（用户定位点），
-     * 槽位贴图 18×18（内容区 + 1px 边框）blit 于 slot.x-1；
-     * 物品图标 16×16 画于 slot.x 正好填满内容区（不复用 vanilla 的
-     * renderSlotContents——其物品偏移约定与本贴图结构不符）
+     * 坐标语义（重要）：AbstractContainerScreen.render 在调用 renderSlot 前已执行
+     * pose.translate(leftPos, topPos)——此处必须用相对坐标（slot.x 直接用），
+     * 加 leftPos 会导致整体偏移 (leftPos, topPos)（曾踩坑：槽位贴图全部往右下偏移
+     * 而交互判定不受影响，因 isHovering 用屏幕绝对坐标）
+     * <p>
+     * Slot 坐标 = 16×16 内容区左上角（用户定位点），槽位贴图 18×18（内容区 + 1px
+     * 边框）blit 于 slot.x-1；物品图标 16×16 画于 slot.x 正好填满内容区
      */
     @Override
     protected void renderSlot(GuiGraphics graphics, Slot slot) {
-        graphics.blit(SLOT, this.leftPos + slot.x - 1, this.topPos + slot.y - 1,
-                0, 0, 18, 18, 18, 18);
+        graphics.blit(SLOT, slot.x - 1, slot.y - 1, 0, 0, 18, 18, 18, 18);
         ItemStack stack = slot.getItem();
         if (!stack.isEmpty()) {
-            graphics.renderItem(stack, this.leftPos + slot.x, this.topPos + slot.y);
+            graphics.renderItem(stack, slot.x, slot.y);
             if (stack.getCount() > 1) {
                 String count = String.valueOf(stack.getCount());
                 graphics.drawString(this.font, count,
-                        this.leftPos + slot.x + 16 - this.font.width(count),
-                        this.topPos + slot.y + 8, 0xFFFFFFFF, true);
+                        slot.x + 16 - this.font.width(count),
+                        slot.y + 8, 0xFFFFFFFF, true);
             }
         }
     }
