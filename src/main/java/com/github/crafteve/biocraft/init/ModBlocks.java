@@ -90,6 +90,10 @@ public final class ModBlocks {
     /** 全部酶工厂方块物品 */
     private static final List<DeferredItem<BlockItem>> ENZYME_ITEMS = new ArrayList<>();
 
+    static {
+        registerEnzymeFactories();
+    }
+
     /**
      * 酶工厂共享方块实体类型：全部酶实例注册进同一类型
      * <p>
@@ -98,6 +102,10 @@ public final class ModBlocks {
      * <p>
      * 注意：1.21.1 的 ticker 机制不在 BlockEntityType 侧（该类无 getTicker），
      * 而是 EntityBlock 接口的 getTicker 方法（MachineBlock 覆写），见方块类
+     * <p>
+     * 声明顺序依赖：ENZYME_BLOCKS/ENZYME_ITEMS 列表必须在上方静态块
+     * registerEnzymeFactories() 填充完成后声明本字段，保证注册解析期
+     * 的 lambda 读到完整方块列表
      */
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<EnzymeFactoryBlockEntity>> ENZYME_FACTORY_BE =
             BE_TYPES.register("enzyme_factory",
@@ -105,10 +113,6 @@ public final class ModBlocks {
                                     EnzymeFactoryBlockEntity::new,
                                     ENZYME_BLOCKS.stream().map(DeferredBlock::get).toArray(Block[]::new))
                             .build(null));
-
-    static {
-        registerEnzymeFactories();
-    }
 
     private ModBlocks() {
     }

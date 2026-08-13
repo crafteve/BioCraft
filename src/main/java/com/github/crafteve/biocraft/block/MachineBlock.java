@@ -32,16 +32,13 @@ import javax.annotation.Nullable;
  *   <li>EnzymeFactoryData 构造：酶工厂（数据驱动注册），方块持有酶数据档案，
  *       放置时由共享的酶工厂方块实体按方块取回数据</li>
  * </ul>
- * BlockEntity 工厂按"是否酶工厂"双分派创建对应实体；
+ * BlockEntity 工厂按机器定义（MachineSpec 密封接口）穷举分派创建对应实体；
  * 方块类只承载方块行为（放置/右键交互/破坏掉落/硬度/地图色），
  * 机器的业务逻辑（容器/进度/合成）全部在 BlockEntity 层
  */
 public class MachineBlock extends Block implements EntityBlock {
-    /** 原始机器类型（非酶工厂时为 null） */
-    private final MachineType machineType;
-
-    /** 酶工厂数据档案（非酶工厂时为 null） */
-    private final EnzymeFactoryData enzymeFactoryData;
+    /** 机器定义：原始机器类型或酶工厂数据档案（密封接口二选一） */
+    private final MachineSpec spec;
 
     /**
      * 原始机器构造（DNA 编码器）
@@ -53,8 +50,7 @@ public class MachineBlock extends Block implements EntityBlock {
                 .mapColor(machineType.getMapColor())
                 .strength(1.5F)
                 .sound(SoundType.METAL));
-        this.machineType = machineType;
-        this.enzymeFactoryData = null;
+        this.spec = new MachineSpec.Primitive(machineType);
     }
 
     /**
@@ -70,25 +66,23 @@ public class MachineBlock extends Block implements EntityBlock {
                 .mapColor(MapColor.COLOR_GRAY)
                 .strength(1.5F)
                 .sound(SoundType.METAL));
-        this.machineType = null;
-        this.enzymeFactoryData = enzymeFactoryData;
+        this.spec = new MachineSpec.Enzyme(enzymeFactoryData);
     }
 
     /**
      * 按机器种类分派创建对应的 BlockEntity
+     * <p>
+     * 密封接口 switch 穷举全部变体，编译器保证不会漏分支
      *
      * @param pos   方块位置
      * @param state 方块状态
-     * @return 对应类型的实体，未知类型返回 null（快速失败由注册侧保证不会出现）
+     * @return 对应类型的实体
      */
-    @Nullable
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        if (enzymeFactoryData != null) {
-            return new EnzymeFactoryBlockEntity(pos, state);
-        }
-        return switch (machineType) {
-            case DNA_ENCODER -> new DNAEncoderBlockEntity(pos, state);
+        return switch (spec) {
+            case MachineSpec.Primitive(MachineType type) -> new DNAEncoderBlockEntity(pos, state);
+            case MachineSpec.Enzyme(EnzymeFactoryData data) -> new EnzymeFactoryBlockEntity(pos, state);
         };
     }
 
@@ -108,7 +102,7 @@ public class MachineBlock extends Block implements EntityBlock {
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(
             net.minecraft.world.level.Level level, BlockState state, BlockEntityType<T> type) {
-        if (level.isClientSide || enzymeFactoryData == null) {
+        if (level.isClientSide || !(spec instanceof MachineSpec.Enzyme)) {
             return null;
         }
         return (lvl, pos, st, be) ->
@@ -169,7 +163,7 @@ public class MachineBlock extends Block implements EntityBlock {
      */
     @Nullable
     public MachineType getMachineType() {
-        return machineType;
+        return spec instanceof MachineSpec.Primitive(MachineType type) ? type : null;
     }
 
     /**
@@ -179,6 +173,21 @@ public class MachineBlock extends Block implements EntityBlock {
      */
     @Nullable
     public EnzymeFactoryData getEnzymeFactoryData() {
-        return enzymeFactoryData;
+        return spec instanceof MachineSpec.Enzyme(EnzymeFactoryData data) ? data : null;
+    }
+
+    /**
+     * 机器定义（密封接口）：统一原始机器与酶工厂两种方块身份
+     * <p>
+     * 方块类唯一（AGENTS.md 1.4 硬性规则），但方块身份分两种：
+     * 原始机器（MachineType 手动注册）与酶工厂（EnzymeFactoryData 数据驱动注册）。
+     * 用密封接口二选一承载，消除"两个可空字段"的判别联合
+     */
+    public sealed interface MachineSpec {
+        /** 原始机器（如 DNA 编码器） */
+        record Primitive(MachineType type) implements MachineSpec {}
+
+        /** 酶工厂（数据驱动） */
+        record Enzyme(EnzymeFactoryData data) implements MachineSpec {}
     }
 }
