@@ -11,96 +11,38 @@ import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IBond;
 import org.openscience.cdk.layout.StructureDiagramGenerator;
-import org.openscience.cdk.ringsearch.RingSearch;
 import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.smiles.SmilesParser;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 
-import java.awt.BasicStroke;
-import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 分子键线式结构图缓存（Dist.CLIENT）
  * <p>
- * 自绘管线：CDK 仅负责 SMILES 解析与 2D 坐标生成，图像由本类以
- * 化学期刊风格绘制（Java2D 抗锯齿平滑细键线，圆头端点）：
+ * 自绘管线：CDK 仅负责 SMILES 解析与 2D 坐标生成，图像由本类编排绘制
+ * （化学期刊风格）。绘制细节拆分到四个辅助类：
  * <ul>
- *   <li>单键：细抗锯齿直线（显示线宽 1.0px）</li>
- *   <li>双键：法向偏移的平行双线</li>
- *   <li>三键：主键 + 两侧副键</li>
- *   <li>芳香键：按 Kekulé 风格在环上交替标记单/双键（非虚线）</li>
- *   <li>碳不标符号、氢不绘制（键线式约定）</li>
- *   <li>杂原子端键线向内缩进，避免线与元素符号重叠</li>
+ *   <li>MoleculeRenderConstants：渲染常量与色板</li>
+ *   <li>MoleculeGeometry：坐标/向量几何运算</li>
+ *   <li>MoleculeRingSearch：环键连通分量质心</li>
+ *   <li>MoleculeBondRenderer：单/双/三/环内双键绘制</li>
+ *   <li>MoleculeSymbolRenderer：杂原子符号与标签碰撞</li>
  * </ul>
- * 抗锯齿策略：以 2 倍超采样分辨率绘制（SUPERSAMPLE），显示时缩小，
- * 获得高密度采样下的平滑细线；杂原子元素符号不画入纹理，
- * 由渲染时用 MC 像素字体叠加（字体本身是像素风，不受超采样影响）
+ * 本类只负责缓存与编排：解析 → 2D 坐标 → 归一化 → 超采样绘制 → 注册纹理
  * <p>
- * 尺寸自适应：画布缩放使平均键长约为 10px，高度上限 56px、宽度上限 128px，
- * 小分子自然缩小、大分子封顶；超过 150 重原子的复杂分子（如大型蛋白质）
- * 跳过生成，由 tooltip 显示提示行
+ * 尺寸自适应：画布缩放使平均键长约为 16px，高度上限 256px、宽度上限 512px；
+ * 超过 150 重原子的复杂分子（如大型蛋白质）跳过生成，由 tooltip 显示提示行
  * <p>
  * 首次访问某分子时生成并缓存（DynamicTexture），之后零开销
  */
 public final class MoleculeTextureCache {
-
-    /** 超采样倍率：以 4x 分辨率绘制后线性缩小显示，细线平滑无锯齿、不错位 */
-    public static final int SUPERSAMPLE = 4;
-
-    /** 目标最大高度（px，逻辑尺寸），大分子允许更高画布以免压缩糊成一团 */
-    private static final int TARGET_HEIGHT = 256;
-    /** 目标最大宽度（px，逻辑尺寸），大分子允许更宽画布以免压缩糊成一团 */
-    private static final int MAX_WIDTH = 512;
-    /** 画布四周留白（px，逻辑尺寸），为原子符号与键线厚度预留空间 */
-    private static final int PADDING = 12;
-    /** 目标平均键长（px，逻辑尺寸），决定分子的显示大小；16px 使键长与符号比例舒展 */
-    private static final double BOND_LENGTH_PX = 16.0;
-    /** 键线显示宽度（px，逻辑尺寸） */
-    private static final float BOND_STROKE_WIDTH = 0.8f;
-    /** 双键平行线偏移距离（px，逻辑尺寸） */
-    private static final double DOUBLE_BOND_OFFSET = 1.4;
-    /** 三键副键偏移距离（px，逻辑尺寸） */
-    private static final double TRIPLE_BOND_OFFSET = 2.6;
-    /** 符号高度与键长的比例（化学期刊约 0.4~0.5；过大导致符号遮挡短键） */
-    private static final double SYMBOL_RATIO = 0.45;
-    /** 符号深色底块与文字边缘的留白（px，逻辑尺寸） */
-    private static final double SYMBOL_BG_PADDING = 1.0;
-    /** 重原子数上限，超过则判定为过于复杂的分子，不生成结构图 */
-    private static final int MAX_HEAVY_ATOMS = 150;
-    /** 键线颜色（亮白，深色 tooltip 背景上清晰） */
-    private static final Color BOND_COLOR = new Color(0xE0, 0xE0, 0xE0);
-    /** 符号深色底块颜色（不透明，接近 tooltip 深色背景，用于截断键线） */
-    private static final Color SYMBOL_BG_COLOR = new Color(0x10, 0x10, 0x18);
-
-    /** 杂原子 MC 风格色板：元素符号 -> ARGB 颜色 */
-    private static final Map<String, Integer> ATOM_COLORS = new HashMap<>();
-
-    static {
-        ATOM_COLORS.put("O", 0xFFFF5555);
-        ATOM_COLORS.put("N", 0xFF5555FF);
-        ATOM_COLORS.put("P", 0xFFFFAA00);
-        ATOM_COLORS.put("S", 0xFFFFFF55);
-        ATOM_COLORS.put("Cl", 0xFF55FF55);
-        ATOM_COLORS.put("Na", 0xFFFFD700);
-        ATOM_COLORS.put("K", 0xFFAA66FF);
-        ATOM_COLORS.put("Fe", 0xFFFF8C42);
-        ATOM_COLORS.put("Mg", 0xFF7CFC00);
-        ATOM_COLORS.put("Ca", 0xFFE6E6E6);
-        ATOM_COLORS.put("B", 0xFFE6E6E6);
-        ATOM_COLORS.put("I", 0xFFAA66CC);
-    }
 
     /** SMILES -> 生成的分子图 */
     private static final Map<String, MoleculeImage> CACHE = new HashMap<>();
@@ -110,7 +52,7 @@ public final class MoleculeTextureCache {
     }
 
     /** 杂原子标签文本：主串（含 H）+ 下标数字 + 颜色 */
-    private record AtomText(String main, String sub, int color) {
+    record AtomText(String main, String sub, int color) {
     }
 
     private MoleculeTextureCache() {
@@ -132,7 +74,7 @@ public final class MoleculeTextureCache {
     }
 
     /**
-     * 执行完整自绘管线：解析 -> 2D 坐标 -> 归一化 -> 超采样平滑绘制 -> 注册纹理
+     * 执行解析阶段：SMILES → 原子容器 → Kekulize → 2D 坐标
      *
      * @param smiles SMILES 结构式
      * @return 分子图信息，复杂分子或解析失败为 null
@@ -153,7 +95,7 @@ public final class MoleculeTextureCache {
                     heavyAtoms++;
                 }
             }
-            if (heavyAtoms > MAX_HEAVY_ATOMS) {
+            if (heavyAtoms > MoleculeRenderConstants.MAX_HEAVY_ATOMS) {
                 BioCraft.LOGGER.info("分子过于复杂（重原子 {}），跳过结构图生成: {}", heavyAtoms, smiles);
                 return null;
             }
@@ -195,27 +137,29 @@ public final class MoleculeTextureCache {
             maxY = Math.max(maxY, y);
         }
         for (IBond bond : molecule.bonds()) {
-            if (isHeavy(bond.getBegin()) && isHeavy(bond.getEnd())) {
-                bondLengthSum += distance(bond.getBegin(), bond.getEnd());
+            if (MoleculeGeometry.isHeavy(bond.getBegin()) && MoleculeGeometry.isHeavy(bond.getEnd())) {
+                bondLengthSum += MoleculeGeometry.distance(bond.getBegin(), bond.getEnd());
                 bondCount++;
             }
         }
 
-        double scale = bondCount > 0 ? BOND_LENGTH_PX / (bondLengthSum / bondCount) : 1.0;
-        int spanW = (int) Math.ceil((maxX - minX) * scale) + PADDING * 2;
-        int spanH = (int) Math.ceil((maxY - minY) * scale) + PADDING * 2;
+        double scale = bondCount > 0
+                ? MoleculeRenderConstants.BOND_LENGTH_PX / (bondLengthSum / bondCount) : 1.0;
+        int spanW = (int) Math.ceil((maxX - minX) * scale) + MoleculeRenderConstants.PADDING * 2;
+        int spanH = (int) Math.ceil((maxY - minY) * scale) + MoleculeRenderConstants.PADDING * 2;
         // 画布上限约束：超出则整体收缩
-        if (spanW > MAX_WIDTH || spanH > TARGET_HEIGHT) {
-            double shrink = Math.min((double) MAX_WIDTH / spanW, (double) TARGET_HEIGHT / spanH);
+        if (spanW > MoleculeRenderConstants.MAX_WIDTH || spanH > MoleculeRenderConstants.TARGET_HEIGHT) {
+            double shrink = Math.min((double) MoleculeRenderConstants.MAX_WIDTH / spanW,
+                    (double) MoleculeRenderConstants.TARGET_HEIGHT / spanH);
             scale *= shrink;
-            spanW = (int) Math.ceil((maxX - minX) * scale) + PADDING * 2;
-            spanH = (int) Math.ceil((maxY - minY) * scale) + PADDING * 2;
+            spanW = (int) Math.ceil((maxX - minX) * scale) + MoleculeRenderConstants.PADDING * 2;
+            spanH = (int) Math.ceil((maxY - minY) * scale) + MoleculeRenderConstants.PADDING * 2;
         }
         // 逻辑尺寸（组件布局用）与超采样像素尺寸（纹理用）
         int width = Math.max(spanW, 16);
         int height = Math.max(spanH, 16);
-        int pixelWidth = width * SUPERSAMPLE;
-        int pixelHeight = height * SUPERSAMPLE;
+        int pixelWidth = width * MoleculeRenderConstants.SUPERSAMPLE;
+        int pixelHeight = height * MoleculeRenderConstants.SUPERSAMPLE;
 
         // 原子 -> 画布逻辑坐标（浮点；绘制时统一乘超采样倍率）
         Map<IAtom, double[]> pixelPositions = new HashMap<>();
@@ -225,8 +169,8 @@ public final class MoleculeTextureCache {
             if (atom.getAtomicNumber() == 1) {
                 continue;
             }
-            double px = PADDING + (atom.getPoint2d().x - minX) * scale;
-            double py = PADDING + (atom.getPoint2d().y - minY) * scale;
+            double px = MoleculeRenderConstants.PADDING + (atom.getPoint2d().x - minX) * scale;
+            double py = MoleculeRenderConstants.PADDING + (atom.getPoint2d().y - minY) * scale;
             pixelPositions.put(atom, new double[]{px, py});
             if (atom.getAtomicNumber() != 6) {
                 // 显式 H：杂原子的隐氢写入标签（羟基 O→OH、氨基 N→NH₂），
@@ -241,12 +185,12 @@ public final class MoleculeTextureCache {
                     }
                 }
                 labelTexts.put(atom, new AtomText(main, sub,
-                        ATOM_COLORS.getOrDefault(atom.getSymbol(), 0xFFD0D0D0)));
+                        MoleculeRenderConstants.ATOM_COLORS.getOrDefault(atom.getSymbol(), 0xFFD0D0D0)));
             }
         }
 
         // 环键连通分量的环质心（供环内双键朝内侧偏移）
-        Map<IBond, double[]> ringCenters = ringCenters(molecule, pixelPositions);
+        Map<IBond, double[]> ringCenters = MoleculeRingSearch.ringCenters(molecule, pixelPositions);
 
         // 竖长分子（高 > 宽）旋转 90° 横放，适配 tooltip 布局：
         // tooltip 横向空间通常比纵向充裕（纵向受屏幕高度与鼠标位置限制）。
@@ -277,14 +221,15 @@ public final class MoleculeTextureCache {
         try {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-            g.setColor(BOND_COLOR);
-            g.setStroke(createStroke(null));
+            g.setColor(MoleculeRenderConstants.BOND_COLOR);
+            g.setStroke(MoleculeBondRenderer.createStroke(null));
 
             // 预计算每个标签的实际宽度，缩进 = 底块半宽 + 留白（精确匹配，键线终止于底块边缘，
             // 既不会穿入符号也不会因缩进过大吞掉短键）
             Map<IAtom, Double> labelInsets = new HashMap<>();
             {
-                double symbolHeight = BOND_LENGTH_PX * SYMBOL_RATIO * SUPERSAMPLE;
+                double symbolHeight = MoleculeRenderConstants.BOND_LENGTH_PX
+                        * MoleculeRenderConstants.SYMBOL_RATIO * MoleculeRenderConstants.SUPERSAMPLE;
                 FontMetrics metrics = g.getFontMetrics(
                         new Font(Font.SANS_SERIF, Font.BOLD, (int) Math.round(symbolHeight)));
                 for (Map.Entry<IAtom, AtomText> entry : labelTexts.entrySet()) {
@@ -295,19 +240,21 @@ public final class MoleculeTextureCache {
                                 new Font(Font.SANS_SERIF, Font.BOLD, (int) Math.round(symbolHeight * 0.55)));
                         totalWidth += subMetrics.stringWidth(text.sub());
                     }
-                    double inset = (totalWidth / 2.0 + SYMBOL_BG_PADDING * SUPERSAMPLE) / SUPERSAMPLE;
+                    double inset = (totalWidth / 2.0
+                            + MoleculeRenderConstants.SYMBOL_BG_PADDING * MoleculeRenderConstants.SUPERSAMPLE)
+                            / MoleculeRenderConstants.SUPERSAMPLE;
                     labelInsets.put(entry.getKey(), inset);
                 }
             }
 
             // 标签碰撞处理：旋转或短键场景下 OH/NH₂ 等标签可能相互重叠，
             // 沿连线方向互相推开（多次迭代收敛），确保各基团可读
-            resolveLabelCollisions(labelTexts, pixelPositions, labelInsets);
+            MoleculeSymbolRenderer.resolveLabelCollisions(labelTexts, pixelPositions, labelInsets);
 
             for (IBond bond : molecule.bonds()) {
                 IAtom begin = bond.getBegin();
                 IAtom end = bond.getEnd();
-                if (!isHeavy(begin) || !isHeavy(end)) {
+                if (!MoleculeGeometry.isHeavy(begin) || !MoleculeGeometry.isHeavy(end)) {
                     continue;
                 }
                 double[] p1 = pixelPositions.get(begin);
@@ -316,29 +263,30 @@ public final class MoleculeTextureCache {
                 // 缩进上限 = 键长的 40%，保证短键（杂原子密集区）仍有可见的键线段
                 if (labelInsets.containsKey(begin)) {
                     double bondLen = Math.max(1e-6, Math.hypot(p2[0] - p1[0], p2[1] - p1[1]));
-                    p1 = shrink(p1, p2, Math.min(labelInsets.get(begin), bondLen * 0.4));
+                    p1 = MoleculeGeometry.shrink(p1, p2, Math.min(labelInsets.get(begin), bondLen * 0.4));
                 }
                 if (labelInsets.containsKey(end)) {
                     double bondLen = Math.max(1e-6, Math.hypot(p1[0] - p2[0], p1[1] - p2[1]));
-                    p2 = shrink(p2, p1, Math.min(labelInsets.get(end), bondLen * 0.4));
+                    p2 = MoleculeGeometry.shrink(p2, p1, Math.min(labelInsets.get(end), bondLen * 0.4));
                 }
                 IBond.Order order = bond.getOrder();
                 if (ringCenters.containsKey(bond) && order == IBond.Order.DOUBLE) {
                     // 环上双键（芳香环 Kekulé 或显式 Kekulé 环）统一画在环内侧
-                    drawInwardDouble(g, p1, p2, ringCenters.get(bond));
+                    MoleculeBondRenderer.drawInwardDouble(g, p1, p2, ringCenters.get(bond));
                 } else if (order == IBond.Order.DOUBLE) {
                     // 双键偏移方向远离杂原子标签（如 C=O 双键画在碳侧），避免与符号重叠
-                    double[] away = awayFromLabels(p1, p2, begin, end, labelTexts, pixelPositions);
-                    drawDoubleLine(g, p1, p2, away);
+                    double[] away = MoleculeGeometry.awayFromLabels(p1, p2, begin, end,
+                            labelTexts.keySet(), pixelPositions);
+                    MoleculeBondRenderer.drawDoubleLine(g, p1, p2, away);
                 } else if (order == IBond.Order.TRIPLE) {
-                    drawTripleLine(g, p1, p2);
+                    MoleculeBondRenderer.drawTripleLine(g, p1, p2);
                 } else {
-                    drawLine(g, p1, p2);
+                    MoleculeBondRenderer.drawLine(g, p1, p2);
                 }
             }
 
             // 绘制杂原子符号（深色底块 + 彩色文字，随分子等比缩放）
-            drawSymbols(g, labelTexts, pixelPositions);
+            MoleculeSymbolRenderer.drawSymbols(g, labelTexts, pixelPositions);
         } finally {
             g.dispose();
         }
@@ -373,385 +321,5 @@ public final class MoleculeTextureCache {
                 .register("biocraft/molecule_" + Math.abs(smiles.hashCode()), texture);
 
         return new MoleculeImage(location, width, height);
-    }
-
-    /**
-     * 绘制杂原子符号：深色不透明底块 + 彩色文字，随分子等比缩放
-     * <p>
-     * 符号绘制进纹理（而非渲染期叠加 MC 字体），使符号与键线随分子
-     * 一起缩放（符号高 = 键长 × 0.6），避免固定字号符号遮挡短键；
-     * 深色底块采用化学期刊惯例：截断穿过符号区域的键线，视觉干净
-     *
-     * @param g              Graphics2D 上下文（超采样画布）
-     * @param labelTexts     标签表
-     * @param pixelPositions 原子坐标表
-     */
-    private static void drawSymbols(Graphics2D g, Map<IAtom, AtomText> labelTexts,
-                                    Map<IAtom, double[]> pixelPositions) {
-        double symbolHeight = BOND_LENGTH_PX * SYMBOL_RATIO * SUPERSAMPLE;
-        Font font = new Font(Font.SANS_SERIF, Font.BOLD, (int) Math.round(symbolHeight));
-        Font subFont = new Font(Font.SANS_SERIF, Font.BOLD, (int) Math.round(symbolHeight * 0.55));
-        FontMetrics mainMetrics = g.getFontMetrics(font);
-        FontMetrics subMetrics = g.getFontMetrics(subFont);
-
-        for (Map.Entry<IAtom, AtomText> entry : labelTexts.entrySet()) {
-            double[] pos = pixelPositions.get(entry.getKey());
-            AtomText text = entry.getValue();
-            double cx = pos[0] * SUPERSAMPLE;
-            double cy = pos[1] * SUPERSAMPLE;
-
-            String full = text.main() + text.sub();
-            int mainWidth = mainMetrics.stringWidth(text.main());
-            int totalWidth = mainWidth + (text.sub().isEmpty() ? 0 : subMetrics.stringWidth(text.sub()));
-            int textHeight = mainMetrics.getAscent() + mainMetrics.getDescent();
-
-            // 深色不透明底块（圆角矩形），盖住穿过符号的键线
-            int bgX = (int) Math.round(cx - totalWidth / 2.0 - SYMBOL_BG_PADDING * SUPERSAMPLE);
-            int bgY = (int) Math.round(cy - textHeight / 2.0 - SYMBOL_BG_PADDING * SUPERSAMPLE);
-            int bgW = (int) Math.round(totalWidth + SYMBOL_BG_PADDING * 2 * SUPERSAMPLE);
-            int bgH = (int) Math.round(textHeight + SYMBOL_BG_PADDING * 2 * SUPERSAMPLE);
-            g.setColor(SYMBOL_BG_COLOR);
-            g.fillRoundRect(bgX, bgY, bgW, bgH,
-                    (int) Math.round(symbolHeight * 0.3), (int) Math.round(symbolHeight * 0.3));
-
-            // 主串居中绘制
-            Color symbolColor = new Color(text.color());
-            g.setColor(symbolColor);
-            g.setFont(font);
-            int baseline = (int) Math.round(cy + (mainMetrics.getAscent() - mainMetrics.getDescent()) / 2.0);
-            g.drawString(text.main(), (int) Math.round(cx - totalWidth / 2.0), baseline);
-            // 下标数字（小号，绘制在主串右下）
-            if (!text.sub().isEmpty()) {
-                g.setFont(subFont);
-                g.drawString(text.sub(),
-                        (int) Math.round(cx - totalWidth / 2.0 + mainWidth),
-                        (int) Math.round(baseline + subMetrics.getAscent() * 0.2));
-            }
-        }
-    }
-
-    /**
-     * 创建键线画笔（线宽按超采样倍率放大）
-     *
-     * @param dash 虚线模式（null 表示实线）
-     * @return 画笔
-     */
-    private static BasicStroke createStroke(float[] dash) {
-        if (dash == null) {
-            return new BasicStroke(BOND_STROKE_WIDTH * SUPERSAMPLE, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-        }
-        float[] scaledDash = new float[dash.length];
-        for (int i = 0; i < dash.length; i++) {
-            scaledDash[i] = dash[i] * SUPERSAMPLE;
-        }
-        return new BasicStroke(BOND_STROKE_WIDTH * SUPERSAMPLE, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
-                10f, scaledDash, 0f);
-    }
-
-    /**
-     * 绘制单键：细抗锯齿直线（坐标从逻辑尺寸换算到超采样画布）
-     *
-     * @param g    Graphics2D 上下文
-     * @param from 起点像素（逻辑坐标）
-     * @param to   终点像素（逻辑坐标）
-     */
-    private static void drawLine(Graphics2D g, double[] from, double[] to) {
-        g.drawLine((int) Math.round(from[0] * SUPERSAMPLE), (int) Math.round(from[1] * SUPERSAMPLE),
-                (int) Math.round(to[0] * SUPERSAMPLE), (int) Math.round(to[1] * SUPERSAMPLE));
-    }
-
-    /**
-     * 绘制双键：垂直于键方向的平行双线（化学期刊风格）
-     * <p>
-     * 偏移方向由调用方指定（朝环内侧或远离杂原子标签），
-     * 避免双键线与元素符号或环外区域冲突
-     *
-     * @param g       Graphics2D 上下文
-     * @param from    起点像素（逻辑坐标）
-     * @param to      终点像素（逻辑坐标）
-     * @param dirUnit 偏移方向单位向量（法向方向）
-     */
-    private static void drawDoubleLine(Graphics2D g, double[] from, double[] to, double[] dirUnit) {
-        drawLine(g, offset(from, dirUnit, -DOUBLE_BOND_OFFSET), offset(to, dirUnit, -DOUBLE_BOND_OFFSET));
-        drawLine(g, offset(from, dirUnit, DOUBLE_BOND_OFFSET), offset(to, dirUnit, DOUBLE_BOND_OFFSET));
-    }
-
-    /**
-     * 绘制环内双键（Kekulé 风格）：键轴一条线 + 朝环内侧偏移一条线
-     * <p>
-     * 化学结构式惯例：苯环等芳香环的双键画在环内侧，
-     * 双键整体位于环内半区而非对称分布在键轴两侧
-     *
-     * @param g          Graphics2D 上下文
-     * @param from       起点像素（逻辑坐标）
-     * @param to         终点像素（逻辑坐标）
-     * @param ringCenter 所属环的质心（用于确定内侧方向）
-     */
-    private static void drawInwardDouble(Graphics2D g, double[] from, double[] to, double[] ringCenter) {
-        double[] inward = inwardDirection(from, to, ringCenter);
-        drawLine(g, from, to);
-        // 内侧偏移线两端各缩短 2px（化学期刊画法：环内双键的内侧线较短）
-        double shorten = 2.0;
-        double[] inFrom = shrink(from, to, shorten);
-        double[] inTo = shrink(to, from, shorten);
-        drawLine(g, offset(inFrom, inward, DOUBLE_BOND_OFFSET * 2), offset(inTo, inward, DOUBLE_BOND_OFFSET * 2));
-    }
-
-    /**
-     * 计算朝向环质心的内侧方向（单位向量）
-     * <p>
-     * 方法：把"键中点指向环心"的向量分解为平行键方向与垂直键方向两个分量，
-     * 垂直分量恒指向环心一侧（无需正负号判断），
-     * 对五元环/融合环等法向与环心方向接近垂直的边数值稳定
-     *
-     * @param from       键起点
-     * @param to         键终点
-     * @param ringCenter 环质心
-     * @return 指向环心一侧的垂直单位向量
-     */
-    private static double[] inwardDirection(double[] from, double[] to, double[] ringCenter) {
-        // 键方向单位向量
-        double bx = to[0] - from[0];
-        double by = to[1] - from[1];
-        double blen = Math.max(1e-6, Math.hypot(bx, by));
-        bx /= blen;
-        by /= blen;
-        // 键中点 -> 环心的向量
-        double midX = (from[0] + to[0]) / 2;
-        double midY = (from[1] + to[1]) / 2;
-        double cx = ringCenter[0] - midX;
-        double cy = ringCenter[1] - midY;
-        // 朝环心向量在键方向上的投影系数
-        double proj = cx * bx + cy * by;
-        // 垂直分量（恒指向环心一侧）
-        double vx = cx - proj * bx;
-        double vy = cy - proj * by;
-        double vlen = Math.max(1e-9, Math.hypot(vx, vy));
-        return new double[]{vx / vlen, vy / vlen};
-    }
-
-    /**
-     * 计算双键偏移方向：远离杂原子标签的一侧（如 C=O 双键画在碳侧）
-     *
-     * @param from         键起点
-     * @param to           键终点
-     * @param begin        起点原子
-     * @param end          终点原子
-     * @param labelTexts   杂原子标签表（用于判断哪些端点有标签）
-     * @param pixelPositions 原子坐标表
-     * @return 偏移方向单位向量（法向，远离标签侧）
-     */
-    private static double[] awayFromLabels(double[] from, double[] to,
-                                           IAtom begin, IAtom end,
-                                           Map<IAtom, AtomText> labelTexts,
-                                           Map<IAtom, double[]> pixelPositions) {
-        double[] normal = normalVector(from, to, 1);
-        // 无标签端点：默认方向即可（对称双线无方向性）
-        if (!labelTexts.containsKey(begin) && !labelTexts.containsKey(end)) {
-            return normal;
-        }
-        double midX = (from[0] + to[0]) / 2;
-        double midY = (from[1] + to[1]) / 2;
-        // 取有标签端点的位置作为"远离"参考
-        double[] labelPos = labelTexts.containsKey(begin) ? pixelPositions.get(begin) : pixelPositions.get(end);
-        double toLabelX = labelPos[0] - midX;
-        double toLabelY = labelPos[1] - midY;
-        // 选择法向中远离标签的一侧
-        if (normal[0] * toLabelX + normal[1] * toLabelY > 0) {
-            normal[0] = -normal[0];
-            normal[1] = -normal[1];
-        }
-        return normal;
-    }
-
-    /**
-     * 计算环键连通分量的环质心（供环内双键朝内侧偏移）
-     * <p>
-     * 环键判定使用 CDK 的 RingSearch（专业环检测，语义标准可靠），
-     * 覆盖芳香环（CDK Kekulize 后 isAromatic 保留）与显式 Kekulé 写法的
-     * 非芳香环（如胞嘧啶/尿嘧啶的显式单双键环）
-     *
-     * @param molecule       分子
-     * @param pixelPositions 原子坐标表
-     * @return 环键 -> 所属环分量质心
-     */
-    private static Map<IBond, double[]> ringCenters(IAtomContainer molecule, Map<IAtom, double[]> pixelPositions) {
-        Map<IBond, double[]> centers = new HashMap<>();
-        RingSearch ringSearch = new RingSearch(molecule);
-        List<IBond> ringBonds = new ArrayList<>();
-        for (IBond bond : molecule.bonds()) {
-            if (!isHeavy(bond.getBegin()) || !isHeavy(bond.getEnd())) {
-                continue;
-            }
-            if (ringSearch.cyclic(bond)) {
-                ringBonds.add(bond);
-            }
-        }
-        // 按共享原子分组（连通分量）
-        Set<IBond> visited = new HashSet<>();
-        for (IBond start : ringBonds) {
-            if (!visited.add(start)) {
-                continue;
-            }
-            List<IBond> component = new ArrayList<>();
-            ArrayDeque<IBond> queue = new ArrayDeque<>();
-            queue.add(start);
-            while (!queue.isEmpty()) {
-                IBond bond = queue.poll();
-                component.add(bond);
-                for (IBond neighbor : ringBonds) {
-                    // 共享端点原子判定相邻
-                    boolean sharesAtom = neighbor.getBegin() == bond.getBegin()
-                            || neighbor.getBegin() == bond.getEnd()
-                            || neighbor.getEnd() == bond.getBegin()
-                            || neighbor.getEnd() == bond.getEnd();
-                    if (!visited.contains(neighbor) && sharesAtom) {
-                        visited.add(neighbor);
-                        queue.add(neighbor);
-                    }
-                }
-            }
-            // 分量内所有端点原子的平均坐标作为质心
-            double sumX = 0, sumY = 0;
-            int count = 0;
-            Set<IAtom> atoms = new HashSet<>();
-            for (IBond bond : component) {
-                atoms.add(bond.getBegin());
-                atoms.add(bond.getEnd());
-            }
-            for (IAtom atom : atoms) {
-                double[] pos = pixelPositions.get(atom);
-                if (pos != null) {
-                    sumX += pos[0];
-                    sumY += pos[1];
-                    count++;
-                }
-            }
-            double[] centroid = count > 0 ? new double[]{sumX / count, sumY / count} : new double[]{0, 0};
-            for (IBond bond : component) {
-                centers.put(bond, centroid);
-            }
-        }
-        return centers;
-    }
-
-    /**
-     * 绘制三键：主键 + 两侧副键
-     *
-     * @param g    Graphics2D 上下文
-     * @param from 起点像素（逻辑坐标）
-     * @param to   终点像素（逻辑坐标）
-     */
-    private static void drawTripleLine(Graphics2D g, double[] from, double[] to) {
-        drawLine(g, from, to);
-        double[] normal = normalVector(from, to, TRIPLE_BOND_OFFSET);
-        drawLine(g, offset(from, normal, -1), offset(to, normal, -1));
-        drawLine(g, offset(from, normal, 1), offset(to, normal, 1));
-    }
-
-    /**
-     * 标签碰撞处理：把相互重叠的杂原子标签沿连线方向推开
-     * <p>
-     * 旋转或短键场景下（如磷酸链、OH 邻接环原子），标签底块可能重叠。
-     * 判定阈值 = 两标签缩进半径之和 × 0.75；迭代 3 次收敛。
-     * 注意：此方法在键线绘制前调用，键线缩进基于推开后的位置，视觉一致
-     *
-     * @param labelTexts   标签表
-     * @param positions    原子坐标表（直接修改坐标值）
-     * @param labelInsets  标签缩进（底块半径）
-     */
-    private static void resolveLabelCollisions(Map<IAtom, AtomText> labelTexts,
-                                               Map<IAtom, double[]> positions,
-                                               Map<IAtom, Double> labelInsets) {
-        List<IAtom> atoms = new ArrayList<>(labelTexts.keySet());
-        for (int iteration = 0; iteration < 3; iteration++) {
-            for (int i = 0; i < atoms.size(); i++) {
-                for (int j = i + 1; j < atoms.size(); j++) {
-                    IAtom a = atoms.get(i);
-                    IAtom b = atoms.get(j);
-                    double[] pa = positions.get(a);
-                    double[] pb = positions.get(b);
-                    double dx = pb[0] - pa[0];
-                    double dy = pb[1] - pa[1];
-                    double dist = Math.hypot(dx, dy);
-                    double minDist = (labelInsets.getOrDefault(a, 4.0)
-                            + labelInsets.getOrDefault(b, 4.0)) * 0.75;
-                    if (dist > 1e-6 && dist < minDist) {
-                        double push = (minDist - dist) / 2;
-                        double ux = dx / dist;
-                        double uy = dy / dist;
-                        pa[0] -= ux * push;
-                        pa[1] -= uy * push;
-                        pb[0] += ux * push;
-                        pb[1] += uy * push;
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * 坐标沿键方向向目标点缩进指定距离（用于杂原子符号处键线留白）
-     *
-     * @param pos   待缩进的坐标
-     * @param toward 缩进方向参考点
-     * @param inset 缩进距离（逻辑像素）
-     * @return 缩进后的新坐标
-     */
-    private static double[] shrink(double[] pos, double[] toward, double inset) {
-        double dx = toward[0] - pos[0];
-        double dy = toward[1] - pos[1];
-        double length = Math.max(1e-6, Math.hypot(dx, dy));
-        return new double[]{pos[0] + dx / length * inset, pos[1] + dy / length * inset};
-    }
-
-    /**
-     * 判断原子是否非氢
-     *
-     * @param atom 原子
-     * @return true 表示非氢原子
-     */
-    private static boolean isHeavy(IAtom atom) {
-        return atom.getAtomicNumber() != 1;
-    }
-
-    /**
-     * 计算两个原子的布局距离（Å）
-     *
-     * @param a 原子 a
-     * @param b 原子 b
-     * @return 距离
-     */
-    private static double distance(IAtom a, IAtom b) {
-        double dx = a.getPoint2d().x - b.getPoint2d().x;
-        double dy = a.getPoint2d().y - b.getPoint2d().y;
-        return Math.sqrt(dx * dx + dy * dy);
-    }
-
-    /**
-     * 计算键方向的法向量（单位向量 * 指定偏移距离）
-     *
-     * @param from   起点
-     * @param to     终点
-     * @param offset 法向偏移距离
-     * @return 法向量数组
-     */
-    private static double[] normalVector(double[] from, double[] to, double offset) {
-        double dx = to[0] - from[0];
-        double dy = to[1] - from[1];
-        double length = Math.max(1e-6, Math.hypot(dx, dy));
-        return new double[]{-dy / length * offset, dx / length * offset};
-    }
-
-    /**
-     * 坐标按法向向量偏移
-     *
-     * @param pos    原坐标
-     * @param normal 法向向量（可为单位向量，偏移量由 side 控制）
-     * @param side   偏移量（正/负任意浮点）
-     * @return 新坐标
-     */
-    private static double[] offset(double[] pos, double[] normal, double side) {
-        return new double[]{pos[0] + normal[0] * side, pos[1] + normal[1] * side};
     }
 }

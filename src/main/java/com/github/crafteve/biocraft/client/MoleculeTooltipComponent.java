@@ -75,8 +75,8 @@ public record MoleculeTooltipComponent(String smiles) implements TooltipComponen
         // 目标尺寸（width/height）为逻辑尺寸；
         // 若用 6 参数重载则 w/h 同时决定采样区域，只会显示纹理左上角局部导致线缺失/错位
         // 杂原子符号已绘制进纹理（随分子等比缩放），此处不再叠加 MC 字体
-        int pixelWidth = image.width() * MoleculeTextureCache.SUPERSAMPLE;
-        int pixelHeight = image.height() * MoleculeTextureCache.SUPERSAMPLE;
+        int pixelWidth = image.width() * MoleculeRenderConstants.SUPERSAMPLE;
+        int pixelHeight = image.height() * MoleculeRenderConstants.SUPERSAMPLE;
         guiGraphics.blit(image.texture(), x, y + 2, image.width(), image.height(),
                 0, 0, pixelWidth, pixelHeight, pixelWidth, pixelHeight);
     }
