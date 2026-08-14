@@ -8,44 +8,42 @@
 <link rel="stylesheet" href="enzyme_factory.css">
 </head>
 <body>
-    <!-- 标题栏：缩写徽章 + 中文名 + 环境参数，由 biocraft-enzyme-root 注入 -->
+    <!-- 标题栏：缩写徽章 + 中文名 + 环境参数，由 Java 注入 -->
     <header class="titlebar">
         <div class="abbr" id="abbr"></div>
         <div class="name" id="name"></div>
         <div class="env" id="env"></div>
     </header>
 
-    <main class="layout">
-        <!-- 物种区：绑定方块实体 IItemHandler，输入/输出两列滚动卡片 -->
-        <container id="block_entity" bind="block_entity" class="species-area">
-            <section class="column">
-                <h3 class="col-title">输入 · 底物</h3>
-                <div class="scroll" id="reactants"></div>
-            </section>
-            <section class="column">
-                <h3 class="col-title">输出 · 产物</h3>
-                <div class="scroll" id="products"></div>
-            </section>
-        </container>
-
-        <!-- 仪表盘：方程式 / 净速率 / 反应进度 / 平衡 / v-t 图 -->
-        <section class="dashboard">
-            <div class="equation" id="equation"></div>
-            <div class="rate-row">
-                <span class="rate-label">净速率</span>
-                <span class="rate-dir" id="rate-dir"></span>
-                <span class="rate-value" id="rate-value"></span>
-                <span class="rate-unit">/s</span>
-            </div>
-            <div class="progress-row">
-                <span class="progress-label">反应进度</span>
-                <biocraft-progress id="progress"></biocraft-progress>
-                <span class="progress-pct" id="progress-pct"></span>
-            </div>
-            <biocraft-balance id="balance"></biocraft-balance>
-            <biocraft-vtchart id="vtchart"></biocraft-vtchart>
+    <!-- 物种区：绑定方块实体 IItemHandler，输入/输出两列滚动卡片 -->
+    <container id="block_entity" bind="block_entity" class="species-area">
+        <section class="column input">
+            <h3 class="col-title">输入 · 底物</h3>
+            <div class="scroll" id="reactants"></div>
         </section>
-    </main>
+        <section class="column output">
+            <h3 class="col-title">输出 · 产物</h3>
+            <div class="scroll" id="products"></div>
+        </section>
+    </container>
+
+    <!-- 仪表盘：方程式 / 净速率 / 反应进度 / 平衡 / v-t 图 -->
+    <section class="dashboard">
+        <div class="equation" id="equation"></div>
+        <div class="rate-row">
+            <span class="rate-label">净速率</span>
+            <span class="rate-dir" id="rate-dir"></span>
+            <span class="rate-value" id="rate-value"></span>
+            <span class="rate-unit">/s</span>
+        </div>
+        <div class="progress-row">
+            <span class="progress-label">进度</span>
+            <biocraft-progress id="progress"></biocraft-progress>
+            <span class="progress-pct" id="progress-pct"></span>
+        </div>
+        <biocraft-balance id="balance"></biocraft-balance>
+        <biocraft-vtchart id="vtchart"></biocraft-vtchart>
+    </section>
 
     <!-- 玩家背包：原版 36 槽预设布局 -->
     <footer class="inventory">
