@@ -1190,11 +1190,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 卡片文字颜色：物品色与卡片底色（#C6C6C6，亮度 ≈198）亮度差小于
-     * 阈值时改纯黑，否则用物品色加深 1/5
+     * 卡片文字颜色：仅白色与接近卡片底色的灰色改纯黑，其余保持物品色加深 1/5
      * <p>
-     * 实测 H⁺ 物品色为纯白（亮度 255），在灰卡上几乎不可见——按亮度
-     * 距离统一判定，任何浅色物品都自动落到黑色分支
+     * 判定（实测修正：阈值 60 曾误伤约 80% 彩色物品，已收紧）：
+     * <ul>
+     *   <li>白色兜底：亮度 > 240（纯白 H⁺ 亮度 255，与卡片灰 198 差 57，
+     *       用接近度阈值覆盖不到，必须按亮度上限单独判定）</li>
+     *   <li>灰色：饱和度 < 40（灰/白饱和度低，排除亮青、亮黄等高饱和
+     *       但亮度接近 198 的彩色）且亮度与卡片灰（198）差 < 10</li>
+     * </ul>
      *
      * @param tintColor 物品染色（24 位 RGB）
      * @return 卡片文字颜色（ARGB）
@@ -1204,7 +1208,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int g = (tintColor >> 8) & 0xFF;
         int b = tintColor & 0xFF;
         int luminance = (r * 299 + g * 587 + b * 114) / 1000;
-        if (Math.abs(luminance - 198) < 60) {
+        int saturation = Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
+        if (luminance > 240 || (saturation < 40 && Math.abs(luminance - 198) < 10)) {
             return 0xFF000000;
         }
         return darkenOneFifth(tintColor);
