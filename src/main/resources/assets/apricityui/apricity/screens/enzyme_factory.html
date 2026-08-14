@@ -2,50 +2,48 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="aui-viewport" content="mode=fixed,width=360,height=252,scale=fit">
+<meta name="aui-viewport" content="mode=gui">
 <meta name="aui-font-mode" content="web">
 <meta name="aui-mouse-events" content="intercept">
 <link rel="stylesheet" href="enzyme_factory.css">
 </head>
 <body>
-    <!-- 标题栏：缩写徽章 + 中文名 + 环境参数，由 Java 注入 -->
     <header class="titlebar">
         <div class="abbr" id="abbr"></div>
         <div class="name" id="name"></div>
         <div class="env" id="env"></div>
     </header>
 
-    <!-- 物种区：绑定方块实体 IItemHandler，输入/输出两列滚动卡片 -->
-    <container id="block_entity" bind="block_entity" class="species-area">
-        <section class="column input">
-            <h3 class="col-title">输入 · 底物</h3>
-            <div class="scroll" id="reactants"></div>
-        </section>
-        <section class="column output">
-            <h3 class="col-title">输出 · 产物</h3>
-            <div class="scroll" id="products"></div>
-        </section>
-    </container>
+    <main class="layout">
+        <container id="block_entity" bind="block_entity" class="species-area">
+            <section class="column input">
+                <h3 class="col-title">输入 · 底物</h3>
+                <div class="scroll" id="reactants"></div>
+            </section>
+            <section class="column output">
+                <h3 class="col-title">输出 · 产物</h3>
+                <div class="scroll" id="products"></div>
+            </section>
+        </container>
 
-    <!-- 仪表盘：方程式 / 净速率 / 反应进度 / 平衡 / v-t 图 -->
-    <section class="dashboard">
-        <div class="equation" id="equation"></div>
-        <div class="rate-row">
-            <span class="rate-label">净速率</span>
-            <span class="rate-dir" id="rate-dir"></span>
-            <span class="rate-value" id="rate-value"></span>
-            <span class="rate-unit">/s</span>
-        </div>
-        <div class="progress-row">
-            <span class="progress-label">进度</span>
-            <biocraft-progress id="progress"></biocraft-progress>
-            <span class="progress-pct" id="progress-pct"></span>
-        </div>
-        <biocraft-balance id="balance"></biocraft-balance>
-        <biocraft-vtchart id="vtchart"></biocraft-vtchart>
-    </section>
+        <section class="dashboard">
+            <div class="equation" id="equation"></div>
+            <div class="rate-row">
+                <span class="rate-label">净速率</span>
+                <span class="rate-dir" id="rate-dir"></span>
+                <span class="rate-value" id="rate-value"></span>
+                <span class="rate-unit">/s</span>
+            </div>
+            <div class="progress-row">
+                <span class="progress-label">进度</span>
+                <biocraft-progress id="progress"></biocraft-progress>
+                <span class="progress-pct" id="progress-pct"></span>
+            </div>
+            <biocraft-balance id="balance"></biocraft-balance>
+            <biocraft-vtchart id="vtchart"></biocraft-vtchart>
+        </section>
+    </main>
 
-    <!-- 玩家背包：原版 36 槽预设布局 -->
     <footer class="inventory">
         <container id="player" bind="player" layout="preset:player"></container>
     </footer>

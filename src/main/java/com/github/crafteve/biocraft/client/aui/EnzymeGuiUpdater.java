@@ -105,7 +105,7 @@ public final class EnzymeGuiUpdater {
     private static void pushDynamicText(Document document) {
         double flux = EnzymeGuiContext.flux();
         setText(document, "rate-value", String.format(Locale.ROOT, "%.2f", Math.abs(flux)));
-        setText(document, "rate-dir", flux > 0.001 ? "▶ 正向" : flux < -0.001 ? "◀ 逆向" : "≈ 平衡");
+        setText(document, "rate-dir", flux > 0.001 ? "→ 正向" : flux < -0.001 ? "← 逆向" : "≈ 平衡");
         setText(document, "env", String.format(Locale.ROOT, "T %.2fK · pH 7.00", EnzymeGuiContext.temperature()));
 
         int n = EnzymeGuiContext.speciesCount();
@@ -117,7 +117,9 @@ public final class EnzymeGuiUpdater {
      * 构建单张物种卡片：槽位 + 物品名 + 缩写 + 浓度条
      * <p>
      * 槽位为 AUI 真实槽位（带 minecraft:air 的 Item 子节点，供 SlotDataBinder 识别为
-     * 可绑定内容）；浓度条为 BiocraftGaugeElement，填充色 = 物品染色（高饱和度纯色）
+     * 可绑定内容）；浓度条为 BiocraftGaugeElement，填充色 = 物品染色（高饱和度纯色）。
+     * 动态创建的 DOM 元素全部使用内联样式（字面量颜色），不依赖类选择器匹配，
+     * 规避动态元素 CSS 匹配时序问题
      *
      * @param document 文档
      * @param slot     物种下标（= 槽位下标）
@@ -125,38 +127,42 @@ public final class EnzymeGuiUpdater {
      * @return 物种卡片元素
      */
     private static Element buildSpeciesCard(Document document, int slot, String itemId) {
+        MoleculeItem molecule = ModItems.byId(itemId).get();
+        String tint = String.format(Locale.ROOT, "#%06X", molecule.getTintColor() & 0xFFFFFF);
+
         Element card = document.createElement("div");
-        card.setAttribute("class", "species-card");
+        card.setAttribute("style",
+                "position:relative;height:34px;margin-bottom:4px;background:#FFFFFF;" +
+                        "border:1px solid #D8DEE6;border-radius:8px;");
 
         Slot slotElement = new Slot(document);
         slotElement.setAttribute("slot-index", String.valueOf(slot));
-        slotElement.setAttribute("class", "species-slot");
+        slotElement.setAttribute("style",
+                "position:absolute;left:5px;top:6px;width:22px;height:22px;" +
+                        "background:#FFFFFF;border:1px solid #D8DEE6;border-radius:6px;");
         Item itemChild = new Item(document);
         itemChild.setTextContent("minecraft:air");
         slotElement.appendChild(itemChild);
         card.appendChild(slotElement);
 
-        MoleculeItem molecule = ModItems.byId(itemId).get();
-
-        Element meta = document.createElement("div");
-        meta.setAttribute("class", "species-meta");
-
         Element name = document.createElement("div");
-        name.setAttribute("class", "species-name");
+        name.setAttribute("style",
+                "position:absolute;left:32px;top:3px;font-size:10px;font-weight:600;" +
+                        "color:#1F2937;white-space:nowrap;overflow:hidden;max-width:80px;");
         name.setTextContent(molecule.getDescription().getString());
-        meta.appendChild(name);
+        card.appendChild(name);
 
         Element abbr = document.createElement("div");
-        abbr.setAttribute("class", "species-abbr");
+        abbr.setAttribute("style",
+                "position:absolute;left:32px;top:17px;font-size:9px;font-weight:700;" +
+                        "letter-spacing:0.5px;color:" + tint + ";white-space:nowrap;");
         abbr.setTextContent(molecule.getAbbreviation());
-        meta.appendChild(abbr);
-
-        card.appendChild(meta);
+        card.appendChild(abbr);
 
         BiocraftGaugeElement gauge = new BiocraftGaugeElement(document);
-        gauge.setAttribute("class", "species-gauge");
         gauge.setAttribute("data-slot", String.valueOf(slot));
         gauge.setAttribute("data-color", String.format(Locale.ROOT, "%08X", molecule.getTintColor()));
+        gauge.setAttribute("style", "position:absolute;left:32px;top:27px;width:80px;height:5px;");
         card.appendChild(gauge);
 
         return card;
