@@ -251,13 +251,13 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 boxY + 2, textColor, false);
 
         // displayname：文本框右缘 + 4px，纯黑文字，绝对定位：
-        // 英文 8px 与缩写文本同中轴（y = boxY + 2）；中文 16px 字形中心
-        // = y+8 → y = boxY - 2，中轴线同为 15.5（字形超出框范围无视）
+        // 中文与英文统一按 8px 处理（实测 MC 中文渲染也是 8px 高，非 16px），
+        // 与缩写文本同中轴（y = boxY + 2）
         String language = net.minecraft.client.Minecraft.getInstance().getLanguageManager().getSelected();
         boolean chinese = language != null && language.startsWith("zh");
         String name = chinese ? enzymeData.nameZn() : enzymeData.nameEn();
         int nameX = boxX + boxW + NAME_GAP;
-        int nameY = chinese ? boxY - 2 : boxY + 2;
+        int nameY = boxY + 2;
         graphics.drawString(this.font, name, nameX, nameY, NAME_COLOR, false);
 
         // INPUT / OUTPUT 标签：英文大写，vanilla 8px 字体，纯黑
