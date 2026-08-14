@@ -50,8 +50,11 @@ public class MachineMenu extends AbstractContainerMenu {
     private static final int HOTBAR_Y = 232;
 
     // 滚动卡片容器布局常量（Menu 与 Screen 共享，全酶工厂统一写死）
-    /** 滚动容器左上角 (7,41)，区域 y 41~162，宽 56 */
+    /** 输入滚动容器左上角 (7,41)，区域 y 41~162，宽 56 */
     public static final int SCROLL_X = 7, SCROLL_Y = 41, SCROLL_W = 56, SCROLL_H = 121;
+
+    /** 输出滚动容器左上角 (193,41)，其余约束与输入完全相同 */
+    public static final int OUTPUT_SCROLL_X = 193;
 
     /** 卡片尺寸 56×28，间距 1，卡片色 #c6c6c6 */
     public static final int CARD_W = 56, CARD_H = 28, CARD_GAP = 1;
@@ -97,7 +100,8 @@ public class MachineMenu extends AbstractContainerMenu {
         super(ModBlocks.ENZYME_FACTORY_MENU.get(), containerId);
         this.blockEntity = blockEntity;
         this.enzymeData = blockEntity.getEnzymeData();
-        this.data = new SimpleContainerData(DATA_REMAINDER_BASE + enzymeData.reactants().size());
+        this.data = new SimpleContainerData(DATA_REMAINDER_BASE + enzymeData.reactants().size()
+                + enzymeData.products().size());
         refreshData();
         addDataSlots(data);
         addSpeciesSlots(blockEntity);
@@ -150,15 +154,16 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 添加反应物物种槽（槽位数 = JSON 反应物条目数）
+     * 添加物种槽（反应物 + 产物，槽位数 = JSON 条目数之和）
      * <p>
      * 每张滚动卡片一个槽位，mayPlace 锁死对应物品（玩家放置与
-     * Shift 转移都经 mayPlace 拦截）
+     * Shift 转移都经 mayPlace 拦截）；输入卡 = 反应物（容器索引 0 起），
+     * 输出卡 = 产物（容器索引 = 反应物数 + i，与 BE 容器槽位顺序一致）
      * <p>
      * 位置约定：Slot.x/y 是 final 静态字段（vanilla 渲染与命中直接读字段），
      * 滚动卡片槽位位置由 Screen 全接管——槽位 isActive() 恒 false 使 vanilla
      * 完全跳过（渲染/hover/点击），Screen 按滚动偏移手动计算位置绘制与
-     * 命中（见 MachineScreen.findDynamicSlot 与 drawScrollCards）
+     * 命中（见 MachineScreen 的 CardScrollArea）
      *
      * @param blockEntity 方块实体（提供容器与酶数据）
      */
@@ -169,6 +174,11 @@ public class MachineMenu extends AbstractContainerMenu {
             Item item = ModItems.byId(reactants.get(i).item()).get();
             // x/y 传 0 占位（final 字段无实义，实际位置由 Screen 计算）
             addSlot(new RestrictedSlot(container, i, 0, 0, item));
+        }
+        List<EnzymeFactoryData.SpeciesSpec> products = enzymeData.products();
+        for (int i = 0; i < products.size(); i++) {
+            Item item = ModItems.byId(products.get(i).item()).get();
+            addSlot(new RestrictedSlot(container, reactants.size() + i, 0, 0, item));
         }
     }
 
@@ -204,7 +214,8 @@ public class MachineMenu extends AbstractContainerMenu {
         data.set(DATA_TEMP, blockEntity.getCachedTempX100());
         data.set(DATA_FLUX, blockEntity.getCachedFluxX1000());
         data.set(DATA_PROGRESS, blockEntity.getCachedProgressX1000());
-        for (int i = 0; i < enzymeData.reactants().size(); i++) {
+        int total = enzymeData.reactants().size() + enzymeData.products().size();
+        for (int i = 0; i < total; i++) {
             data.set(DATA_REMAINDER_BASE + i, (int) Math.round(blockEntity.getRemainder(i) * 1000.0));
         }
     }
@@ -251,7 +262,7 @@ public class MachineMenu extends AbstractContainerMenu {
     public ItemStack quickMoveStack(Player player, int index) {
         ItemStack moved = ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
-        int speciesCount = enzymeData.reactants().size();
+        int speciesCount = enzymeData.reactants().size() + enzymeData.products().size();
         if (slot != null && slot.hasItem()) {
             ItemStack original = slot.getItem();
             moved = original.copy();
@@ -278,12 +289,21 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 反应物物种槽位数（滚动卡片数）
+     * 输入卡（反应物）物种槽位数
      *
      * @return 反应物条目数
      */
-    public int getSpeciesSlotCount() {
+    public int getInputSlotCount() {
         return enzymeData.reactants().size();
+    }
+
+    /**
+     * 输出卡（产物）物种槽位数
+     *
+     * @return 产物条目数
+     */
+    public int getOutputSlotCount() {
+        return enzymeData.products().size();
     }
 
     /**

@@ -14,6 +14,8 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.List;
+
 /**
  * 酶工厂屏幕（experiment/gui-remake 分支全新重建）
  * <p>
@@ -34,10 +36,14 @@ import net.minecraft.world.item.ItemStack;
  *       垂直居中于中轴线 15.5（8px 字形绝对定位 y=13）</li>
  *   <li>displayname：文本框右缘 + 4px，纯黑文字，vanilla 默认字体</li>
  *   <li>INPUT 标签：(9,30)；OUTPUT 标签：(195,30)，英文大写 8px 纯黑</li>
- *   <li>滚动反应物卡片：视口 (7,41)~(63,162)，卡片数 = JSON 反应物条目数；
+ *   <li>滚动卡片区（CardScrollArea 抽象，输入/输出各一实例）：
+ *       输入区视口 (7,41)~(63,162)、输出区视口 (193,41)~(249,162)；
+ *       卡片数 = JSON 物种条目数（输入 = 反应物、输出 = 产物）；
  *       每卡含槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中）
- *       与物品缩写（png 右侧 4px、顶面下方 4px）；滚轮连续滚动 + 平滑
- *       插值，Slot.y 每 tick 同步实现槽位随卡滚动，视口 scissor 裁剪</li>
+ *       与缩写（png 右侧 4px、与 png 上顶面平齐，物品色加深 1/5）、
+ *       浓度进度条（槽位下方与卡片底端间居中，3px 高 54px 长）、
+ *       浓度读数（槽位底面右侧 4px 向下 1px 为左下角，浅灰黑）；
+ *       滚轮连续滚动 + 平滑插值，视口 scissor 裁剪</li>
  * </ul>
  * 字体约定：全程使用 Minecraft 自带字体（含中文的 unicode 自动回退），
  * 不加载任何自定义 TTF 字体资源
@@ -101,14 +107,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 滚动插值系数（每 tick 向目标偏移逼近的比例，越大越跟手） */
     private static final double SCROLL_LERP = 0.25;
 
-    /** 当前滚动像素偏移（渲染用，平滑插值后的显示值） */
-    private double scrollOffset;
-
-    /** 目标滚动像素偏移（滚轮事件直接更新，tick 中插值逼近） */
-    private double scrollTarget;
-
     private final EnzymeFactoryBlockEntity blockEntity;
     private final EnzymeFactoryData enzymeData;
+
+    /** 输入滚动卡片区（反应物，容器 x=7） */
+    private final CardScrollArea inputArea;
+
+    /** 输出滚动卡片区（产物，容器 x=193） */
+    private final CardScrollArea outputArea;
 
     /**
      * @param menu            菜单实例
@@ -121,6 +127,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         this.imageHeight = GUI_H;
         this.blockEntity = menu.getBlockEntity();
         this.enzymeData = menu.getEnzymeData();
+        this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, 0, enzymeData.reactants());
+        this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X,
+                enzymeData.reactants().size(), enzymeData.products());
     }
 
     /**
@@ -161,103 +170,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         graphics.blit(GUI_BG, this.leftPos, this.topPos, 0, 0, GUI_W, GUI_H, GUI_W, GUI_H);
         drawTitleArea(graphics);
-        drawScrollCards(graphics);
+        inputArea.draw(graphics);
+        outputArea.draw(graphics);
     }
 
     /**
-     * 滚动卡片元素：视口内 #c6c6c6 反应物卡片列表
+     * 滚轮事件：悬停在任一滚动卡片视口内时接管滚轮，按像素连续滚动
      * <p>
-     * 卡片数 = JSON 反应物条目数（由 Menu 物种槽数驱动）；每张卡片含
-     * 一个槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中）与
-     * 物品 displayname（缩写，png 右侧 4px、顶面下方 4px）
-     * <p>
-     * 槽位内容由本方法手动绘制（非 vanilla renderSlot）：物种槽
-     * isActive 恒 false 被 vanilla 跳过，Slot.x/y 为 final 无法动态移动，
-     * 故按滚动偏移手动计算位置绘制 slot.png/物品/数量/hover 高亮——
-     * 槽位与卡片同步滚动，点击命中见 findDynamicSlot
-     * <p>
-     * 滚动机制：
-     * <ul>
-     *   <li>卡片 56×28、间距 1，纵向按 29px 步进排列</li>
-     *   <li>enableScissor 裁剪视口——超出视口上/下边界的卡片部分被裁掉，
-     *       即"上方卡片消失、下方卡片出现"的滚动视觉</li>
-     *   <li>滚动按像素连续（非逐张）：滚轮事件更新 scrollTarget，
-     *       containerTick 中按 SCROLL_LERP 插值逼近；偏移钳制
-     *       [0, 内容总高 − 视口高]，数据不足一屏时不滚动</li>
-     * </ul>
-     *
-     * @param graphics 渲染器
-     */
-    private void drawScrollCards(GuiGraphics graphics) {
-        int x = this.leftPos + MachineMenu.SCROLL_X;
-        int y = this.topPos + MachineMenu.SCROLL_Y;
-        // 视口裁剪：仅 (x, y)~(x+56, y+121) 内可见
-        graphics.enableScissor(x, y, x + MachineMenu.SCROLL_W, y + MachineMenu.SCROLL_H);
-        int offset = (int) Math.round(scrollOffset);
-        int count = menu.getSpeciesSlotCount();
-        for (int i = 0; i < count; i++) {
-            int cardY = y + i * MachineMenu.CARD_STEP - offset;
-            graphics.fill(x, cardY, x + MachineMenu.CARD_W, cardY + MachineMenu.CARD_H, CARD_COLOR);
-            // 槽位元素：slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中于 (2,3)
-            int pngX = x + MachineMenu.SLOT_PNG_X;
-            int pngY = cardY + MachineMenu.SLOT_PNG_Y;
-            Slot slot = menu.getSlot(i);
-            graphics.blit(SLOT, pngX, pngY, 0, 0, 18, 18, 18, 18);
-            ItemStack stack = slot.getItem();
-            if (!stack.isEmpty()) {
-                graphics.renderItem(stack, pngX + 1, pngY + 1,
-                        (pngX + 1) + (pngY + 1) * this.imageWidth);
-                graphics.renderItemDecorations(this.font, stack, pngX + 1, pngY + 1, null);
-            }
-            // hover 高亮（半透明白，与 vanilla 同色，盖在物品上）
-            // 1.21 Screen 无 mouseX/mouseY 字段，从 MouseHandler 取屏幕坐标
-            int mx = (int) net.minecraft.client.Minecraft.getInstance().mouseHandler.xpos() - this.leftPos;
-            int my = (int) net.minecraft.client.Minecraft.getInstance().mouseHandler.ypos() - this.topPos;
-            if (mx >= pngX + 1 && mx < pngX + 17 && my >= pngY + 1 && my < pngY + 17) {
-                graphics.fill(pngX + 1, pngY + 1, pngX + 17, pngY + 17, 0x80FFFFFF);
-            }
-
-            // 物品数据：颜色取 substances.json 解析出的物品染色（24 位 RGB 补 alpha）
-            String itemId = enzymeData.reactants().get(i).item();
-            MoleculeItem item = ModItems.byId(itemId).get();
-            // 缩写颜色 = 物品色加深 1/5（×4/5）
-            int itemColor = darkenOneFifth(item.getTintColor());
-
-            // 缩写：与槽位上顶面平齐（y = png 顶），颜色 = 物品色加深 1/5
-            graphics.drawString(this.font, item.getAbbreviation(),
-                    x + MachineMenu.SLOT_PNG_X + MachineMenu.NAME_DX,
-                    pngY, itemColor, false);
-
-            // 浓度：客户端重建引擎连续浓度 = (槽位数量 + 同步余量)/64，
-            // 槽位数经菜单槽位同步、余量经 ContainerData 扩展通道同步
-            // （客户端 BE 引擎浓度恒 0，直接读引擎会导致进度条/读数不显示）
-            double concentration = Math.max(0.0, Math.min(
-                    (stack.getCount() + menu.getRemainder(i)) / 64.0, 1.0));
-
-            // 进度条：槽位下方与卡片底端之间（20..28）垂直居中，
-            // 3px 高、54px 长（卡片宽 56 居中 → x+1），浅灰轨道 + 物品色填充
-            int barY = cardY + MachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
-            graphics.fill(x + 1, barY, x + 1 + 54, barY + 3, 0xFFE0E0E0);
-            graphics.fill(x + 1, barY, x + 1 + (int) (54 * concentration), barY + 3, itemColor);
-
-            // 浓度数据：槽位底面右侧 4px、向下偏移 1px 为文字左下角；
-            // 浅灰黑文字，数值 = 浓度 × 堆叠数（连续值，允许小数）
-            int numX = pngX + MachineMenu.NAME_DX;
-            int numBottomY = pngY + 18 + 1;
-            graphics.drawString(this.font,
-                    "x" + String.format("%.2f", concentration * 64.0),
-                    numX, numBottomY - 8, CONC_TEXT_COLOR, false);
-        }
-        graphics.disableScissor();
-    }
-
-    /**
-     * 滚轮事件：悬停在滚动卡片视口内时接管滚轮，按像素连续滚动
-     * <p>
-     * 悬停判定用屏幕坐标减去容器偏移还原为 GUI 相对坐标；
-     * 滚轮向上（verticalAmount>0）看更上方的卡片，向下看更下方；
-     * 每次滚动移动 SCROLL_PIXELS_PER_NOTCH 像素，目标偏移钳制
-     * [0, maxScroll]，实际显示值由 containerTick 插值逼近
+     * 悬停判定用屏幕坐标减去容器偏移还原为 GUI 相对坐标；输入区与
+     * 输出区各自独立滚动（滚轮向上 verticalAmount>0 看更上方卡片）
      *
      * @param mouseX           鼠标 x（屏幕坐标）
      * @param mouseY           鼠标 y（屏幕坐标）
@@ -270,20 +191,19 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                                  double horizontalAmount, double verticalAmount) {
         int localX = (int) mouseX - this.leftPos;
         int localY = (int) mouseY - this.topPos;
-        if (localX >= MachineMenu.SCROLL_X && localX < MachineMenu.SCROLL_X + MachineMenu.SCROLL_W
-                && localY >= MachineMenu.SCROLL_Y && localY < MachineMenu.SCROLL_Y + MachineMenu.SCROLL_H) {
-            int count = menu.getSpeciesSlotCount();
-            int maxScroll = Math.max(0, count * MachineMenu.CARD_STEP
-                    - MachineMenu.CARD_GAP - MachineMenu.SCROLL_H);
-            this.scrollTarget = Math.max(0,
-                    Math.min(scrollTarget - verticalAmount * SCROLL_PIXELS_PER_NOTCH, maxScroll));
+        if (inputArea.contains(localX, localY)) {
+            inputArea.scrollBy(verticalAmount);
+            return true;
+        }
+        if (outputArea.contains(localX, localY)) {
+            outputArea.scrollBy(verticalAmount);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
     /**
-     * 每 tick 滚动平滑插值：显示偏移向目标偏移逼近
+     * 每 tick 平滑滚动插值（输入区与输出区各自独立）
      * <p>
      * 滚轮事件直接改目标值，本方法按 SCROLL_LERP 比例插值，
      * 差距小于 0.5px 时直接吸附（避免永不停歇的亚像素抖动）；
@@ -292,10 +212,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     @Override
     protected void containerTick() {
         super.containerTick();
-        this.scrollOffset += (this.scrollTarget - this.scrollOffset) * SCROLL_LERP;
-        if (Math.abs(this.scrollTarget - this.scrollOffset) < 0.5) {
-            this.scrollOffset = this.scrollTarget;
-        }
+        inputArea.tick();
+        outputArea.tick();
     }
 
     /**
@@ -326,10 +244,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 按滚动偏移计算鼠标命中的动态槽位（无命中返回 null）
+     * 按滚动偏移计算鼠标命中的动态槽位（输入区与输出区都查，无命中返回 null）
      * <p>
      * 槽位位置 = 卡片位置 + 卡片内相对 (2,3)，命中区域 16×16；
-     * 与 drawScrollCards 的绘制位置严格一致（同一公式）
+     * 与 CardScrollArea.draw 的绘制位置严格一致（同一公式）
      *
      * @param mouseX 鼠标 x（屏幕坐标）
      * @param mouseY 鼠标 y（屏幕坐标）
@@ -338,15 +256,189 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private Slot findDynamicSlot(double mouseX, double mouseY) {
         int localX = (int) mouseX - this.leftPos;
         int localY = (int) mouseY - this.topPos;
-        int offset = (int) Math.round(scrollOffset);
-        for (int i = 0; i < menu.getSpeciesSlotCount(); i++) {
-            int sx = MachineMenu.SCROLL_X + MachineMenu.SLOT_X;
-            int sy = MachineMenu.SCROLL_Y + i * MachineMenu.CARD_STEP - offset + MachineMenu.SLOT_Y;
-            if (localX >= sx && localX < sx + 16 && localY >= sy && localY < sy + 16) {
-                return menu.getSlot(i);
+        Slot slot = inputArea.findSlot(localX, localY);
+        if (slot != null) {
+            return slot;
+        }
+        return outputArea.findSlot(localX, localY);
+    }
+
+    /**
+     * 滚动卡片区域抽象：输入区与输出区共用一套布局/滚动/绘制/命中逻辑
+     * <p>
+     * 与 Menu 槽位的关系：本区域持有一段连续物种槽（baseSlot 起、
+     * species 列表长度），槽位容器索引 = baseSlot + 卡片下标；
+     * 输入区 = 反应物（槽 0 起），输出区 = 产物（槽 = 反应物数起）
+     * <p>
+     * 滚动机制（与用户给定的约束一一对应）：
+     * <ul>
+     *   <li>容器：左上角 (areaX, 41)，区域 y 41~162，宽 56</li>
+     *   <li>卡片 56×28、间距 1，纵向按 29px 步进</li>
+     *   <li>enableScissor 裁剪视口——超出视口上/下边界的卡片部分被裁掉，
+     *       即"上方卡片消失、下方卡片出现"的滚动视觉</li>
+     *   <li>按像素连续滚动（非逐张）：scrollBy 更新 scrollTarget，
+     *       tick 中按 SCROLL_LERP 插值逼近；偏移钳制
+     *       [0, 内容总高 − 视口高]，数据不足一屏时不滚动</li>
+     * </ul>
+     */
+    private final class CardScrollArea {
+        /** 滚动容器 x（GUI 相对，输入 7 / 输出 193） */
+        private final int areaX;
+
+        /** 本区域物种槽起点索引（输入 0 / 输出 = 反应物数） */
+        private final int baseSlot;
+
+        /** 本区域物种条目列表（反应物或产物，JSON 解析顺序） */
+        private final List<EnzymeFactoryData.SpeciesSpec> species;
+
+        /** 当前滚动像素偏移（渲染用，平滑插值后的显示值） */
+        private double scrollOffset;
+
+        /** 目标滚动像素偏移（滚轮事件直接更新，tick 中插值逼近） */
+        private double scrollTarget;
+
+        /**
+         * @param areaX    滚动容器 x（GUI 相对）
+         * @param baseSlot 本区域物种槽起点索引
+         * @param species  本区域物种条目列表
+         */
+        CardScrollArea(int areaX, int baseSlot, List<EnzymeFactoryData.SpeciesSpec> species) {
+            this.areaX = areaX;
+            this.baseSlot = baseSlot;
+            this.species = species;
+        }
+
+        /** 本区域卡片数（= 物种条目数） */
+        int getCount() {
+            return species.size();
+        }
+
+        /**
+         * 悬停判定：鼠标 GUI 相对坐标是否在本区域视口内
+         *
+         * @param localX 鼠标 x（GUI 相对）
+         * @param localY 鼠标 y（GUI 相对）
+         * @return 是否在视口内
+         */
+        boolean contains(int localX, int localY) {
+            return localX >= areaX && localX < areaX + MachineMenu.SCROLL_W
+                    && localY >= MachineMenu.SCROLL_Y
+                    && localY < MachineMenu.SCROLL_Y + MachineMenu.SCROLL_H;
+        }
+
+        /**
+         * 按滚轮增量连续滚动（目标偏移钳制 [0, maxScroll]）
+         *
+         * @param verticalAmount 垂直滚轮增量（向上为正，向上看更上方卡片）
+         */
+        void scrollBy(double verticalAmount) {
+            int maxScroll = Math.max(0, getCount() * MachineMenu.CARD_STEP
+                    - MachineMenu.CARD_GAP - MachineMenu.SCROLL_H);
+            this.scrollTarget = Math.max(0,
+                    Math.min(scrollTarget - verticalAmount * SCROLL_PIXELS_PER_NOTCH, maxScroll));
+        }
+
+        /**
+         * 每 tick 平滑插值：显示偏移向目标偏移逼近（差距 <0.5px 直接吸附）
+         */
+        void tick() {
+            this.scrollOffset += (this.scrollTarget - this.scrollOffset) * SCROLL_LERP;
+            if (Math.abs(this.scrollTarget - this.scrollOffset) < 0.5) {
+                this.scrollOffset = this.scrollTarget;
             }
         }
-        return null;
+
+        /**
+         * 命中检测：鼠标 GUI 相对坐标命中的本区域槽位（无命中返回 null）
+         * <p>
+         * 槽位位置 = 卡片位置 + 卡片内相对 (2,3)，命中区域 16×16，
+         * 与 draw 的绘制位置严格一致（同一公式）
+         *
+         * @param localX 鼠标 x（GUI 相对）
+         * @param localY 鼠标 y（GUI 相对）
+         * @return 命中的槽位，未命中为 null
+         */
+        Slot findSlot(int localX, int localY) {
+            int offset = (int) Math.round(scrollOffset);
+            for (int i = 0; i < getCount(); i++) {
+                int sx = areaX + MachineMenu.SLOT_X;
+                int sy = MachineMenu.SCROLL_Y + i * MachineMenu.CARD_STEP - offset + MachineMenu.SLOT_Y;
+                if (localX >= sx && localX < sx + 16 && localY >= sy && localY < sy + 16) {
+                    return menu.getSlot(baseSlot + i);
+                }
+            }
+            return null;
+        }
+
+        /**
+         * 绘制本区域全部卡片（视口 scissor 裁剪内）：
+         * 卡片底色 + 槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中）
+         * + 物品图标/数量 + hover 高亮 + 缩写（与槽位上顶面平齐、物品色加深
+         * 1/5）+ 浓度进度条（槽位下方与卡片底端间居中，3px 高 54px 长）
+         * + 浓度读数（槽位底面右侧 4px、向下 1px 为文字左下角，浅灰黑）
+         *
+         * @param graphics 渲染器
+         */
+        void draw(GuiGraphics graphics) {
+            int x = leftPos + areaX;
+            int y = topPos + MachineMenu.SCROLL_Y;
+            graphics.enableScissor(x, y, x + MachineMenu.SCROLL_W, y + MachineMenu.SCROLL_H);
+            int offset = (int) Math.round(scrollOffset);
+            for (int i = 0; i < getCount(); i++) {
+                int cardY = y + i * MachineMenu.CARD_STEP - offset;
+                graphics.fill(x, cardY, x + MachineMenu.CARD_W, cardY + MachineMenu.CARD_H, CARD_COLOR);
+                // 槽位元素：slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中于 (2,3)
+                int pngX = x + MachineMenu.SLOT_PNG_X;
+                int pngY = cardY + MachineMenu.SLOT_PNG_Y;
+                Slot slot = menu.getSlot(baseSlot + i);
+                graphics.blit(SLOT, pngX, pngY, 0, 0, 18, 18, 18, 18);
+                ItemStack stack = slot.getItem();
+                if (!stack.isEmpty()) {
+                    graphics.renderItem(stack, pngX + 1, pngY + 1,
+                            (pngX + 1) + (pngY + 1) * imageWidth);
+                    graphics.renderItemDecorations(font, stack, pngX + 1, pngY + 1, null);
+                }
+                // hover 高亮（半透明白，与 vanilla 同色，盖在物品上）
+                // 1.21 Screen 无 mouseX/mouseY 字段，从 MouseHandler 取屏幕坐标
+                int mx = (int) net.minecraft.client.Minecraft.getInstance().mouseHandler.xpos() - leftPos;
+                int my = (int) net.minecraft.client.Minecraft.getInstance().mouseHandler.ypos() - topPos;
+                if (mx >= pngX + 1 && mx < pngX + 17 && my >= pngY + 1 && my < pngY + 17) {
+                    graphics.fill(pngX + 1, pngY + 1, pngX + 17, pngY + 17, 0x80FFFFFF);
+                }
+
+                // 物品数据：颜色取 substances.json 解析出的物品染色（24 位 RGB 补 alpha）
+                String itemId = species.get(i).item();
+                MoleculeItem item = ModItems.byId(itemId).get();
+                // 缩写颜色 = 物品色加深 1/5（×4/5）
+                int itemColor = darkenOneFifth(item.getTintColor());
+
+                // 缩写：与槽位上顶面平齐（y = png 顶），颜色 = 物品色加深 1/5
+                graphics.drawString(font, item.getAbbreviation(),
+                        x + MachineMenu.SLOT_PNG_X + MachineMenu.NAME_DX,
+                        pngY, itemColor, false);
+
+                // 浓度：客户端重建引擎连续浓度 = (槽位数量 + 同步余量)/64，
+                // 槽位数经菜单槽位同步、余量经 ContainerData 扩展通道同步
+                // （客户端 BE 引擎浓度恒 0，直接读引擎会导致进度条/读数不显示）
+                double concentration = Math.max(0.0, Math.min(
+                        (stack.getCount() + menu.getRemainder(baseSlot + i)) / 64.0, 1.0));
+
+                // 进度条：槽位下方与卡片底端之间（20..28）垂直居中，
+                // 3px 高、54px 长（卡片宽 56 居中 → x+1），浅灰轨道 + 物品色填充
+                int barY = cardY + MachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
+                graphics.fill(x + 1, barY, x + 1 + 54, barY + 3, BAR_TRACK);
+                graphics.fill(x + 1, barY, x + 1 + (int) (54 * concentration), barY + 3, itemColor);
+
+                // 浓度数据：槽位底面右侧 4px、向下偏移 1px 为文字左下角；
+                // 浅灰黑文字，数值 = 浓度 × 堆叠数（连续值，允许小数）
+                int numX = pngX + MachineMenu.NAME_DX;
+                int numBottomY = pngY + 18 + 1;
+                graphics.drawString(font,
+                        "x" + String.format("%.2f", concentration * 64.0),
+                        numX, numBottomY - 8, CONC_TEXT_COLOR, false);
+            }
+            graphics.disableScissor();
+        }
     }
 
     /**
