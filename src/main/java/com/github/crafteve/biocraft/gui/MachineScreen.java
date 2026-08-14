@@ -6,6 +6,8 @@ import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
+import com.github.crafteve.biocraft.reaction.KineticConstants;
+import com.github.crafteve.biocraft.reaction.ReactionDefinition;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -105,6 +107,31 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 反应类型徽章 y（与 REACTION 上顶面对齐），x 右对齐方程式框右缘 */
     private static final int TAG_Y = REACTION_Y;
 
+    // v-t 通量折线图（REACT 框下方）
+    /** v-t 图顶部 y：REACT 框底（38+12=50）+ 4px */
+    private static final int VT_Y = EQ_BOX_Y + EQ_BOX_H + 4;
+
+    /** v-t 图高度 120px */
+    private static final int VT_H = 120;
+
+    /** v-t 图左边缘 x（Y 轴，工作区 67~188 左减 3px） */
+    private static final int VT_X0 = 70;
+
+    /** v-t 图右边缘 x（工作区右减 3px） */
+    private static final int VT_X1 = 185;
+
+    /** 折线点水平步进（每 0.5s 一点，间距 4px） */
+    private static final int VT_POINT_STEP = 4;
+
+    /** 窗口点数（= 步进数 + 1，115/4 = 28 步 → 29 点 ≈ 14.5 秒） */
+    private static final int VT_POINTS = (VT_X1 - VT_X0) / VT_POINT_STEP + 1;
+
+    /** 采样间隔（0.5s = 10 tick） */
+    private static final int VT_SAMPLE_TICKS = 10;
+
+    /** 坐标轴颜色（深灰） */
+    private static final int AXIS_COLOR = 0xFF555555;
+
     // 滚动卡片布局常量统一引用 MachineMenu（Menu 与 Screen 共享，全酶工厂写死）
 
     /** 槽位贴图（slot.png 18×18）资源 */
@@ -134,6 +161,18 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     /** 输出滚动卡片区（产物，容器 x=193） */
     private final CardScrollArea outputArea;
+
+    /** v-t 通量采样环形缓冲（每 0.5s 一点，窗口 VT_POINTS） */
+    private final double[] vtFlux = new double[VT_POINTS];
+
+    /** 环形缓冲写入下标 */
+    private int vtIndex;
+
+    /** 已采样点数（窗口未满时决定绘制起点） */
+    private int vtSampleCount;
+
+    /** 采样 tick 计数（每 VT_SAMPLE_TICKS 采样一点） */
+    private int vtTickCounter;
 
     /**
      * @param menu            菜单实例
@@ -192,6 +231,93 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         drawReactionArea(graphics);
         inputArea.draw(graphics);
         outputArea.draw(graphics);
+        drawVtChart(graphics);
+    }
+
+    /**
+     * v-t 通量折线图：REACT 框下方 4px、高 120px、宽 = 工作区 − 6px
+     * <p>
+     * 布局（与用户给定约束一一对应）：
+     * <ul>
+     *   <li>Y 轴：x=70（图像左边缘），120×1px 深灰竖线 + 顶端三角形箭头
+     *       （宽 3px 长 4px）</li>
+     *   <li>X 轴（v=0 基准线）：图像区按 v 值域比例定位——值域
+     *       [-vmaxR, vmaxF]（正向 = kcat/TIME_SCALE，逆向 = Haldane
+     *       关系注册期计算），对称时可逆居中、逆向 vmax=0（不可逆）
+     *       时贴底——因为 v 可能为负（逆向反应）</li>
+     *   <li>折线：每 0.5s（10 tick）采样一点，点距 4px，2×2 深色主题色
+     *       方形点 + 1px 主题色折线连接，窗口 29 点 ≈ 14.5 秒</li>
+     * </ul>
+     *
+     * @param graphics 渲染器
+     */
+    private void drawVtChart(GuiGraphics graphics) {
+        int axX = this.leftPos + VT_X0;
+        int topY = this.topPos + VT_Y;
+        int bottomY = topY + VT_H;
+
+        // Y 轴：120×1px 深灰竖线（图像左边缘）+ 顶端箭头（宽 3px 长 4px）
+        graphics.fill(axX, topY, axX + 1, bottomY + 1, AXIS_COLOR);
+        graphics.fill(axX, topY - 4, axX + 1, topY - 3, AXIS_COLOR);
+        graphics.fill(axX - 1, topY - 3, axX + 2, topY, AXIS_COLOR);
+
+        // v 值域：[-vmaxR, vmaxF]（正向 kcat/TIME_SCALE；逆向 Haldane）
+        ReactionDefinition definition = blockEntity.getSimulator().getDefinition();
+        double vmaxF = definition.getVmaxF();
+        double vmaxR = definition.isReversible()
+                ? definition.vmaxBForTemperature(KineticConstants.T0) : 0.0;
+        double span = Math.max(vmaxF + vmaxR, 1e-9);
+
+        // X 轴（v=0 基准线）：底部向上按 vmaxR/span 比例定位（不可逆贴底）
+        int zeroY = bottomY - (int) Math.round(vmaxR / span * VT_H);
+        graphics.fill(axX, zeroY, this.leftPos + VT_X1 + 1, zeroY + 1, AXIS_COLOR);
+
+        // 折线：0.5s 一点，线性映射 (v+vmaxR)/span → 底部..顶部
+        int count = Math.min(vtSampleCount, VT_POINTS);
+        if (count < 2) {
+            return;
+        }
+        int start = (vtIndex - count + VT_POINTS) % VT_POINTS;
+        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
+        int lineColor = theme | 0xFF000000;
+        int pointColor = darken(theme);
+        int prevX = 0, prevY = 0;
+        for (int i = 0; i < count; i++) {
+            double v = vtFlux[(start + i) % VT_POINTS];
+            int x = axX + i * VT_POINT_STEP;
+            int y = bottomY - (int) Math.round((v + vmaxR) / span * VT_H);
+            y = Math.max(topY, Math.min(bottomY, y));
+            if (i > 0) {
+                drawLine(graphics, prevX, prevY, x, y, lineColor);
+            }
+            graphics.fill(x - 1, y - 1, x + 1, y + 1, pointColor);
+            prevX = x;
+            prevY = y;
+        }
+    }
+
+    /**
+     * 画 1px 折线段（按 x/y 步进的整数插值，双轴均分步数防断线）
+     *
+     * @param graphics 渲染器
+     * @param x1       起点 x（屏幕坐标）
+     * @param y1       起点 y（屏幕坐标）
+     * @param x2       终点 x（屏幕坐标）
+     * @param y2       终点 y（屏幕坐标）
+     * @param color    线段颜色
+     */
+    private static void drawLine(GuiGraphics graphics, int x1, int y1, int x2, int y2, int color) {
+        int dx = x2 - x1;
+        int dy = y2 - y1;
+        int steps = Math.max(Math.abs(dx), Math.abs(dy));
+        if (steps == 0) {
+            return;
+        }
+        for (int i = 0; i <= steps; i++) {
+            int x = x1 + dx * i / steps;
+            int y = y1 + dy * i / steps;
+            graphics.fill(x, y, x + 1, y + 1, color);
+        }
     }
 
     /**
@@ -237,12 +363,12 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         }
         int x0 = (EQ_X0 + EQ_X1) / 2 - totalW / 2;
 
-        // 美化框：宽 67~188 左右各回缩 1px（68~187）、高 12px（38~50），
-        // 主题色 1px 边框 + 浅填充，与标题区缩写文本框同风格
+        // 美化框：宽 67~188 左右各回缩 1px（68~187，fill 半开区间）、
+        // 高 12px（38~50），主题色 1px 边框 + 浅填充，与标题区文本框同风格
         int borderColor = theme | 0xFF000000;
         int fillColor = lighten(theme);
         int boxX0 = this.leftPos + EQ_X0 + 1;
-        int boxX1 = this.leftPos + EQ_X1;
+        int boxX1 = this.leftPos + EQ_X1 - 1;
         int boxY0 = this.topPos + EQ_BOX_Y;
         int boxY1 = this.topPos + EQ_BOX_Y + EQ_BOX_H;
         graphics.fill(boxX0, boxY0, boxX1 + 1, boxY1 + 1, borderColor);
@@ -329,6 +455,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         super.containerTick();
         inputArea.tick();
         outputArea.tick();
+        // v-t 采样：每 0.5s（10 tick）取当前净通量一点入环形缓冲
+        vtTickCounter++;
+        if (vtTickCounter >= VT_SAMPLE_TICKS) {
+            vtTickCounter = 0;
+            vtFlux[vtIndex] = menu.getFlux();
+            vtIndex = (vtIndex + 1) % VT_POINTS;
+            vtSampleCount = Math.min(vtSampleCount + 1, VT_POINTS);
+        }
     }
 
     /**

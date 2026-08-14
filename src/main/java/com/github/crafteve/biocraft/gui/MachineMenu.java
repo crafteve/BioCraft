@@ -252,6 +252,15 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
+     * 读取当前净通量（ContainerData 同步值，v-t 折线图数据源）
+     *
+     * @return 净通量（堆叠分数/s，负值为逆向）
+     */
+    public double getFlux() {
+        return data.get(DATA_FLUX) / 1000.0;
+    }
+
+    /**
      * Shift 点击转移逻辑：物种槽 → 背包；背包 → 物种槽（受 mayPlace 限制）
      *
      * @param player 操作玩家
