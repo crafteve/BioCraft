@@ -519,6 +519,40 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         // 标注与箭头超出原 0..60 边界，扩展后全部落在底色范围内
         graphics.fill(0, -ss * 3, bgRight, bottomY + ss * 3, lighten(theme));
 
+        // 辅助网格线：刻度位置 1 超采样像素白色横线（缩放后 0.25px），
+        // 便于对照刻度值识别通量位置
+        for (int step = 0; step <= VT_H / 10; step++) {
+            int gy = step * 10 * ss;
+            graphics.fill(axisX, gy, bgRight, gy + 1, 0xFFFFFFFF);
+        }
+
+        // 折线：绘制在轴与刻度之下（先画，后画的轴/刻度/单位覆盖其上，
+        // 避免折线遮挡单位等标记——原顺序折线最后绘制盖住"个/tick"）
+        // 从左往右滚动——最新点在左端（Y 轴处），旧点逐格右移，
+        // 最右点恰好落在 X 轴箭头屁股（消失处）
+        int count = Math.min(vtSampleCount, VT_POINTS);
+        if (count >= 2) {
+            int lineColor = theme | 0xFF000000;
+            // 点色必须补 alpha：MachineCategory 主题色为 24 位 RGB，直接 fill
+            // 会画出全透明矩形（实测 bug：只画了线没画点，已修复）
+            int pointColor = theme | 0xFF000000;
+            int latest = (vtIndex - 1 + VT_POINTS) % VT_POINTS;
+            int prevX = 0, prevY = 0;
+            for (int i = 0; i < count; i++) {
+                double v = vtFlux[(latest - i + VT_POINTS) % VT_POINTS];
+                int x = axisX + i * VT_GRID_W * ss;
+                int y = bottomY - (int) Math.round((v + vmaxRShow) / span * VT_H * ss);
+                y = Math.max(0, Math.min(bottomY, y));
+                if (i > 0) {
+                    drawLine(graphics, prevX, prevY, x, y, VT_LINE_WIDTH, lineColor);
+                }
+                graphics.fill(x - VT_POINT_SIZE / 2, y - VT_POINT_SIZE / 2,
+                        x + VT_POINT_SIZE / 2, y + VT_POINT_SIZE / 2, pointColor);
+                prevX = x;
+                prevY = y;
+            }
+        }
+
         // Y 轴：3px 宽（原 4px 减 20%）；箭头尖端（轴顶）向下渐变三角形
         //（3→8→12→16px 宽，超采样下更精细）
         graphics.fill(axisX, 0, axisX + ss - 1, bottomY + ss - 1, AXIS_COLOR);
@@ -550,32 +584,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         // 单位标注：个/tick，Y 轴顶端右侧
         drawScaledText(graphics, "个/tick", axisX + ss + ss - 1, 0, 2.0F);
 
-        // 折线：从左往右滚动——最新点在左端（Y 轴处），旧点逐格右移，
-        // 最右点恰好落在 X 轴箭头屁股（消失处）
-        int count = Math.min(vtSampleCount, VT_POINTS);
-        if (count < 2) {
-            graphics.pose().popPose();
-            return;
-        }
-        int lineColor = theme | 0xFF000000;
-        // 点色必须补 alpha：MachineCategory 主题色为 24 位 RGB，直接 fill
-        // 会画出全透明矩形（实测 bug：只画了线没画点，已修复）
-        int pointColor = theme | 0xFF000000;
-        int latest = (vtIndex - 1 + VT_POINTS) % VT_POINTS;
-        int prevX = 0, prevY = 0;
-        for (int i = 0; i < count; i++) {
-            double v = vtFlux[(latest - i + VT_POINTS) % VT_POINTS];
-            int x = axisX + i * VT_GRID_W * ss;
-            int y = bottomY - (int) Math.round((v + vmaxRShow) / span * VT_H * ss);
-            y = Math.max(0, Math.min(bottomY, y));
-            if (i > 0) {
-                drawLine(graphics, prevX, prevY, x, y, VT_LINE_WIDTH, lineColor);
-            }
-            graphics.fill(x - VT_POINT_SIZE / 2, y - VT_POINT_SIZE / 2,
-                    x + VT_POINT_SIZE / 2, y + VT_POINT_SIZE / 2, pointColor);
-            prevX = x;
-            prevY = y;
-        }
         graphics.pose().popPose();
     }
 
@@ -1090,8 +1098,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 // 物品数据：颜色取 substances.json 解析出的物品染色（24 位 RGB 补 alpha）
                 String itemId = species.get(i).item();
                 MoleculeItem item = ModItems.byId(itemId).get();
-                // 缩写颜色 = 物品色加深 1/5（×4/5）
-                int itemColor = darkenOneFifth(item.getTintColor());
+                // 缩写颜色：物品色加深 1/5；与卡片底色（#C6C6C6）亮度相近时
+                // 改黑色保证可读（实测 H⁺ 为纯白，灰卡上几乎不可见）
+                int itemColor = cardTextColor(item.getTintColor());
 
                 // 缩写：与槽位上顶面平齐（y = png 顶），颜色 = 物品色加深 1/5
                 graphics.drawString(font, item.getAbbreviation(),
@@ -1178,6 +1187,27 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         // INPUT / OUTPUT 标签：英文大写，vanilla 8px 字体，纯黑
         graphics.drawString(this.font, "INPUT", this.leftPos + INPUT_X, this.topPos + INPUT_Y, NAME_COLOR, false);
         graphics.drawString(this.font, "OUTPUT", this.leftPos + OUTPUT_X, this.topPos + OUTPUT_Y, NAME_COLOR, false);
+    }
+
+    /**
+     * 卡片文字颜色：物品色与卡片底色（#C6C6C6，亮度 ≈198）亮度差小于
+     * 阈值时改纯黑，否则用物品色加深 1/5
+     * <p>
+     * 实测 H⁺ 物品色为纯白（亮度 255），在灰卡上几乎不可见——按亮度
+     * 距离统一判定，任何浅色物品都自动落到黑色分支
+     *
+     * @param tintColor 物品染色（24 位 RGB）
+     * @return 卡片文字颜色（ARGB）
+     */
+    private static int cardTextColor(int tintColor) {
+        int r = (tintColor >> 16) & 0xFF;
+        int g = (tintColor >> 8) & 0xFF;
+        int b = tintColor & 0xFF;
+        int luminance = (r * 299 + g * 587 + b * 114) / 1000;
+        if (Math.abs(luminance - 198) < 60) {
+            return 0xFF000000;
+        }
+        return darkenOneFifth(tintColor);
     }
 
     /**
