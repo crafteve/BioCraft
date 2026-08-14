@@ -215,12 +215,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         segments.add(new EqSegment(enzymeData.reversible() ? "⇌" : "→", NAME_COLOR));
         appendEqSide(segments, enzymeData.products());
 
-        // 总宽（8px 基准）→ 居中于 67~188
+        // 总宽（8px 基准）→ 居中于 67~188：
+        // 起点坐标不缩放而文字内容 ×2，实际占宽 = totalW×2，
+        // 居中起点 = 中心 − totalW（误用 −totalW/2 会整体偏右半个方程式，已修复）
         int totalW = 0;
         for (EqSegment segment : segments) {
             totalW += this.font.width(segment.text());
         }
-        int x0 = (EQ_X0 + EQ_X1) / 2 - totalW / 2;
+        int x0 = (EQ_X0 + EQ_X1) / 2 - totalW;
 
         // 2x 放大绘制：translate 到起点（不缩放起点坐标），scale(2) 放大字形
         graphics.pose().pushPose();
