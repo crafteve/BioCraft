@@ -37,6 +37,9 @@ public class MachineMenu extends AbstractContainerMenu {
     /** 槽位步进：水平方向同列距，垂直方向同行距 */
     private static final int INV_STEP = 18;
 
+    /** 快捷栏起始 y（与主背包行距不同，固定 232） */
+    private static final int HOTBAR_Y = 232;
+
     /** 方块实体引用，菜单生命周期内保持存活（stillValid 与后续物种槽用） */
     private final EnzymeFactoryBlockEntity blockEntity;
 
@@ -117,9 +120,9 @@ public class MachineMenu extends AbstractContainerMenu {
                         INV_X0 + col * INV_STEP, INV_Y0 + row * INV_STEP));
             }
         }
-        // 快捷栏（物品栏索引 0~8）：一行 y = 232
+        // 快捷栏（物品栏索引 0~8）：一行 y = 232（不与背包行共用行距公式）
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInventory, col, INV_X0 + col * INV_STEP, INV_Y0 + 3 * INV_STEP));
+            addSlot(new Slot(playerInventory, col, INV_X0 + col * INV_STEP, HOTBAR_Y));
         }
     }
 
