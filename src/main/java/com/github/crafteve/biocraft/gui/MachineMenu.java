@@ -63,8 +63,8 @@ public class MachineMenu extends AbstractContainerMenu {
     /** 16×16 可交互 Slot 在卡片内的相对位置 (2,3)（居中于 18×18 贴图内） */
     public static final int SLOT_X = SLOT_PNG_X + 1, SLOT_Y = SLOT_PNG_Y + 1;
 
-    /** 槽位物品 displayname 相对槽位贴图：png 右侧 4px、png 顶面下方 4px */
-    public static final int NAME_DX = 18 + 4, NAME_DY = 4;
+    /** 槽位物品缩写/浓度文字相对槽位贴图左侧：png 右侧 4px */
+    public static final int NAME_DX = 18 + 4;
 
     /** 方块实体引用，菜单生命周期内保持存活（stillValid 与物种槽用） */
     private final EnzymeFactoryBlockEntity blockEntity;

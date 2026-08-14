@@ -4,6 +4,7 @@ import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
 import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.init.ModItems;
+import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -88,8 +89,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 卡片颜色（#c6c6c6 补 alpha） */
     private static final int CARD_COLOR = 0xFFC6C6C6;
 
-    /** 卡片内物品 displayname 文字颜色（纯黑） */
-    private static final int CARD_NAME_COLOR = 0xFF000000;
+    /** 浓度数据文字颜色（浅灰黑） */
+    private static final int CONC_TEXT_COLOR = 0xFF777777;
+
+    /** 进度条轨道颜色（浅灰，物品色为填充） */
+    private static final int BAR_TRACK = 0xFFE0E0E0;
 
     /** 每个滚轮刻度移动的像素量（连续像素滚动，非逐张步进） */
     private static final double SCROLL_PIXELS_PER_NOTCH = 20.0;
@@ -212,12 +216,34 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             if (mx >= pngX + 1 && mx < pngX + 17 && my >= pngY + 1 && my < pngY + 17) {
                 graphics.fill(pngX + 1, pngY + 1, pngX + 17, pngY + 17, 0x80FFFFFF);
             }
-            // 物品 displayname（缩写）：槽位 png 右侧 4px、png 顶面下方 4px
+
+            // 物品数据：颜色取 substances.json 解析出的物品染色（24 位 RGB 补 alpha）
             String itemId = enzymeData.reactants().get(i).item();
-            String abbr = ModItems.byId(itemId).get().getAbbreviation();
-            graphics.drawString(this.font, abbr,
+            MoleculeItem item = ModItems.byId(itemId).get();
+            int itemColor = item.getTintColor() | 0xFF000000;
+
+            // 缩写：与槽位上顶面平齐（y = png 顶），颜色 = 物品颜色
+            graphics.drawString(this.font, item.getAbbreviation(),
                     x + MachineMenu.SLOT_PNG_X + MachineMenu.NAME_DX,
-                    cardY + MachineMenu.SLOT_PNG_Y + MachineMenu.NAME_DY, CARD_NAME_COLOR, false);
+                    pngY, itemColor, false);
+
+            // 浓度：引擎连续浓度（0~1，权威值），clamp 防越界
+            double concentration = Math.max(0.0, Math.min(
+                    blockEntity.getSimulator().getState().getConcentrations()[i], 1.0));
+
+            // 进度条：槽位下方与卡片底端之间（20..28）垂直居中，
+            // 3px 高、54px 长（卡片宽 56 居中 → x+1），浅灰轨道 + 物品色填充
+            int barY = cardY + MachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
+            graphics.fill(x + 1, barY, x + 1 + 54, barY + 3, 0xFFE0E0E0);
+            graphics.fill(x + 1, barY, x + 1 + (int) (54 * concentration), barY + 3, itemColor);
+
+            // 浓度数据：槽位底面右侧 4px、向下偏移 1px 为文字左下角；
+            // 浅灰黑文字，数值 = 浓度 × 堆叠数（连续值，允许小数）
+            int numX = pngX + MachineMenu.NAME_DX;
+            int numBottomY = pngY + 18 + 1;
+            graphics.drawString(this.font,
+                    "x" + String.format("%.2f", concentration * 64.0),
+                    numX, numBottomY - 8, CONC_TEXT_COLOR, false);
         }
         graphics.disableScissor();
     }
