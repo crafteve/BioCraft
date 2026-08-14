@@ -237,6 +237,45 @@ public final class ReactionDefinition {
         return true;
     }
 
+    /**
+     * 正向可达通量：速率项底物全部满堆（浓度 1）、产物为零时，
+     * 引擎速率方程算出的最大正向通量（堆叠分数/s）
+     * <p>
+     * 这是"游戏内可达上限"的引擎定义：引擎 Vmax_f 是速率方程的数学极限
+     * （浓度趋无穷），满堆时通量只能逼近其一部分（可逆共享分母约 0.7 倍、
+     * 不可逆米氏积更低）——显示层（GUI 刻度/JEI 信息卡）应直接取本值，
+     * 不得在显示层重写速率方程
+     *
+     * @return 正向可达通量（堆叠分数/s，恒为正）
+     */
+    public double forwardReachableFlux() {
+        double[] x = new double[speciesIds.length];
+        for (SpeciesEntry entry : rateReactants) {
+            x[entry.index()] = 1.0;
+        }
+        return KineticsCalculator.forwardFlux(this, x, vmaxBForTemperature(KineticConstants.T0));
+    }
+
+    /**
+     * 逆向可达通量：速率项产物全部满堆（浓度 1）、底物为零时，
+     * 引擎速率方程算出的最大逆向通量（堆叠分数/s）
+     * <p>
+     * 与正向可达通量对称（产物满堆、底物空），供 GUI 速率条负向刻度与
+     * JEI 信息卡使用；不可逆反应恒为 0
+     *
+     * @return 逆向可达通量（堆叠分数/s），不可逆反应返回 0
+     */
+    public double reverseReachableFlux() {
+        if (!reversible) {
+            return 0.0;
+        }
+        double[] x = new double[speciesIds.length];
+        for (SpeciesEntry entry : rateProducts) {
+            x[entry.index()] = 1.0;
+        }
+        return KineticsCalculator.reverseFlux(this, x, vmaxBForTemperature(KineticConstants.T0));
+    }
+
     public String[] getSpeciesIds() {
         return speciesIds.clone();
     }

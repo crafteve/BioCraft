@@ -3,6 +3,7 @@ package engineTest;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.github.crafteve.biocraft.reaction.EnzymeSimulator;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
+import com.github.crafteve.biocraft.reaction.ReactionDefinition;
 import com.github.crafteve.biocraft.reaction.StepResult;
 import com.github.crafteve.biocraft.reaction.ThermoUtil;
 
@@ -44,6 +45,7 @@ public final class EngineSelfTest {
         run("13 相对快慢：TPI/PGI 初速比 ≈ 科学 kcat 比", EngineSelfTest::test13RelativeSpeed);
         run("14 PGI 黄金值快照", EngineSelfTest::test14Snapshot);
         run("15 产物堆积时底物稀少仍逆向反应（无停机判定）", EngineSelfTest::test15ReverseWithLowSubstrate);
+        run("16 可达通量契约：引擎给出浓度=1 的可达上限（手算对照）", EngineSelfTest::test16ReachableFlux);
 
         if (failures > 0) {
             System.err.println("引擎单测失败: " + failures + "/" + total);
@@ -395,6 +397,39 @@ public final class EngineSelfTest {
         x[idx(sim, "fructose_6_phosphate")] = 48.0 / 64.0;
         check(sim.step(KineticConstants.TICK_SECONDS).fluxNet() < 0.0,
                 "产物大量堆积且底物稀少时应逆向净流（不得因底物少而停机）");
+    }
+
+    /**
+     * 可达通量契约：引擎给出"游戏内可达上限"——速率方程代入浓度=1 的最大通量
+     * <p>
+     * 显示层（GUI 刻度/JEI 信息卡）只做单位换算，不得在显示层重写速率公式。
+     * 手算对照（旧显示层公式的同数值回归）：
+     * <ul>
+     *   <li>PGI 可逆单底物：fwd = Vmax_f·(1/Km₆ₚ)/(1+1/Km₆ₚ)，rev = Vmax_b·(1/Km_ᶠ⁶ᵖ)/(1+1/Km_ᶠ⁶ᵖ)</li>
+     *   <li>HK 不可逆：rev 恒 0，fwd = Vmax_f·∏(1/(1+Km))</li>
+     * </ul>
+     * 同时断言饱和有界：可达通量必须小于 Vmax（Vmax 是浓度趋无穷的数学极限）
+     */
+    private static void test16ReachableFlux() {
+        EnzymeSimulator pgi = TestEnzymes.pgi().buildSimulator();
+        ReactionDefinition pgiDef = pgi.getDefinition();
+        double f = 1.0 / 0.43;
+        double pgiFwd = pgiDef.getVmaxF() * f / (1.0 + f);
+        checkNear(pgiDef.forwardReachableFlux(), pgiFwd, 1e-9, "PGI 正向可达通量与手算不符");
+        double r = 1.0 / 0.046;
+        double pgiRev = pgiDef.vmaxBForTemperature(KineticConstants.T0) * r / (1.0 + r);
+        checkNear(pgiDef.reverseReachableFlux(), pgiRev, 1e-9, "PGI 逆向可达通量与手算不符");
+        check(pgiDef.forwardReachableFlux() < pgiDef.getVmaxF(),
+                "PGI 可达通量应小于 Vmax_f（饱和有界）");
+
+        EnzymeSimulator hk = TestEnzymes.hk().buildSimulator();
+        ReactionDefinition hkDef = hk.getDefinition();
+        checkNear(hkDef.reverseReachableFlux(), 0.0, 0.0, "HK 不可逆逆向可达通量应为 0");
+        double hkFactor = (1.0 / (1.0 + 0.049)) * (1.0 / (1.0 + 1.12));
+        checkNear(hkDef.forwardReachableFlux(), hkDef.getVmaxF() * hkFactor, 1e-9,
+                "HK 正向可达通量与手算不符");
+        check(hkDef.forwardReachableFlux() < hkDef.getVmaxF(),
+                "HK 可达通量应小于 Vmax_f（饱和有界）");
     }
 
     private EngineSelfTest() {

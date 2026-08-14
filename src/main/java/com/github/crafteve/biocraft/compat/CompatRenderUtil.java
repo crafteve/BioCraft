@@ -2,9 +2,7 @@ package com.github.crafteve.biocraft.compat;
 
 import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
-import com.github.crafteve.biocraft.reaction.ReactionDefinition;
 
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -43,37 +41,6 @@ public final class CompatRenderUtil {
      */
     public static int themeColor(String ecCategory) {
         return MachineCategory.byId(ecCategory).getThemeColor() | 0xFF000000;
-    }
-
-    /**
-     * 饱和可达速率：底物/产物满堆（浓度 1）时引擎通量能逼近的最大值
-     * <p>
-     * 与 GUI 速率条（MachineScreen.saturationReachable）同口径——两种速率形式
-     * 满堆可达不同：可逆共享分母用比值项（S/Km），不可逆米氏积用饱和项
-     * （S/(Km+S)）。这里只做显示标定，不改引擎
-     *
-     * @param vmax             方向最大速率（引擎值，堆叠分数/s）
-     * @param entries          该方向的速率项条目（含 Km 堆叠分数）
-     * @param sharedDenominator true = 可逆共享分母形式，false = 不可逆米氏积形式
-     * @return 饱和可达速率（>0）
-     */
-    public static double saturationReachable(double vmax,
-                                             List<ReactionDefinition.SpeciesEntry> entries,
-                                             boolean sharedDenominator) {
-        double product = 1.0;
-        for (ReactionDefinition.SpeciesEntry entry : entries) {
-            if (entry.kmFraction() > 0) {
-                if (sharedDenominator) {
-                    product *= Math.pow(1.0 / entry.kmFraction(), entry.coeff());
-                } else {
-                    product *= Math.pow(1.0 / (1.0 + entry.kmFraction()), entry.coeff());
-                }
-            }
-        }
-        if (sharedDenominator) {
-            return vmax * product / (1.0 + product);
-        }
-        return vmax * product;
     }
 
     /**

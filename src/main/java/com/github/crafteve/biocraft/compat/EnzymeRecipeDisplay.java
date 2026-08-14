@@ -83,13 +83,14 @@ public record EnzymeRecipeDisplay(
     }
 
     /**
-     * 构建展示模型：物种条目转换 + ΔG°′ 换算 + 饱和可达 Vmax 换算
+     * 构建展示模型：物种条目转换 + ΔG°′ 换算 + 可达通量换算
      * <p>
      * ΔG°′ = −R·T₀·ln(Keq)，R 与 T₀ 直接复用引擎常量（KineticConstants），
      * 保证显示值与引擎热力学数据同一基准（R 为 J 单位，换算 kJ 除以 1000）
      * <p>
-     * Vmax 口径与 GUI 速率条完全一致（MachineScreen）：
-     * 引擎值（堆叠分数/s）→ saturationReachable 饱和标定 → ×64×0.05 = 个/tick
+     * Vmax 口径与 GUI 速率条完全一致：引擎直接给出可达通量（堆叠分数/s，
+     * ReactionDefinition.forwardReachableFlux/reverseReachableFlux，即速率方程
+     * 代入满堆浓度），显示层只做 ×64×0.05 单位换算——不重写任何速率公式
      *
      * @param data 酶数据档案
      * @return 新展示模型
@@ -102,21 +103,14 @@ public record EnzymeRecipeDisplay(
                 .toList();
 
         ReactionDefinition definition = data.buildSimulator().getDefinition();
-        double vmaxF = definition.getVmaxF();
-        double vmaxR = definition.isReversible()
-                ? definition.vmaxBForTemperature(KineticConstants.T0) : 0.0;
-        double vmaxFShow = CompatRenderUtil.saturationReachable(vmaxF,
-                definition.getRateReactants(), definition.isReversible());
-        double vmaxRShow = definition.isReversible()
-                ? CompatRenderUtil.saturationReachable(vmaxR, definition.getRateProducts(), true) : 0.0;
 
         double deltaG = CompatRenderUtil.deltaGFromKeq(data.keq());
         return new EnzymeRecipeDisplay(data.id(), data.nameZn(), data.abbreviation(),
                 data.category(), data.kinetic(), data.reversible(), data.keq(), deltaG,
                 data.kcat(), data.tempOptimum(), activators,
                 machineStack(data.id()),
-                vmaxFShow * CompatRenderUtil.ITEMS_PER_TICK,
-                vmaxRShow * CompatRenderUtil.ITEMS_PER_TICK,
+                definition.forwardReachableFlux() * CompatRenderUtil.ITEMS_PER_TICK,
+                definition.reverseReachableFlux() * CompatRenderUtil.ITEMS_PER_TICK,
                 inputs, outputs);
     }
 
