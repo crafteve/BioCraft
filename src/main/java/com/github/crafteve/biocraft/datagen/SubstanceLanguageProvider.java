@@ -49,6 +49,7 @@ public class SubstanceLanguageProvider implements DataProvider {
         addTabTranslations();
         addMachineTranslations();
         addEnzymeTranslations();
+        addCompatTranslations();
         addItemTranslations();
 
         JsonObject lang = new JsonObject();
@@ -118,6 +119,41 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "碱基不足" : "Insufficient bases");
         translations.put("gui.biocraft.status.output_full",
                 zh ? "输出槽已满" : "Output slot is full");
+    }
+
+    /**
+     * 添加 JEI/EMI 配方显示层文案翻译
+     * <p>
+     * 配方类别标题、动力学变体、Km/Keq/ΔG°′/kcat 等展示文案；
+     * 与酶数据表文案分开维护，避免与数据驱动条目耦合
+     */
+    private void addCompatTranslations() {
+        boolean zh = "zh_cn".equals(language);
+        translations.put("jei.biocraft.enzyme_factory",
+                zh ? "酶工厂" : "Enzyme Factory");
+        translations.put("jei.biocraft.kinetic.limiting",
+                zh ? "限速酶" : "Rate-limiting Enzyme");
+        translations.put("jei.biocraft.kinetic.isomerase",
+                zh ? "异构酶" : "Isomerase");
+        translations.put("jei.biocraft.kinetic.oxido_lyase",
+                zh ? "氧化裂解酶" : "Oxidoreductase/Lyase");
+        translations.put("jei.biocraft.fixed_activity",
+                zh ? "固定活性物种（不参与速率计算，仅化学计量结算）"
+                        : "Fixed-activity species (not in rate law, stoichiometry only)");
+        translations.put("jei.biocraft.km",
+                zh ? "Km = %s mM" : "Km = %s mM");
+        translations.put("jei.biocraft.keq",
+                zh ? "Keq = %s" : "Keq = %s");
+        translations.put("jei.biocraft.delta_g",
+                zh ? "ΔG°′ = %s kJ/mol" : "ΔG°′ = %s kJ/mol");
+        translations.put("jei.biocraft.kcat",
+                zh ? "kcat = %s s⁻¹" : "kcat = %s s⁻¹");
+        translations.put("jei.biocraft.temp",
+                zh ? "T = %s K" : "T = %s K");
+        translations.put("jei.biocraft.activator",
+                zh ? "激活剂: %s" : "Activators: %s");
+        translations.put("jei.biocraft.count",
+                zh ? "数量 ×%s" : "Count ×%s");
     }
 
     /**
