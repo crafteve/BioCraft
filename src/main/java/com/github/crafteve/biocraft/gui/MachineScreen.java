@@ -74,6 +74,31 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** OUTPUT 标签左上角 */
     private static final int OUTPUT_X = 195, OUTPUT_Y = 30;
 
+    // 滚动卡片容器约束（JSON 数据驱动布局的样板：容器/卡片/间距/颜色全部为约束值）
+    /** 滚动容器左上角 (7,41)，区域 y 41~162，宽 56 */
+    private static final int SCROLL_X = 7, SCROLL_Y = 41, SCROLL_W = 56, SCROLL_H = 121;
+
+    /** 卡片尺寸 56×24，间距 4，卡片色 #c6c6c6（0xC6C6C6 24 位 RGB，补 alpha 使用） */
+    private static final int CARD_W = 56, CARD_H = 24, CARD_GAP = 4;
+
+    /** 卡片步进（高 + 间距） */
+    private static final int CARD_STEP = CARD_H + CARD_GAP;
+
+    /** 视口内完整可见卡片数（121/28 = 4 张，余 9px） */
+    private static final int VISIBLE_CARDS = 4;
+
+    /** 测试占位卡片数（滚动机制演示用，将来由酶数据条目数驱动） */
+    private static final int CARD_COUNT = 10;
+
+    /** 卡片颜色（#c6c6c6 补 alpha） */
+    private static final int CARD_COLOR = 0xFFC6C6C6;
+
+    /** 卡片编号文字颜色（测试占位用） */
+    private static final int CARD_TEXT_COLOR = 0xFF333333;
+
+    /** 当前滚动卡片张数（0 = 顶部，滚轮逐张步进，越界钳制） */
+    private int scrollCards;
+
     private final EnzymeFactoryBlockEntity blockEntity;
     private final EnzymeFactoryData enzymeData;
 
@@ -122,6 +147,64 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         graphics.blit(GUI_BG, this.leftPos, this.topPos, 0, 0, GUI_W, GUI_H, GUI_W, GUI_H);
         drawTitleArea(graphics);
+        drawScrollCards(graphics);
+    }
+
+    /**
+     * 滚动卡片元素：视口 (7,41)~(63,162) 内的 #c6c6c6 卡片列表
+     * <p>
+     * 滚动机制：
+     * <ul>
+     *   <li>卡片 56×24、间距 4，纵向按 28px 步进排列</li>
+     *   <li>enableScissor 裁剪视口——超出视口上/下边界的卡片部分被裁掉，
+     *       即"上方卡片消失、下方卡片出现"的滚动视觉</li>
+     *   <li>scrollCards 为滚动张数（滚轮逐张步进），钳制 [0, 总数-可见数]，
+     *       数据不足一屏时不滚动</li>
+     * </ul>
+     * 卡片内容当前为编号占位（测试滚动机制用），将来由酶数据条目驱动
+     *
+     * @param graphics 渲染器
+     */
+    private void drawScrollCards(GuiGraphics graphics) {
+        int x = this.leftPos + SCROLL_X;
+        int y = this.topPos + SCROLL_Y;
+        // 视口裁剪：仅 (x, y)~(x+56, y+121) 内可见
+        graphics.enableScissor(x, y, x + SCROLL_W, y + SCROLL_H);
+        for (int i = 0; i < CARD_COUNT; i++) {
+            int cardY = y + i * CARD_STEP - scrollCards * CARD_STEP;
+            graphics.fill(x, cardY, x + CARD_W, cardY + CARD_H, CARD_COLOR);
+            // 编号文字：卡片 24px 高内 8px 字上下居中（cardY+8）
+            graphics.drawString(this.font, String.format("%02d", i + 1),
+                    x + 2, cardY + 8, CARD_TEXT_COLOR, false);
+        }
+        graphics.disableScissor();
+    }
+
+    /**
+     * 滚轮事件：悬停在滚动卡片视口内时接管滚轮，逐张滚动卡片
+     * <p>
+     * 悬停判定用屏幕坐标减去容器偏移还原为 GUI 相对坐标；
+     * 滚轮向上（delta>0）看更上方的卡片，向下看更下方
+     *
+     * @param mouseX      鼠标 x（屏幕坐标）
+     * @param mouseY      鼠标 y（屏幕坐标）
+     * @param horizontalAmount 水平滚轮增量（本元素不使用）
+     * @param verticalAmount   垂直滚轮增量（向上为正）
+     * @return 是否消费事件
+     */
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY,
+                                 double horizontalAmount, double verticalAmount) {
+        int localX = (int) mouseX - this.leftPos;
+        int localY = (int) mouseY - this.topPos;
+        if (localX >= SCROLL_X && localX < SCROLL_X + SCROLL_W
+                && localY >= SCROLL_Y && localY < SCROLL_Y + SCROLL_H) {
+            int delta = verticalAmount > 0 ? -1 : 1;
+            this.scrollCards = Math.max(0,
+                    Math.min(scrollCards + delta, CARD_COUNT - VISIBLE_CARDS));
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
     /**
