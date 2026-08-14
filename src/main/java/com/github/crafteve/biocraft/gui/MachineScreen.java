@@ -120,11 +120,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** v-t 图右边缘 x（工作区右减 3px） */
     private static final int VT_X1 = 185;
 
-    /** 格子宽（1s/格，11px；10 点 9 段，点 70..169） */
-    private static final int VT_GRID_W = 11;
+    /** 格子宽（1s/格，12px；10 点 9 段 = 108px，点 70..178） */
+    private static final int VT_GRID_W = 12;
 
     /** 窗口点数（1s 一点，共 10 点 = 0~9s） */
     private static final int VT_POINTS = 10;
+
+    /** X 轴横线右端 = 箭头屁股 = 最右点消失处（点区右端） */
+    private static final int VT_AXIS_END = VT_X0 + (VT_POINTS - 1) * VT_GRID_W;
 
     /** 采样间隔（1s = 20 tick） */
     private static final int VT_SAMPLE_TICKS = 20;
@@ -194,9 +197,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /**
      * 用服务端下发的历史初始化 v-t 环形缓冲（打开瞬间折线图即有数据）
      * <p>
-     * 历史为每 tick 通量×1000（旧→新，100 tick = 5s）；按 1s（20 tick）
-     * 采样，旧→新顺序写入环形缓冲——最新样本落在 vtIndex-1，
-     * 与绘制循环"最新点在最左端"的取数逻辑一致
+     * 历史为每 tick 通量×1000（旧→新，200 tick = 10s）；从最新端往回
+     * 按 1s（20 tick）采样，收集后反序写入环形缓冲——最新样本落在
+     * vtIndex-1，与绘制循环"最新点在最左端"的取数逻辑一致；
+     * 从最新端采样保证打开瞬间左端显示的是最近状态而非 10 秒前
      *
      * @param history 历史快照（旧→新，可能为空数组）
      */
@@ -204,13 +208,17 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         if (history.length == 0) {
             return;
         }
-        int samples = 0;
-        for (int t = 0; t < history.length && samples < VT_POINTS; t += VT_SAMPLE_TICKS) {
-            vtFlux[vtIndex] = history[t] / 1000.0;
-            vtIndex = (vtIndex + 1) % VT_POINTS;
-            samples++;
+        int max = Math.min((history.length + VT_SAMPLE_TICKS - 1) / VT_SAMPLE_TICKS, VT_POINTS);
+        double[] samples = new double[max];
+        int n = 0;
+        for (int t = history.length - 1; t >= 0 && n < max; t -= VT_SAMPLE_TICKS) {
+            samples[n++] = history[t] / 1000.0;
         }
-        vtSampleCount = samples;
+        for (int i = n - 1; i >= 0; i--) {
+            vtFlux[vtIndex] = samples[i];
+            vtIndex = (vtIndex + 1) % VT_POINTS;
+        }
+        vtSampleCount = n;
     }
 
     /**
@@ -302,15 +310,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         double span = Math.max(vmaxFShow + vmaxRShow, 1e-9);
 
         // X 轴（v=0 基准线）：底部向上按 vmaxRShow/span 比例定位（不可逆贴底）；
-        // 箭头尖端朝右 = 线段右端（VT_X1），向左张开 3 列
+        // 横线 70..178（箭头屁股 = 最右点消失处），箭头尖端朝右延伸 3 列
         int zeroY = bottomY - (int) Math.round(vmaxRShow / span * VT_H);
-        graphics.fill(axX, zeroY, this.leftPos + VT_X1 + 1, zeroY + 1, AXIS_COLOR);
-        graphics.fill(this.leftPos + VT_X1, zeroY,
-                this.leftPos + VT_X1 + 1, zeroY + 1, AXIS_COLOR);
-        graphics.fill(this.leftPos + VT_X1 - 3, zeroY - 1,
-                this.leftPos + VT_X1, zeroY + 2, AXIS_COLOR);
+        int tailX = this.leftPos + VT_AXIS_END;
+        graphics.fill(axX, zeroY, tailX + 1, zeroY + 1, AXIS_COLOR);
+        graphics.fill(tailX, zeroY - 1, tailX + 3, zeroY + 2, AXIS_COLOR);
+        graphics.fill(tailX + 3, zeroY, tailX + 4, zeroY + 1, AXIS_COLOR);
 
-        // 折线：从左往右滚动——最新点在左端（x=70），旧点逐格右移
+        // 折线：从左往右滚动——最新点在左端（x=70），旧点逐格右移，
+        // 最右点恰好落在 X 轴箭头屁股（点区右端 = 消失处）
         int count = Math.min(vtSampleCount, VT_POINTS);
         if (count < 2) {
             return;
@@ -328,7 +336,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             if (i > 0) {
                 drawLine(graphics, prevX, prevY, x, y, lineColor);
             }
-            graphics.fill(x - 1, y - 1, x + 1, y + 1, pointColor);
+            graphics.fill(x - 2, y - 2, x + 2, y + 2, pointColor);
             prevX = x;
             prevY = y;
         }

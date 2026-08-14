@@ -59,8 +59,8 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     private int cachedTempX100;
     private int cachedProgressX1000;
 
-    /** v-t 通量历史环形缓冲（100 tick = 5 秒，打开 GUI 时一次性下发，不存档） */
-    private static final int HISTORY_LENGTH = 100;
+    /** v-t 通量历史环形缓冲（200 tick = 10 秒，打开 GUI 时一次性下发，不存档） */
+    private static final int HISTORY_LENGTH = 200;
     private final int[] fluxHistory = new int[HISTORY_LENGTH];
     private int historyIndex;
 
