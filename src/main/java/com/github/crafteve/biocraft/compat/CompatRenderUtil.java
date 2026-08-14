@@ -1,16 +1,23 @@
 package com.github.crafteve.biocraft.compat;
 
+import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
+import com.github.crafteve.biocraft.reaction.ReactionDefinition;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
  * 配方显示层的共享格式化工具（JEI/EMI 两侧复用）
  * <p>
- * 数值格式化统一走本类，保证 JEI 与 EMI 显示的 Km/Keq/ΔG°′ 文本完全一致；
+ * 数值格式化统一走本类，保证 JEI 与 EMI 显示的 Km/Keq/ΔG°′/Vmax 文本完全一致；
  * 化学常量（R/T₀/固定活性名单）复用引擎的 KineticConstants，不重复定义
  */
 public final class CompatRenderUtil {
+
+    /** 堆叠分数/s → 个/tick 的换算因子（64 个物品 = 满堆叠，1 tick = 0.05s），与 GUI 速率条同口径 */
+    public static final double ITEMS_PER_TICK = 64.0 * KineticConstants.TICK_SECONDS;
+
     private CompatRenderUtil() {
     }
 
@@ -24,6 +31,49 @@ public final class CompatRenderUtil {
      */
     public static boolean isFixedActivity(String itemId) {
         return KineticConstants.FIXED_ACTIVITY_SPECIES.contains(itemId);
+    }
+
+    /**
+     * 酶 EC 类别的主题色（ARGB）
+     * <p>
+     * 与方块 tint / GUI 图例同一色源（MachineCategory），保证全模组同类别同色相
+     *
+     * @param ecCategory EC 类别字符串（EC1~EC6）
+     * @return ARGB 主题色
+     */
+    public static int themeColor(String ecCategory) {
+        return MachineCategory.byId(ecCategory).getThemeColor() | 0xFF000000;
+    }
+
+    /**
+     * 饱和可达速率：底物/产物满堆（浓度 1）时引擎通量能逼近的最大值
+     * <p>
+     * 与 GUI 速率条（MachineScreen.saturationReachable）同口径——两种速率形式
+     * 满堆可达不同：可逆共享分母用比值项（S/Km），不可逆米氏积用饱和项
+     * （S/(Km+S)）。这里只做显示标定，不改引擎
+     *
+     * @param vmax             方向最大速率（引擎值，堆叠分数/s）
+     * @param entries          该方向的速率项条目（含 Km 堆叠分数）
+     * @param sharedDenominator true = 可逆共享分母形式，false = 不可逆米氏积形式
+     * @return 饱和可达速率（>0）
+     */
+    public static double saturationReachable(double vmax,
+                                             List<ReactionDefinition.SpeciesEntry> entries,
+                                             boolean sharedDenominator) {
+        double product = 1.0;
+        for (ReactionDefinition.SpeciesEntry entry : entries) {
+            if (entry.kmFraction() > 0) {
+                if (sharedDenominator) {
+                    product *= Math.pow(1.0 / entry.kmFraction(), entry.coeff());
+                } else {
+                    product *= Math.pow(1.0 / (1.0 + entry.kmFraction()), entry.coeff());
+                }
+            }
+        }
+        if (sharedDenominator) {
+            return vmax * product / (1.0 + product);
+        }
+        return vmax * product;
     }
 
     /**
@@ -83,6 +133,18 @@ public final class CompatRenderUtil {
      */
     public static String formatDeltaG(double deltaG) {
         return String.format(Locale.ROOT, "%+.1f", deltaG);
+    }
+
+    /**
+     * 速率文本格式化（固定两位小数）
+     * <p>
+     * 用于 Vmax 等以"个/tick"为单位的展示值
+     *
+     * @param value 速率值（个/tick）
+     * @return 显示文本
+     */
+    public static String formatRate(double value) {
+        return String.format(Locale.ROOT, "%.2f", value);
     }
 
     /**
