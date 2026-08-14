@@ -20,16 +20,14 @@ import net.minecraft.world.item.ItemStack;
 import java.util.List;
 
 /**
- * 酶工厂菜单（experiment/gui-remake 分支全新重建）
- * <p>
- * 重建第二版（v2）：滚动卡片反应物槽位 + 玩家背包槽位 + 基底贴图 gui_v1.png
+ * 酶工厂菜单（experiment/gui-remake 分支全新重建，与 main 合并前定稿）
  * <p>
  * 槽位布局（全酶工厂统一，写死源码不做 json 解析）：
  * <ul>
- *   <li>物种槽（反应物卡片）：槽位数 = JSON 反应物条目数；每个槽位初始
- *       位于滚动卡片内（卡片内相对 (2,3)，16×16 内容区左上角），
- *       实际 y 由 Screen 每 tick 按滚动偏移更新（Slot.y 为 public 可变字段，
- *       客户端渲染与点击判定均读它，滚动时槽位与卡片同步移动）</li>
+ *   <li>物种槽（反应物 + 产物）：槽位数 = JSON 条目数之和；每张滚动卡片
+ *       一个槽位，isActive 恒 false 使 vanilla 完全跳过（slot.x/y 为 final
+ *       无法动态移动），位置由 Screen 的 CardScrollArea 按滚动偏移手动
+ *       计算绘制与命中</li>
  *   <li>玩家背包槽位：起始 (48,174)，x 步进 18；主背包三行 y = 174/192/210，
  *       快捷栏 y = 232</li>
  * </ul>
@@ -331,24 +329,6 @@ public class MachineMenu extends AbstractContainerMenu {
             slot.onTake(player, original);
         }
         return moved;
-    }
-
-    /**
-     * 输入卡（反应物）物种槽位数
-     *
-     * @return 反应物条目数
-     */
-    public int getInputSlotCount() {
-        return enzymeData.reactants().size();
-    }
-
-    /**
-     * 输出卡（产物）物种槽位数
-     *
-     * @return 产物条目数
-     */
-    public int getOutputSlotCount() {
-        return enzymeData.products().size();
     }
 
     /**

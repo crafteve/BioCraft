@@ -8,11 +8,14 @@ import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
 import com.github.crafteve.biocraft.reaction.ReactionDefinition;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
@@ -20,35 +23,30 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 酶工厂屏幕（experiment/gui-remake 分支全新重建）
+ * 酶工厂屏幕（experiment/gui-remake 分支全新重建，与 main 合并前定稿）
  * <p>
- * 重建第二版（v2）：整张 gui_v1.png 作为 GUI 基底 1:1 blit；
- * 标题区（方块图标 + 缩写文本框 + displayname + INPUT/OUTPUT 标签）
- * 与滚动反应物卡片（JSON 条目数驱动 + 槽位元素）已就位，
- * 仪表盘与产物卡待逐项追加
- * <p>
- * GUI 画布尺寸与基底贴图一致（gui_v1.png 为 256×256）：
- * 画布左上角 = 贴图左上角，容器坐标（leftPos/topPos）即贴图 blit 原点
- * <p>
- * 标题区布局（GUI 内相对坐标）：
+ * 整张 gui_v1.png（256×256）作为 GUI 基底 1:1 blit，容器坐标
+ * （leftPos/topPos）即贴图 blit 原点；GUI 内相对坐标布局如下：
  * <ul>
- *   <li>方块物品图标：左上角 (8,8)，16×16（renderItem 标准物品图标尺寸）</li>
- *   <li>缩写文本框：1px 矩形框架（不倒圆角），左上角 (28,10)、下沿 y=21；
- *       宽 = 文字宽 + 左右各 2px 内边距 + 各 1px 边框；边框为主题色原色
- *       （补 alpha），填充为主题色向白混合 4/5；框内缩写与 displayname
- *       垂直居中于中轴线 15.5（8px 字形绝对定位 y=13）</li>
- *   <li>displayname：文本框右缘 + 4px，纯黑文字，vanilla 默认字体</li>
- *   <li>INPUT 标签：(9,30)；OUTPUT 标签：(195,30)，英文大写 8px 纯黑</li>
- *   <li>滚动卡片区（CardScrollArea 抽象，输入/输出各一实例）：
- *       输入区视口 (7,41)~(63,162)、输出区视口 (193,41)~(249,162)；
- *       卡片数 = JSON 物种条目数（输入 = 反应物、输出 = 产物）；
- *       每卡含槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中）
- *       与缩写（png 右侧 4px、与 png 上顶面平齐，物品色加深 1/5）、
- *       浓度进度条（槽位下方与卡片底端间居中，3px 高 54px 长）、
- *       浓度读数（槽位底面右侧 4px 向下 1px 为左下角，浅灰黑）；
- *       滚轮连续滚动 + 平滑插值，视口 scissor 裁剪</li>
+ *   <li>标题区：方块物品图标 (8,8) 16×16；缩写文本框 (28,10) 下沿 21
+ *       （1px 边框主题色 + 浅填充，中轴 15.5）；displayname 文本框右缘
+ *       +4px；INPUT (9,30) / OUTPUT (195,30) 标签</li>
+ *   <li>反应区：REACTION (71,30) + REV/IRR 徽章（右对齐 188）；方程式
+ *       8px 分段彩色（物品色加深 1/5 / 黑色符号），超宽在 +/箭头附近
+ *       换行，浅色主题底随行数增高</li>
+ *   <li>滚动卡片区（CardScrollArea 抽象，输入/输出各一实例）：视口
+ *       (7,41)~(63,162) 与 (193,41)~(249,162)，卡片数 = JSON 物种条目数；
+ *       每卡含槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中，
+ *       可交互受限槽位）、缩写、浓度进度条与读数；滚轮连续滚动 +
+ *       平滑插值，视口 scissor 裁剪</li>
+ *   <li>v-t 图：4x 超采样抗锯齿，Y 轴按刻度宽度自动定位、X 轴按
+ *       vmax 比例定位（可逆居中/不可逆贴底），1s 一点 10 点折线，
+ *       刻度标注（个/tick）</li>
+ *   <li>平衡区：渐变平衡条（两端加深主题色中间白）+ log10(Q/Keq)
+ *       缩放滑块 + Keq/Q 读数（左右对齐滑槽）</li>
+ *   <li>速率区：居中显示 v=xxx（个/tick）8px 黑色</li>
  * </ul>
- * 字体约定：全程使用 Minecraft 自带字体（含中文的 unicode 自动回退），
+ * 字体约定：全程使用 Minecraft 自带字体（含中文 unicode 自动回退），
  * 不加载任何自定义 TTF 字体资源
  */
 public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
@@ -114,10 +112,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 反应类型徽章 y（与 REACTION 上顶面对齐），x 右对齐方程式框右缘 */
     private static final int TAG_Y = REACTION_Y;
 
-    // v-t 通量折线图（REACT 框下方）
+    // v-t 通量折线图（反应区下方）
     /**
-     * v-t 图顶部 y（单行方程式基准）：框底 50 + 1（空隙行）+ 4（背景
-     * 上扩 3px 后内容定位同步下移）——背景顶 52 = 方程区底下方 1px
+     * v-t 图顶部 y（单行方程式基准）：方程区底 50 + 1（空隙行）+
+     * 4（背景上扩 3px 后内容定位同步下移）——背景顶恰在方程区底下方 1px
      */
     private static final int VT_Y_BASE = EQ_BOX_Y + EQ_BOX_H + 5;
 
@@ -188,7 +186,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 输出滚动卡片区（产物，容器 x=193） */
     private final CardScrollArea outputArea;
 
-    /** v-t 通量采样环形缓冲（每 0.5s 一点，窗口 VT_POINTS） */
+    /** v-t 通量采样环形缓冲（每 1s 一点，窗口 VT_POINTS） */
     private final double[] vtFlux = new double[VT_POINTS];
 
     /** 环形缓冲写入下标 */
@@ -296,15 +294,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /**
      * 平衡区：图表区下方 1px 间隔，浅色主题底色 + 渐变平衡条 + 滑块 + Keq/Q 读数
      * <p>
-     * 布局（与用户给定约束对应）：
+     * 布局：
      * <ul>
-     *   <li>浅色底 x 68..187（与图表区/方程区列对齐），高 24px</li>
+     *   <li>浅色底 x 68..187（与图表区/方程区列对齐），高 20px</li>
      *   <li>渐变条：高 10px、宽 = 区宽 − 24 居中；水平渐变——两端为加深
-     *       主题色、中间为白色（逐列 1px 线性插值）</li>
-     *   <li>滑块：黑色 1px 宽 × 条高，位置 = 平衡位置——log10(Q/Keq) 缩放，
-     *       Q=Keq（平衡）时居中、偏离时滑向两端（log 缩放），钳制在条内</li>
-     *   <li>读数：条下方 2px，Minecraft 8px 黑色字体：Keq 与 Q 的值
-     *       （两位有效数字）</li>
+     *       主题色、中间为白色（4x 逐列线性插值）</li>
+     *   <li>滑块：黑色 1px 宽 × 条高，位置 = 平衡位置——log10(Q/Keq) 缩放
+     *       （±3 数量级满行程），Q=Keq 居中、偏离滑向两端，钳制条内</li>
+     *   <li>读数：条下方 2px，Keq 左对齐滑槽左缘、Q 右对齐滑槽右缘，
+     *       2x 放大文字（4x 超采样缩 1/4 → 显示 4px，与图注同法）</li>
      * </ul>
      *
      * @param graphics 渲染器
@@ -457,23 +455,23 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * v-t 通量折线图：REACT 框下方 4px、高 60px、宽 = 工作区 − 6px
+     * v-t 通量折线图：方程区下方 1px 空隙、高 60px、浅色底 68~187（列对齐）
      * <p>
      * 高清渲染：整图在 4x 超采样坐标系内绘制（全部坐标 ×4），再经
      * pose.scale(1/4) 缩放回原尺寸——fill 矩形边缘线性插值 = 抗锯齿
      * <p>
-     * 布局（与用户给定约束一一对应）：
+     * 布局要点：
      * <ul>
-     *   <li>Y 轴：图像左边缘，60×1px 深灰竖线 + 箭头——箭头顶端与线段
-     *       结束点（顶端）重合：尖端行 = 轴顶行，向下张开 3 行</li>
-     *   <li>X 轴（v=0 基准线）：横线 0..箭头屁股 + 右端箭头（尖端朝右）；
-     *       v=0 按值域比例定位 [-vmaxRShow, +vmaxFShow]，对称可逆居中、
-     *       不可逆贴底</li>
-     *   <li>y 轴满刻度用"饱和可达速率"（可逆共享分母 / 不可逆米氏积
-     *       两种形式区分），满堆工况恰好顶到 y 最大/最小值</li>
-     *   <li>折线（从左往右滚动）：左侧 x=0 最新点、右侧箭头屁股为消失处；
-     *       每 1s 采样一点共 10 点；4×4 主题色方形点（补 alpha 防透明）
-     *       + 1px 主题色折线连接</li>
+     *   <li>浅色底上下各扩展 3px（刻度/箭头不越界）</li>
+     *   <li>Y 轴（3px 宽）按刻度文字最大宽度自动右移——最长刻度右对齐
+     *       轴左缘后左缘恰落背景左缘；箭头为 4 段渐变三角形</li>
+     *   <li>X 轴（v=0 基准线，3px 高）：按 vmaxRShow/span 比例定位，
+     *       可逆居中、不可逆贴底；右端箭头屁股 = 最右点消失处</li>
+     *   <li>y 轴满刻度 = 饱和可达速率（可逆共享分母 / 不可逆米氏积），
+     *       满堆工况恰好顶到 y 最大/最小值</li>
+     *   <li>折线：1s 一点共 10 点，从左往右滚动（最新在左端）；
+     *       2.5px 主题色方形点 + 1.25px 主题色折线（中心对齐穿点）</li>
+     *   <li>刻度：每 10px 一条，值 = v×3.2（个/tick），2x 文字（显示 4px）</li>
      * </ul>
      *
      * @param graphics 渲染器
@@ -624,6 +622,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         }
         return s;
     }
+
     /**
      * 饱和可达速率：底物/产物满堆（浓度 1）时引擎通量能逼近的最大值
      * <p>
@@ -693,16 +692,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 反应区：REACTION 标签 + 方程式美化框 + 反应方程式（8px 不缩放）
+     * 反应区：REACTION 标签 + REV/IRR 徽章 + 反应方程式（8px 不缩放）
      * <p>
      * 方程式基于 JSON 解析分段绘制：
      * <ul>
      *   <li>系数（>1 时前缀）与物质缩写使用对应物品色（与卡片缩写同步
      *       加深 1/5）；"+" 与 =/→ 符号为纯黑</li>
      *   <li>换行：单行超过可用宽（67~188）时在 "+" / "=" / "→" 附近断开，
-     *       符号放行首；框高随行数增加（每行 +10px），v-t 图随之整体下移</li>
-     *   <li>美化框：宽 67~188 左右各回缩 1px、主题色 1px 边框 + 浅填充，
-     *       与标题区缩写文本框同风格</li>
+     *       符号放行首；浅色底高随行数增加（每行 +10px），v-t 图随之下移</li>
+     *   <li>背景：无边框，只填浅色主题色（与 v-t 图背景同色系）</li>
      * </ul>
      *
      * @param graphics 渲染器
@@ -891,7 +889,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         super.containerTick();
         inputArea.tick();
         outputArea.tick();
-        // v-t 采样：每 0.5s（10 tick）取当前净通量一点入环形缓冲
+        // v-t 采样：每 1s（20 tick）取当前净通量一点入环形缓冲
         vtTickCounter++;
         if (vtTickCounter >= VT_SAMPLE_TICKS) {
             vtTickCounter = 0;
@@ -918,10 +916,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         Slot slot = findDynamicSlot(mouseX, mouseY);
         if (slot != null && (button == 0 || button == 1)) {
-            boolean shiftDown = net.minecraft.client.gui.screens.Screen.hasShiftDown();
-            net.minecraft.world.inventory.ClickType type = shiftDown
-                    ? net.minecraft.world.inventory.ClickType.QUICK_MOVE
-                    : net.minecraft.world.inventory.ClickType.PICKUP;
+            boolean shiftDown = Screen.hasShiftDown();
+            ClickType type = shiftDown ? ClickType.QUICK_MOVE : ClickType.PICKUP;
             this.slotClicked(slot, slot.index, button, type);
             return true;
         }
@@ -1085,8 +1081,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 }
                 // hover 高亮（半透明白，与 vanilla 同色，盖在物品上）
                 // 1.21 Screen 无 mouseX/mouseY 字段，从 MouseHandler 取屏幕坐标
-                int mx = (int) net.minecraft.client.Minecraft.getInstance().mouseHandler.xpos() - leftPos;
-                int my = (int) net.minecraft.client.Minecraft.getInstance().mouseHandler.ypos() - topPos;
+                int mx = (int) Minecraft.getInstance().mouseHandler.xpos() - leftPos;
+                int my = (int) Minecraft.getInstance().mouseHandler.ypos() - topPos;
                 if (mx >= pngX + 1 && mx < pngX + 17 && my >= pngY + 1 && my < pngY + 17) {
                     graphics.fill(pngX + 1, pngY + 1, pngX + 17, pngY + 17, 0x80FFFFFF);
                 }
@@ -1133,10 +1129,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * 边框色 = 主题色原色（补 alpha，不加深）；缩写文字色 = 主题色 × 3/5；
      * 填充色 = 主题色向白色混合 4/5（浅）
      * <p>
-     * 文本框：1px 矩形框架（不倒圆角），左上 (28,10)、下沿 y=21，
-     * 中轴线 15.5——框内文字与 displayname 均以 15.5 为垂直中轴：
-     * 8px 字形中心 = y+3.5 → y = 12；16px 中文（MC 自动回退 unicode，
-     * 超出框范围无视）中心 = y+8 → y = 8；均为绝对定位
+     * 文本框：1px 矩形框架（不倒圆角），左上 (28,10)、下沿 y=21；
+     * 中轴线 15.5——框内缩写与 displayname 统一按 8px 绝对定位
+     * （y = boxY + 3，实测文字整体偏上 1px 已下移修正）
      *
      * @param graphics 渲染器
      */
@@ -1173,7 +1168,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         // displayname：文本框右缘 + 4px，纯黑文字，绝对定位：
         // 中文与英文统一按 8px 处理（实测 MC 中文渲染也是 8px 高，非 16px），
         // 与缩写文本同中轴且同步下移 1px（y = boxY + 3）
-        String language = net.minecraft.client.Minecraft.getInstance().getLanguageManager().getSelected();
+        String language = Minecraft.getInstance().getLanguageManager().getSelected();
         boolean chinese = language != null && language.startsWith("zh");
         String name = chinese ? enzymeData.nameZn() : enzymeData.nameEn();
         int nameX = boxX + boxW + NAME_GAP;
