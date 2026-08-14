@@ -303,10 +303,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         double vmaxF = definition.getVmaxF();
         double vmaxR = definition.isReversible()
                 ? definition.vmaxBForTemperature(KineticConstants.T0) : 0.0;
-        // 饱和可达速率作满刻度：满堆（浓度 1）时引擎通量顶到 y 边界
-        double vmaxFShow = saturationReachable(vmaxF, definition.getRateReactants());
+        // 饱和可达速率作满刻度：满堆（浓度 1）时引擎通量顶到 y 边界。
+        // 可逆用共享分母形式、不可逆用米氏积形式——两者满堆可达不同
+        // （实测 HK 不可逆 + ATP Km≈1.0 饱和到仅 0.45·Vmax，误用共享分母
+        // 公式会标定偏大近 2 倍，导致满速只显示在 y 轴一半高度）
+        double vmaxFShow = saturationReachable(vmaxF, definition.getRateReactants(),
+                definition.isReversible());
         double vmaxRShow = definition.isReversible()
-                ? saturationReachable(vmaxR, definition.getRateProducts()) : 0.0;
+                ? saturationReachable(vmaxR, definition.getRateProducts(), true) : 0.0;
         double span = Math.max(vmaxFShow + vmaxRShow, 1e-9);
 
         // X 轴（v=0 基准线）：底部向上按 vmaxRShow/span 比例定位（不可逆贴底）；
@@ -345,23 +349,38 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /**
      * 饱和可达速率：底物/产物满堆（浓度 1）时引擎通量能逼近的最大值
      * <p>
-     * 可逆共享分母形式下 v = vmax·∏(1/Km)/(1+∏(1/Km))（浓度 1 时），
-     * 单底物小 Km 时显著低于 vmax（如 PGI 满堆 ≈ 0.7·vmax）——GUI 的
-     * y 轴满刻度用它标定后，满堆工况恰好顶到边界（引擎饱和有界是
-     * 正确物理，这里只做显示标定不做引擎修改）
+     * 两种速率形式满堆可达不同：
+     * <ul>
+     *   <li>可逆（共享分母）：v = vmax·∏(1/Km)/(1+∏(1/Km))，浓度 1 时
+     *       米氏项 S/(Km+S) 换成比值 S/Km 后饱和较弱（如 PGI ≈ 0.7·vmax）</li>
+     *   <li>不可逆（米氏积）：v = vmax·∏(1/(1+Km))，S/(Km+S) 在 S=1 时
+     *       保留完整饱和（如 HK 的 ATP Km=1.12 → 0.47 倍，饱和强烈）——
+     *       误用共享分母公式会标定偏大近 2 倍</li>
+     * </ul>
+     * 引擎饱和有界是正确物理，这里只做显示标定不做引擎修改
      *
-     * @param vmax    方向最大速率（正向或逆向）
-     * @param entries 该方向的速率项条目（含 Km 堆叠分数）
+     * @param vmax             方向最大速率（正向或逆向）
+     * @param entries          该方向的速率项条目（含 Km 堆叠分数）
+     * @param sharedDenominator true = 可逆共享分母形式，false = 不可逆米氏积形式
      * @return 饱和可达速率（>0）
      */
-    private static double saturationReachable(double vmax, List<ReactionDefinition.SpeciesEntry> entries) {
+    private static double saturationReachable(double vmax,
+                                              List<ReactionDefinition.SpeciesEntry> entries,
+                                              boolean sharedDenominator) {
         double product = 1.0;
         for (ReactionDefinition.SpeciesEntry entry : entries) {
             if (entry.kmFraction() > 0) {
-                product *= Math.pow(1.0 / entry.kmFraction(), entry.coeff());
+                if (sharedDenominator) {
+                    product *= Math.pow(1.0 / entry.kmFraction(), entry.coeff());
+                } else {
+                    product *= Math.pow(1.0 / (1.0 + entry.kmFraction()), entry.coeff());
+                }
             }
         }
-        return vmax * product / (1.0 + product);
+        if (sharedDenominator) {
+            return vmax * product / (1.0 + product);
+        }
+        return vmax * product;
     }
 
     /**
