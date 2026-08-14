@@ -132,9 +132,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
         // 文字：vanilla 默认 8px 位图字体，16px 高内上下居中（y+4），
         // 左右于边框+内边距之后（x+2）——文字色用加深主题色
+        // 注意 y 必须加 topPos（垂直偏移），误用 leftPos 会导致文本向下漂移
+        // 约 (leftPos-topPos) 像素（实测 bug，已修复）
         graphics.drawString(this.font, abbr,
                 this.leftPos + ABBR_X + ABBR_BORDER + ABBR_PAD,
-                this.leftPos + ABBR_Y + (ABBR_H - 8) / 2, borderColor, false);
+                this.topPos + ABBR_Y + (ABBR_H - 8) / 2, borderColor, false);
     }
 
     /**
