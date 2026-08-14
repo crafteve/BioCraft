@@ -96,8 +96,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 反应方程式顶部 y（REACTION 内容底部 37 + 4px），8px 不缩放 */
     private static final int EQ_Y = 41;
 
-    /** 反应方程式美化框：y 39~50（高 11px），方程式 41~48 上下各 2px 居中 */
-    private static final int EQ_BOX_Y = EQ_Y - 2, EQ_BOX_H = 11;
+    /**
+     * 反应方程式美化框：y 38~50（高 12px）——实测框距文字上顶面 1px
+     * 下顶面 2px，上顶面补 1px 后上下均为 2px（框上边上移 1、高 +1）
+     */
+    private static final int EQ_BOX_Y = EQ_Y - 3, EQ_BOX_H = 12;
+
+    /** 反应类型徽章 y（与 REACTION 上顶面对齐），x 右对齐方程式框右缘 */
+    private static final int TAG_Y = REACTION_Y;
 
     // 滚动卡片布局常量统一引用 MachineMenu（Menu 与 Screen 共享，全酶工厂写死）
 
@@ -208,10 +214,20 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.drawString(this.font, "REACTION",
                 this.leftPos + REACTION_X, this.topPos + REACTION_Y, NAME_COLOR, false);
 
+        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
+
+        // 反应类型徽章：REV（可逆）/ IRR（不可逆），主题色加深文字，
+        // y 与 REACTION 上顶面对齐，x 右对齐方程式框右缘
+        String revTag = enzymeData.reversible() ? "REV" : "IRR";
+        graphics.drawString(this.font, revTag,
+                this.leftPos + EQ_X1 - this.font.width(revTag),
+                this.topPos + TAG_Y, darken(theme), false);
+
         // 分段构建方程式（段 = 系数/缩写/符号 + 各自颜色）
         List<EqSegment> segments = new ArrayList<>();
         appendEqSide(segments, enzymeData.reactants());
-        segments.add(new EqSegment(enzymeData.reversible() ? "⇌" : "→", NAME_COLOR));
+        // 可逆符号 MC 无字形（⇌ 回退难看），统一改用 "="（可逆）/ "→"（不可逆）
+        segments.add(new EqSegment(enzymeData.reversible() ? "=" : "→", NAME_COLOR));
         appendEqSide(segments, enzymeData.products());
 
         // 总宽（8px）→ 居中于 67~188：起点 = 中心 − 半宽
@@ -221,15 +237,16 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         }
         int x0 = (EQ_X0 + EQ_X1) / 2 - totalW / 2;
 
-        // 美化框：宽 67~188、高 11px（39~50），主题色 1px 边框 + 浅填充
-        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
+        // 美化框：宽 67~188 左右各回缩 1px（68~187）、高 12px（38~50），
+        // 主题色 1px 边框 + 浅填充，与标题区缩写文本框同风格
         int borderColor = theme | 0xFF000000;
         int fillColor = lighten(theme);
+        int boxX0 = this.leftPos + EQ_X0 + 1;
         int boxX1 = this.leftPos + EQ_X1;
         int boxY0 = this.topPos + EQ_BOX_Y;
         int boxY1 = this.topPos + EQ_BOX_Y + EQ_BOX_H;
-        graphics.fill(this.leftPos + EQ_X0, boxY0, boxX1 + 1, boxY1 + 1, borderColor);
-        graphics.fill(this.leftPos + EQ_X0 + 1, boxY0 + 1, boxX1, boxY1, fillColor);
+        graphics.fill(boxX0, boxY0, boxX1 + 1, boxY1 + 1, borderColor);
+        graphics.fill(boxX0 + 1, boxY0 + 1, boxX1, boxY1, fillColor);
 
         // 方程式 8px 分段绘制（不缩放，逐段累加宽度）
         int cursor = 0;
