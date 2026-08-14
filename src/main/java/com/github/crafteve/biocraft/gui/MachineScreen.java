@@ -147,7 +147,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         // 缩写文本框：程序化 2px 圆角矩形（1px 边框 + 填充）
         String abbr = enzymeData.abbreviation();
         int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
-        int borderColor = theme;
+        // 边框色必须补 alpha：MachineCategory 主题色是 24 位 RGB（alpha=0），
+        // 直接 fill 会画出全透明矩形导致边框"直接消失"（实测 bug，已修复）
+        int borderColor = theme | 0xFF000000;
         int textColor = darken(theme);
         int fillColor = lighten(theme);
         int textW = this.font.width(abbr);
@@ -156,21 +158,24 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int boxY = this.topPos + ABBR_Y;
         drawRoundedBox(graphics, boxX, boxY, boxW, ABBR_H, ABBR_CORNER, borderColor, fillColor);
 
-        // 缩写文字：vanilla 默认 8px 位图字体，12px 高内上下居中（y+2），
-        // 左右于边框+内边距之后（x+3）——文字色用加深主题色（用户确认无误）
-        // 注意 y 必须加 topPos（垂直偏移），误用 leftPos 会向下漂移（已修复）
+        // 缩写文字：vanilla 默认 8px 位图字体，绝对定位（不写居中公式）：
+        // drawString 的 y = 字形顶部（源码实证 Font.renderChar 原样透传），
+        // 实测 8px 字形内容在填充内上方 1px 下方 2px，上方补 1px 后居中 →
+        // y = boxY + 3（文字色用加深主题色，用户确认无误）
         graphics.drawString(this.font, abbr,
                 boxX + ABBR_BORDER + ABBR_PAD,
-                boxY + (ABBR_H - 8) / 2, textColor, false);
+                boxY + 3, textColor, false);
 
-        // displayname：文本框右缘 + 4px，纯黑文字；中文走 vanilla 默认字体
-        // （MC 自动回退 16px unicode 字形），垂直居中于文本框（y = boxY-2），
-        // 英文走 8px vanilla 字体与缩写文本同行（y = boxY+2）
+        // displayname：文本框右缘 + 4px，纯黑文字，绝对定位：
+        // 英文 8px 与缩写文本同行（y = boxY + 3）；
+        // 中文 16px（MC 自动回退 unicode 字形）实测比期望位置向上偏移
+        // 约 10px（两次实测反馈），故在数学居中位（boxY-2）下移 10px →
+        // y = boxY + 8（若仍有偏差按实测再调）
         String language = net.minecraft.client.Minecraft.getInstance().getLanguageManager().getSelected();
         boolean chinese = language != null && language.startsWith("zh");
         String name = chinese ? enzymeData.nameZn() : enzymeData.nameEn();
         int nameX = boxX + boxW + NAME_GAP;
-        int nameY = chinese ? boxY + (ABBR_H - 16) / 2 : boxY + (ABBR_H - 8) / 2;
+        int nameY = chinese ? boxY + 8 : boxY + 3;
         graphics.drawString(this.font, name, nameX, nameY, NAME_COLOR, false);
     }
 
