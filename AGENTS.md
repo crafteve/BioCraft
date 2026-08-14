@@ -193,6 +193,7 @@ com.github.crafteve.biocraft
 20. **固定活性物种约定**：`{water, hydrogen_ion}` 不进速率方程（eQuilibrator 变换值已隐含 H₂O 活度 1/pH7）但参与化学计量结算（ENO 产水物品），反应物侧耗尽停供（水解必须供水）
 21. **JEI/EMI 双装的 EMI 配方 id 重复噪音（已定位根因 + 已解）**：EMI 的 JemiPlugin 兼容桥（`dev/emi/emi/jemi/JemiPlugin`，同时实现 JEI 的 IModPlugin 与 EMI 的 EmiPlugin）会把 JEI 内置的 tag 分组配方（`jei:/minecraft/planks`、`jei:/c/dyed/*` 等共 344 条）导入 EMI，与自身机制产生同 id 重复；EMI 的 `EmiRecipes$Manager` 在 **devMode** 下检测重复并输出 `[EMI] 2 recipes loaded with the same id: jei:/...` ERROR + warning 计数。dev 环境（runClient）被 EMI 自动识别为开发环境，`run/config/emi.css` 生成 `dev-mode: true`（默认值 = `isDevelopmentEnvironment()`）。**解法：手动把 `run/config/emi.css` 的 `dev-mode` 改为 `false`**（EMI 官方注释"Not recommended for general play"，实测改后 ERROR 归零且配置不被回写；run/ 目录 gitignore，新环境需手动改）。玩家正式环境 dev-mode 天然为 false，从来看不到这些噪音，与 BioCraft 代码无关
 22. **dev 环境依赖 mod 放置约定**：runClient 需要的可选依赖 mod（JEI/EMI）只放 `run/mods/` 目录（FML 直接扫描加载，日志可证实），**不要再加 localRuntime 冗余**——双份 jar 会被 mod 发现扫描两次（UniqueModListBuilder 虽会按版本去重，但 classpath 冗余属配置错误）
+23. **可达通量收敛进引擎（显示层禁复制速率公式）**：引擎 Vmax_f/Vmax_b 是速率方程的数学参数（浓度趋无穷的极限），而"游戏内可达上限"是方程在浓度=1（满堆）处的函数值——**两者都只能由引擎给出**：`ReactionDefinition.forwardReachableFlux()/reverseReachableFlux()`（构造满堆浓度向量直接调 forwardFlux/reverseFlux）。GUI 速率条刻度与 JEI/EMI 信息卡一律调引擎方法，只做 ×64×0.05 单位换算（个/tick）；曾在显示层复制 saturationReachable 公式（已删）导致职责错位，违反本约定会造成公式漂移。engineTest 第 16 用例手算对照守护此契约
 
 ## 第三章 编码与开发规范
 
