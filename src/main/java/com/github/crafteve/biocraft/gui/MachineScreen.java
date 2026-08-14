@@ -115,8 +115,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private static final int TAG_Y = REACTION_Y;
 
     // v-t 通量折线图（REACT 框下方）
-    /** v-t 图顶部 y（单行方程式基准）：框底 50 + 2（fill 半开邻接处留 1px 空隙） */
-    private static final int VT_Y_BASE = EQ_BOX_Y + EQ_BOX_H + 2;
+    /**
+     * v-t 图顶部 y（单行方程式基准）：框底 50 + 2（fill 半开邻接处留 1px
+     * 空隙）+ 4（背景上扩 4px 后内容定位同步下移，避免背景顶盖住方程区）
+     */
+    private static final int VT_Y_BASE = EQ_BOX_Y + EQ_BOX_H + 6;
 
     /** v-t 图高度 60px */
     private static final int VT_H = 60;
@@ -303,42 +306,59 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * @param graphics 渲染器
      */
     private void drawBalanceArea(GuiGraphics graphics) {
+        int ss = VT_SUPERSAMPLE;
+        // 与图表区同法：4x 超采样坐标系绘制 + 缩 1/4——渐变逐列更平滑、
+        // 滑块边缘抗锯齿；文字经 drawScaledText 2x 放大（显示 4px，与图注一致）
+        graphics.pose().pushPose();
+        graphics.pose().translate(this.leftPos + VT_BG_X0, this.topPos + balanceY(), 0);
+        graphics.pose().scale(1.0F / ss, 1.0F / ss, 1.0F);
+
         int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
-        int areaX0 = this.leftPos + VT_BG_X0;
-        int areaX1 = this.leftPos + VT_BG_X1 + 1;
-        int areaY0 = this.topPos + vtY() + VT_H + 1;   // 图表区底 + 1px 间隔
+        int areaH = 24;
+        int bgRight = (VT_BG_X1 - VT_BG_X0 + 1) * ss;
 
         // 浅色主题底（与图表区同色系、同列对齐）
-        graphics.fill(areaX0, areaY0, areaX1, areaY0 + 24, lighten(theme));
+        graphics.fill(0, 0, bgRight, areaH * ss, lighten(theme));
 
-        // 渐变条：高 10px，宽 = 区宽 − 24，左右各 12px 内边距居中
+        // 渐变条：高 10px，宽 = 区宽 − 24 居中；4x 逐列插值（更平滑）
         int barW = (VT_BG_X1 - VT_BG_X0) - 24;
-        int barX0 = areaX0 + 12;
-        int barY = areaY0 + 2;
-        int barH = 10;
+        int barX0 = 12 * ss;
+        int barY = 2 * ss;
+        int barH = 10 * ss;
         int deep = darken(theme);
-        // 水平渐变：两端深色、中间白色（t：两端 1 → 中间 0）
-        for (int col = 0; col < barW; col++) {
-            double t = Math.abs(col - (barW - 1) / 2.0) / ((barW - 1) / 2.0);
+        for (int col = 0; col < barW * ss; col++) {
+            double t = Math.abs(col - (barW * ss - 1) / 2.0) / ((barW * ss - 1) / 2.0);
             graphics.fill(barX0 + col, barY, barX0 + col + 1, barY + barH,
                     lerpColor(deep, 0xFFFFFFFF, (float) (1.0 - t)));
         }
 
-        // 滑块：黑色 1px 宽 × 条高，log10(Q/Keq) 缩放定位，钳制在条内
+        // 滑块：黑色 1px 宽（4x）× 条高，log10(Q/Keq) 缩放定位，钳制在条内
+        //（logRatio 钳制下限 1e-6 防 -inf，滑块位置天然不越界）
         double keq = enzymeData.keq();
         double q = computeQ();
         double logRatio = Math.log10(Math.max(q / keq, 1e-6));
-        int mid = barX0 + barW / 2;
+        int mid = barX0 + barW * ss / 2;
         // ±3 个数量级对应条半宽（log 缩放）
-        double halfRange = barW / 2.0 / 3.0;
+        double halfRange = barW * ss / 2.0 / 3.0;
         int sliderX = mid + (int) Math.round(logRatio * halfRange);
-        sliderX = Math.max(barX0, Math.min(barX0 + barW - 1, sliderX));
-        graphics.fill(sliderX, barY, sliderX + 1, barY + barH, 0xFF000000);
+        sliderX = Math.max(barX0, Math.min(barX0 + barW * ss - ss, sliderX));
+        graphics.fill(sliderX, barY, sliderX + ss, barY + barH, 0xFF000000);
 
-        // 读数：Keq 与 Q 的值，Minecraft 8px 黑色字体
+        // 读数：Keq 与 Q 的值，2x 放大绘制（4x 超采样缩 1/4 → 显示 4px，
+        // 与图表区图注同一做法）；formatTickValue 已防 inf/NaN/极端值
         String text = "Keq=" + formatTickValue(keq) + "  Q=" + formatTickValue(q);
-        graphics.drawString(this.font, text,
-                barX0, barY + barH + 2, 0xFF000000, false);
+        drawScaledText(graphics, text, barX0, barY + barH + 2 * ss, 2.0F);
+
+        graphics.pose().popPose();
+    }
+
+    /**
+     * 平衡区顶部 y：图表区背景下扩 4px 的底（vtY+64）+ 1px 间隔
+     *
+     * @return 平衡区顶部 GUI 相对 y
+     */
+    private int balanceY() {
+        return vtY() + VT_H + 4 + 1;
     }
 
     /**
@@ -536,12 +556,22 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 刻度值格式化：两位有效数字，避免科学计数
+     * 刻度/读数数值格式化：两位有效数字，避免科学计数
+     * <p>
+     * 防御极端值（用户实测产物空槽等工况下 Q 可达 1e27 级）：
+     * NaN/±inf 与 |值| ≥ 1e6 统一显示 "inf"，|值| < 1e-4 显示 "0"，
+     * 其余走 %.2g（含 e 时回退 %.2f）
      *
-     * @param value 通量值（个物品/tick）
-     * @return 显示文本（如 0.18 / 1.2 / 12）
+     * @param value 数值（通量或浓度商）
+     * @return 显示文本
      */
     private static String formatTickValue(double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value) || Math.abs(value) >= 1e6) {
+            return "inf";
+        }
+        if (value != 0.0 && Math.abs(value) < 1e-4) {
+            return "0";
+        }
         String s = String.format("%.2g", value);
         if (s.contains("e")) {
             s = String.format("%.2f", value);
