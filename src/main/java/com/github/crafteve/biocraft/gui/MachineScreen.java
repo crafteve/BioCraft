@@ -14,6 +14,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -85,6 +86,18 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     /** OUTPUT 标签左上角 */
     private static final int OUTPUT_X = 195, OUTPUT_Y = 30;
+
+    /** REACTION 标签左上角（y 与 INPUT 上顶面对齐） */
+    private static final int REACTION_X = 71, REACTION_Y = 30;
+
+    /** 反应方程式居中范围 x 67~188（中心 127.5） */
+    private static final int EQ_X0 = 67, EQ_X1 = 188;
+
+    /** 反应方程式顶部 y（REACTION 内容底部 37 + 4px） */
+    private static final int EQ_Y = 41;
+
+    /** 反应方程式缩放倍率（8px 位图 ×2 = 16px 高） */
+    private static final float EQ_SCALE = 2.0F;
 
     // 滚动卡片布局常量统一引用 MachineMenu（Menu 与 Screen 共享，全酶工厂写死）
 
@@ -170,8 +183,87 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         graphics.blit(GUI_BG, this.leftPos, this.topPos, 0, 0, GUI_W, GUI_H, GUI_W, GUI_H);
         drawTitleArea(graphics);
+        drawReactionArea(graphics);
         inputArea.draw(graphics);
         outputArea.draw(graphics);
+    }
+
+    /**
+     * 反应区：REACTION 标签 + 反应方程式（2x 放大 16px）
+     * <p>
+     * 方程式基于 JSON 解析分段绘制：
+     * <ul>
+     *   <li>系数（>1 时前缀）与物质缩写使用对应物品色（与卡片缩写同步
+     *       加深 1/5）；"+" 与 ⇌/→ 符号为纯黑</li>
+     *   <li>2x 等比放大：pose 平移至绘制起点后 scale(2)，在缩放坐标系
+     *       内按 8px 基准宽度逐段绘制，实际渲染 16px 高（位图 2x 放大
+     *       可能有轻微模糊，为等比放大的固有代价）</li>
+     *   <li>整体居中于 x 67~188（中心 127.5），顶部 y=41
+     *       （REACTION 内容底部 37 + 4px）</li>
+     * </ul>
+     *
+     * @param graphics 渲染器
+     */
+    private void drawReactionArea(GuiGraphics graphics) {
+        // REACTION 标签：英文大写，vanilla 8px 字体，纯黑，y 与 INPUT 上顶面对齐
+        graphics.drawString(this.font, "REACTION",
+                this.leftPos + REACTION_X, this.topPos + REACTION_Y, NAME_COLOR, false);
+
+        // 分段构建方程式（段 = 系数/缩写/符号 + 各自颜色）
+        List<EqSegment> segments = new ArrayList<>();
+        appendEqSide(segments, enzymeData.reactants());
+        segments.add(new EqSegment(enzymeData.reversible() ? "⇌" : "→", NAME_COLOR));
+        appendEqSide(segments, enzymeData.products());
+
+        // 总宽（8px 基准）→ 居中于 67~188
+        int totalW = 0;
+        for (EqSegment segment : segments) {
+            totalW += this.font.width(segment.text());
+        }
+        int x0 = (EQ_X0 + EQ_X1) / 2 - totalW / 2;
+
+        // 2x 放大绘制：translate 到起点（不缩放起点坐标），scale(2) 放大字形
+        graphics.pose().pushPose();
+        graphics.pose().translate(this.leftPos + x0, this.topPos + EQ_Y, 0);
+        graphics.pose().scale(EQ_SCALE, EQ_SCALE, 1.0F);
+        int cursor = 0;
+        for (EqSegment segment : segments) {
+            graphics.drawString(this.font, segment.text(), cursor, 0, segment.color(), false);
+            cursor += this.font.width(segment.text());
+        }
+        graphics.pose().popPose();
+    }
+
+    /**
+     * 追加一侧物种段：系数（>1 时前缀）+ 缩写，同物品色，段间以 "+" 分隔
+     *
+     * @param segments 段列表（追加目标）
+     * @param specs    反应物或产物条目列表（JSON 解析顺序）
+     */
+    private void appendEqSide(List<EqSegment> segments, List<EnzymeFactoryData.SpeciesSpec> specs) {
+        boolean first = true;
+        for (EnzymeFactoryData.SpeciesSpec spec : specs) {
+            if (!first) {
+                segments.add(new EqSegment("+", NAME_COLOR));
+            }
+            first = false;
+            MoleculeItem item = ModItems.byId(spec.item()).get();
+            // 物品色与卡片缩写同步加深 1/5
+            int color = darkenOneFifth(item.getTintColor());
+            if (spec.count() > 1) {
+                segments.add(new EqSegment(String.valueOf(spec.count()), color));
+            }
+            segments.add(new EqSegment(item.getAbbreviation(), color));
+        }
+    }
+
+    /**
+     * 方程式段：文字 + 颜色（物质/系数段 = 物品色，符号段 = 黑色）
+     *
+     * @param text  段文字（系数、缩写或符号）
+     * @param color 段颜色（ARGB）
+     */
+    private record EqSegment(String text, int color) {
     }
 
     /**
