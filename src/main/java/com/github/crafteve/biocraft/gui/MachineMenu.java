@@ -11,6 +11,8 @@ import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ContainerData;
+import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -66,11 +68,23 @@ public class MachineMenu extends AbstractContainerMenu {
     /** 槽位物品缩写/浓度文字相对槽位贴图左侧：png 右侧 4px */
     public static final int NAME_DX = 18 + 4;
 
+    /** 容器数据下标：温度×100 */
+    public static final int DATA_TEMP = 0;
+    /** 容器数据下标：净通量×1000 */
+    public static final int DATA_FLUX = 1;
+    /** 容器数据下标：主产物浓度×1000 */
+    public static final int DATA_PROGRESS = 2;
+    /** 余量数据起始下标（每物种一个 int，×1000 定点；3 之后按反应物顺序排列） */
+    public static final int DATA_REMAINDER_BASE = 3;
+
     /** 方块实体引用，菜单生命周期内保持存活（stillValid 与物种槽用） */
     private final EnzymeFactoryBlockEntity blockEntity;
 
     /** 酶数据档案（客户端与服务端同源查表，Screen 渲染用） */
     private final EnzymeFactoryData enzymeData;
+
+    /** 容器数据（服务端权威，每 tick 同步：温度/通量/主产物浓度 + 每物种余量×1000） */
+    private final ContainerData data;
 
     /**
      * 服务端主构造（createMenu 直接调用）
@@ -83,6 +97,9 @@ public class MachineMenu extends AbstractContainerMenu {
         super(ModBlocks.ENZYME_FACTORY_MENU.get(), containerId);
         this.blockEntity = blockEntity;
         this.enzymeData = blockEntity.getEnzymeData();
+        this.data = new SimpleContainerData(DATA_REMAINDER_BASE + enzymeData.reactants().size());
+        refreshData();
+        addDataSlots(data);
         addSpeciesSlots(blockEntity);
         addPlayerInventory(playerInventory);
     }
@@ -177,6 +194,32 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
+     * 从方块实体刷新全部容器数据（温度/通量/主产物浓度/每物种余量）
+     * <p>
+     * 余量 = 引擎连续浓度的尾数（浓度×64 − 槽位整数），经 ContainerData
+     * 同步到客户端后，客户端浓度 = (槽位数量 + 余量)/64 即可重建引擎
+     * 连续浓度——解决客户端 BE 引擎浓度恒 0 导致的进度条/读数不显示
+     */
+    private void refreshData() {
+        data.set(DATA_TEMP, blockEntity.getCachedTempX100());
+        data.set(DATA_FLUX, blockEntity.getCachedFluxX1000());
+        data.set(DATA_PROGRESS, blockEntity.getCachedProgressX1000());
+        for (int i = 0; i < enzymeData.reactants().size(); i++) {
+            data.set(DATA_REMAINDER_BASE + i, (int) Math.round(blockEntity.getRemainder(i) * 1000.0));
+        }
+    }
+
+    /**
+     * 每 tick 从方块实体刷新数据再广播（服务端执行，客户端 data 由
+     * ContainerData 机制同步，无需额外网络包）
+     */
+    @Override
+    public void broadcastChanges() {
+        refreshData();
+        super.broadcastChanges();
+    }
+
+    /**
      * 菜单有效性校验：玩家距离方块 8 格内
      *
      * @param player 操作玩家
@@ -185,6 +228,16 @@ public class MachineMenu extends AbstractContainerMenu {
     @Override
     public boolean stillValid(Player player) {
         return blockEntity.getBlockPos().closerToCenterThan(player.position(), 8.0);
+    }
+
+    /**
+     * 读取物种余量（ContainerData 同步值，客户端重建引擎浓度用）
+     *
+     * @param slot 反应物槽位下标
+     * @return 0~1 的余量（浓度小数部分）
+     */
+    public double getRemainder(int slot) {
+        return data.get(DATA_REMAINDER_BASE + slot) / 1000.0;
     }
 
     /**

@@ -220,16 +220,19 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             // 物品数据：颜色取 substances.json 解析出的物品染色（24 位 RGB 补 alpha）
             String itemId = enzymeData.reactants().get(i).item();
             MoleculeItem item = ModItems.byId(itemId).get();
-            int itemColor = item.getTintColor() | 0xFF000000;
+            // 缩写颜色 = 物品色加深 1/5（×4/5）
+            int itemColor = darkenOneFifth(item.getTintColor());
 
-            // 缩写：与槽位上顶面平齐（y = png 顶），颜色 = 物品颜色
+            // 缩写：与槽位上顶面平齐（y = png 顶），颜色 = 物品色加深 1/5
             graphics.drawString(this.font, item.getAbbreviation(),
                     x + MachineMenu.SLOT_PNG_X + MachineMenu.NAME_DX,
                     pngY, itemColor, false);
 
-            // 浓度：引擎连续浓度（0~1，权威值），clamp 防越界
+            // 浓度：客户端重建引擎连续浓度 = (槽位数量 + 同步余量)/64，
+            // 槽位数经菜单槽位同步、余量经 ContainerData 扩展通道同步
+            // （客户端 BE 引擎浓度恒 0，直接读引擎会导致进度条/读数不显示）
             double concentration = Math.max(0.0, Math.min(
-                    blockEntity.getSimulator().getState().getConcentrations()[i], 1.0));
+                    (stack.getCount() + menu.getRemainder(i)) / 64.0, 1.0));
 
             // 进度条：槽位下方与卡片底端之间（20..28）垂直居中，
             // 3px 高、54px 长（卡片宽 56 居中 → x+1），浅灰轨道 + 物品色填充
@@ -416,6 +419,19 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int g = (color >> 8) & 0xFF;
         int b = color & 0xFF;
         return 0xFF000000 | (r * 3 / 5 << 16) | (g * 3 / 5 << 8) | (b * 3 / 5);
+    }
+
+    /**
+     * 颜色加深 1/5（乘以 4/5 线性系数，比 darken 的 3/5 更浅）
+     *
+     * @param color ARGB 颜色
+     * @return 加深后的 ARGB 颜色（alpha 保留）
+     */
+    private static int darkenOneFifth(int color) {
+        int r = (color >> 16) & 0xFF;
+        int g = (color >> 8) & 0xFF;
+        int b = color & 0xFF;
+        return 0xFF000000 | (r * 4 / 5 << 16) | (g * 4 / 5 << 8) | (b * 4 / 5);
     }
 
     /**
