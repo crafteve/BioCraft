@@ -2,12 +2,14 @@ package com.github.crafteve.biocraft;
 
 import com.github.crafteve.biocraft.block.MachineBlock;
 import com.github.crafteve.biocraft.blockentity.MachineCategory;
+import com.github.crafteve.biocraft.client.EnzymeNamePlateRenderer;
 import com.github.crafteve.biocraft.gui.DNAEncoderScreen;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
@@ -23,6 +25,20 @@ public class BioCraftClient {
         // NeoForge 1.21.1 的 MenuScreens.register 为私有方法，必须经本事件注册
         event.register(ModBlocks.DNA_ENCODER_MENU.get(), DNAEncoderScreen::new);
         event.register(ModBlocks.ENZYME_FACTORY_MENU.get(), com.github.crafteve.biocraft.gui.MachineScreen::new);
+    }
+
+    /**
+     * 酶工厂铭牌渲染器注册：动态渲染酶缩写文字（数据驱动，零贴图资源）
+     * <p>
+     * 渲染器从方块实体取酶数据档案的 abbreviation 与类别主题色，
+     * 在方块正面铭牌框内居中绘制，详见 EnzymeNamePlateRenderer
+     *
+     * @param event 渲染器注册事件（mod 总线，仅客户端）
+     */
+    @SubscribeEvent
+    static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerBlockEntityRenderer(ModBlocks.ENZYME_FACTORY_BE.get(),
+                context -> new EnzymeNamePlateRenderer());
     }
 
     /**

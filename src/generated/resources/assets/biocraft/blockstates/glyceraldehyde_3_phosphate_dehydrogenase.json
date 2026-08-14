@@ -1,1 +1,1 @@
-{"variants":{"":{"model":"biocraft:block/glyceraldehyde_3_phosphate_dehydrogenase"}}}
+{"variants":{"facing=north":{"model":"biocraft:block/glyceraldehyde_3_phosphate_dehydrogenase"},"facing=east":{"model":"biocraft:block/glyceraldehyde_3_phosphate_dehydrogenase","y":90},"facing=south":{"model":"biocraft:block/glyceraldehyde_3_phosphate_dehydrogenase","y":180},"facing=west":{"model":"biocraft:block/glyceraldehyde_3_phosphate_dehydrogenase","y":270}}}

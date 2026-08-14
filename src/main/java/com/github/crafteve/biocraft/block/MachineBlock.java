@@ -10,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
@@ -18,6 +19,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
 
@@ -128,6 +131,32 @@ public class MachineBlock extends Block implements EntityBlock {
             player.openMenu(machine, pos);
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
+    }
+
+    /**
+     * 方块状态定义：添加水平朝向（facing）
+     * <p>
+     * 酶工厂贴图区分正/背/侧（正面观察窗与铭牌、背面散热格栅、侧面管道），
+     * 放置时按玩家朝向决定正面朝向；类级共享，DNA 编码器同样携带该属性
+     * （默认 NORTH），但其模型不随朝向旋转，渲染无回归
+     *
+     * @param builder 状态定义构建器
+     */
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(BlockStateProperties.HORIZONTAL_FACING);
+    }
+
+    /**
+     * 放置时按玩家水平朝向设置正面（正面朝向玩家相反方向，与原版熔炉等一致）
+     *
+     * @param context 放置上下文
+     * @return 带朝向的方块状态
+     */
+    @Override
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        return this.defaultBlockState().setValue(BlockStateProperties.HORIZONTAL_FACING,
+                context.getHorizontalDirection().getOpposite());
     }
 
     /**
