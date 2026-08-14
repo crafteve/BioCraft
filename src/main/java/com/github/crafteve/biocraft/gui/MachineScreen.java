@@ -93,11 +93,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 反应方程式居中范围 x 67~188（中心 127.5） */
     private static final int EQ_X0 = 67, EQ_X1 = 188;
 
-    /** 反应方程式顶部 y（REACTION 内容底部 37 + 4px） */
+    /** 反应方程式顶部 y（REACTION 内容底部 37 + 4px），8px 不缩放 */
     private static final int EQ_Y = 41;
 
-    /** 反应方程式缩放倍率（8px 位图 ×2 = 16px 高） */
-    private static final float EQ_SCALE = 2.0F;
+    /** 反应方程式美化框：y 39~50（高 11px），方程式 41~48 上下各 2px 居中 */
+    private static final int EQ_BOX_Y = EQ_Y - 2, EQ_BOX_H = 11;
 
     // 滚动卡片布局常量统一引用 MachineMenu（Menu 与 Screen 共享，全酶工厂写死）
 
@@ -189,17 +189,16 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 反应区：REACTION 标签 + 反应方程式（2x 放大 16px）
+     * 反应区：REACTION 标签 + 方程式美化框 + 反应方程式（8px 不缩放）
      * <p>
      * 方程式基于 JSON 解析分段绘制：
      * <ul>
      *   <li>系数（>1 时前缀）与物质缩写使用对应物品色（与卡片缩写同步
      *       加深 1/5）；"+" 与 ⇌/→ 符号为纯黑</li>
-     *   <li>2x 等比放大：pose 平移至绘制起点后 scale(2)，在缩放坐标系
-     *       内按 8px 基准宽度逐段绘制，实际渲染 16px 高（位图 2x 放大
-     *       可能有轻微模糊，为等比放大的固有代价）</li>
-     *   <li>整体居中于 x 67~188（中心 127.5），顶部 y=41
-     *       （REACTION 内容底部 37 + 4px）</li>
+     *   <li>美化框：覆盖整个反应区宽（x 67~188）、高 11px（y 39~50），
+     *       主题色 1px 边框 + 浅填充，与标题区缩写文本框同风格</li>
+     *   <li>方程式 8px 原尺寸居中于框内（中心 x 127.5，y=41 顶部）——
+     *       早期 2x 放大版过大显示不全，已改回不缩放</li>
      * </ul>
      *
      * @param graphics 渲染器
@@ -215,25 +214,30 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         segments.add(new EqSegment(enzymeData.reversible() ? "⇌" : "→", NAME_COLOR));
         appendEqSide(segments, enzymeData.products());
 
-        // 总宽（8px 基准）→ 居中于 67~188：
-        // 起点坐标不缩放而文字内容 ×2，实际占宽 = totalW×2，
-        // 居中起点 = 中心 − totalW（误用 −totalW/2 会整体偏右半个方程式，已修复）
+        // 总宽（8px）→ 居中于 67~188：起点 = 中心 − 半宽
         int totalW = 0;
         for (EqSegment segment : segments) {
             totalW += this.font.width(segment.text());
         }
-        int x0 = (EQ_X0 + EQ_X1) / 2 - totalW;
+        int x0 = (EQ_X0 + EQ_X1) / 2 - totalW / 2;
 
-        // 2x 放大绘制：translate 到起点（不缩放起点坐标），scale(2) 放大字形
-        graphics.pose().pushPose();
-        graphics.pose().translate(this.leftPos + x0, this.topPos + EQ_Y, 0);
-        graphics.pose().scale(EQ_SCALE, EQ_SCALE, 1.0F);
+        // 美化框：宽 67~188、高 11px（39~50），主题色 1px 边框 + 浅填充
+        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
+        int borderColor = theme | 0xFF000000;
+        int fillColor = lighten(theme);
+        int boxX1 = this.leftPos + EQ_X1;
+        int boxY0 = this.topPos + EQ_BOX_Y;
+        int boxY1 = this.topPos + EQ_BOX_Y + EQ_BOX_H;
+        graphics.fill(this.leftPos + EQ_X0, boxY0, boxX1 + 1, boxY1 + 1, borderColor);
+        graphics.fill(this.leftPos + EQ_X0 + 1, boxY0 + 1, boxX1, boxY1, fillColor);
+
+        // 方程式 8px 分段绘制（不缩放，逐段累加宽度）
         int cursor = 0;
         for (EqSegment segment : segments) {
-            graphics.drawString(this.font, segment.text(), cursor, 0, segment.color(), false);
+            graphics.drawString(this.font, segment.text(),
+                    this.leftPos + x0 + cursor, this.topPos + EQ_Y, segment.color(), false);
             cursor += this.font.width(segment.text());
         }
-        graphics.pose().popPose();
     }
 
     /**
