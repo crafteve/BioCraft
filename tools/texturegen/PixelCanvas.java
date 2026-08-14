@@ -9,7 +9,11 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -254,6 +258,47 @@ public class PixelCanvas {
         }
         g.dispose();
         writePng(img, path);
+    }
+
+    /**
+     * 将多张同尺寸画布垂直堆叠合成一张 PNG
+     * <p>
+     * MC 材质动画帧格式：每帧等尺寸，从上到下垂直排列，配合 .mcmeta 声明轮播
+     * （如 4 帧 32x32 合成 32x128）；帧数需整除高度（本方法不做校验，调用方保证）
+     *
+     * @param frames 帧画布列表（非空，且尺寸必须全部一致）
+     * @param path   输出文件路径，父目录不存在时自动创建
+     */
+    public static void stackVertical(List<PixelCanvas> frames, String path) throws IOException {
+        if (frames == null || frames.isEmpty()) {
+            throw new IllegalArgumentException("帧列表不能为空");
+        }
+        int w = frames.get(0).width;
+        int h = frames.get(0).height;
+        BufferedImage img = new BufferedImage(w, h * frames.size(), BufferedImage.TYPE_INT_ARGB);
+        for (int f = 0; f < frames.size(); f++) {
+            PixelCanvas frame = frames.get(f);
+            if (frame.width != w || frame.height != h) {
+                throw new IllegalArgumentException("帧尺寸不一致: 第 " + f + " 帧 " + frame.width + "x" + frame.height);
+            }
+            img.setRGB(0, f * h, w, h, frame.pixels, 0, w);
+        }
+        writePng(img, path);
+    }
+
+    /**
+     * 写出 MC 材质动画声明文件（与动画贴图同路径的 .png.mcmeta）
+     * <p>
+     * 声明 anim 块：frametime 为每帧停留的 tick 数（20 tick = 1 秒），
+     * interpolate 为 true 时游戏在帧间做颜色插值（流动/脉动效果更平滑）
+     *
+     * @param path          动画贴图完整路径（自动追加 .mcmeta 后缀，调用方传贴图路径即可）
+     * @param frametime     每帧 tick 数
+     * @param interpolate   是否启用帧间插值
+     */
+    public static void writeMcmeta(String path, int frametime, boolean interpolate) throws IOException {
+        String json = "{\"animation\":{\"frametime\":" + frametime + ",\"interpolate\":" + interpolate + "}}";
+        Files.write(Paths.get(path + ".mcmeta"), json.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
