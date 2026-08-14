@@ -129,8 +129,6 @@ public class SubstanceLanguageProvider implements DataProvider {
      */
     private void addCompatTranslations() {
         boolean zh = "zh_cn".equals(language);
-        translations.put("jei.biocraft.enzyme_factory",
-                zh ? "酶工厂" : "Enzyme Factory");
         translations.put("jei.biocraft.kinetic.limiting",
                 zh ? "限速酶" : "Rate-limiting Enzyme");
         translations.put("jei.biocraft.kinetic.isomerase",
