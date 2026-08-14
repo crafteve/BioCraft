@@ -76,8 +76,8 @@ public final class ModBlocks {
     /**
      * 酶工厂共享菜单类型（全部酶实例一个 MenuType）
      * <p>
-     * 打开数据包内容：BlockPos（NeoForge 自动写入）→ 酶 id → v-t 历史数组
-     * （由 EnzymeFactoryBlockEntity.writeClientSideData 写入）
+     * 打开数据包内容：酶 id → v-t 历史数组（writeClientSideData 写入）→
+     * BlockPos（NeoForge 自动写入）
      */
     public static final DeferredHolder<MenuType<?>, MenuType<com.github.crafteve.biocraft.gui.MachineMenu>> ENZYME_FACTORY_MENU =
             MENUS.register("enzyme_factory",

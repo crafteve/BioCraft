@@ -379,7 +379,10 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
-     * 创建菜单：酶工厂菜单（服务端，历史快照传入供客户端初始化 v-t 图）
+     * 创建菜单：酶工厂菜单（服务端）
+     * <p>
+     * experiment/gui-remake 分支重建第一版：菜单仅含玩家背包槽位，
+     * 物种槽与仪表盘待逐项追加
      *
      * @param containerId     菜单容器编号
      * @param playerInventory 玩家物品栏
@@ -388,7 +391,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      */
     @Override
     public AbstractContainerMenu createMenu(int containerId, Inventory playerInventory, Player player) {
-        return new com.github.crafteve.biocraft.gui.MachineMenu(containerId, playerInventory, this, historySnapshot());
+        return new com.github.crafteve.biocraft.gui.MachineMenu(containerId, playerInventory, this);
     }
 
     /**
