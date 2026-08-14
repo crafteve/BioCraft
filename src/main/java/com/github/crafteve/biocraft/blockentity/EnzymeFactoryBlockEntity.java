@@ -236,7 +236,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         historyIndex = (historyIndex + 1) % HISTORY_LENGTH;
 
         if (level.getGameTime() % 20 == 0) {
-            BioCraft.LOGGER.debug("酶工厂 [{}] 槽位: {}, 浓度: {}, 通量×1000: {}",
+            BioCraft.LOGGER.debug("enzyme factory [{}] slots: {}, concentrations: {}, fluxX1000: {}",
                     enzymeData.id(), slotSummary(), concentrationSummary(), cachedFluxX1000);
         }
     }

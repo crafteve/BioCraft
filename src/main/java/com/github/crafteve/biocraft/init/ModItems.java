@@ -72,7 +72,7 @@ public final class ModItems {
             MOLECULES.put(id, item);
             ORDERED.add(item);
         }
-        BioCraft.LOGGER.info("已从物质表注册 {} 个分子物品", MOLECULES.size());
+        BioCraft.LOGGER.info("Registered {} molecule items from substance data table", MOLECULES.size());
     }
 
     /**

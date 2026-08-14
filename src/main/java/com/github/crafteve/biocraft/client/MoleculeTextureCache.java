@@ -96,7 +96,7 @@ public final class MoleculeTextureCache {
                 }
             }
             if (heavyAtoms > MoleculeRenderConstants.MAX_HEAVY_ATOMS) {
-                BioCraft.LOGGER.info("分子过于复杂（重原子 {}），跳过结构图生成: {}", heavyAtoms, smiles);
+                BioCraft.LOGGER.info("Molecule too complex (heavy atoms {}), skipping structure image: {}", heavyAtoms, smiles);
                 return null;
             }
 
@@ -107,7 +107,7 @@ public final class MoleculeTextureCache {
 
             return rasterize(smiles, laidOut);
         } catch (CDKException e) {
-            BioCraft.LOGGER.warn("分子结构图生成失败: {} ({})", smiles, e.getMessage());
+            BioCraft.LOGGER.warn("Molecule structure image generation failed: {} ({})", smiles, e.getMessage());
             return null;
         }
     }

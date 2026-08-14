@@ -62,7 +62,7 @@ public final class EnzymeFactoryRegistry {
             ENZYMES.put(data.id(), data);
             ORDERED.add(data);
         }
-        BioCraft.LOGGER.info("已从酶数据表注册 {} 个酶工厂", ENZYMES.size());
+        BioCraft.LOGGER.info("Registered {} enzyme factories from enzyme data table", ENZYMES.size());
     }
 
     /**
