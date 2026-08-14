@@ -1,282 +1,423 @@
 // EnzymeMachineScript.java
-// 酶工厂方块贴图生成脚本（试水版：仅正面 front，四类别主题色，4 帧动画）
-// 设计依据：用户参考图（灰金属机身 + 生物反应腔 + 指示灯 + GPI 铭牌 + 通风口 + 铆钉），
-// 紫色 → 类别主题色四档色阶（主题色来源与 MachineCategory.java 的 themeColor 同步）
+// 酶工厂分层贴图生成脚本（静态版）：外壳 5 面 64x64 + 内容层 5 张小贴图
+// 分层架构（与模型 JSON 配套，像素拼接方案）：
+//   外壳层：5 张 64x64 全不透明贴图（灰金属机身 + 铆钉 + 凹槽 + 固定部件），无染色
+//   内容层：5 张小贴图（观察窗液体/铭牌底/按钮/管道/舱口芯），灰阶明暗，
+//           运行时 tint 乘法染成类别主题色；模型面片在方块外侧凸出 0.01~0.04 覆盖外壳
+// 设计要点：
+//   - 无透明像素依赖：MC 方块模型走 solid 渲染通道，透明像素行为不可靠
+//     （曾致"叠加失败黑成一片"——透过透明窗看到方块内部），像素拼接是可靠方案
+//   - 灰阶取亮区（150~240）：染色后 = 主题色 x 0.6~0.95，亮且饱和（用户要求）
+//   - 静态贴图：动画帧堆叠/mcmeta 基础设施已就绪，动画另期再做
 // 编译：javac -encoding UTF-8 -d tools/texturegen/out tools/texturegen/*.java
 // 运行：java -cp tools/texturegen/out EnzymeMachineScript
-// 输出：tools/texturegen/output/enzyme/<ec>/ 下 4 帧原始图 + 8x 预览 + 堆叠动画图 + mcmeta
+// 输出：tools/texturegen/output/enzyme/（原始图 + 8x 预览 + 染色模拟预览）
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class EnzymeMachineScript {
 
-    /** 类别主题色档案：ec 目录标签 + 主题色（0xRRGGBB，与 MachineCategory.java 同步） */
-    record Theme(String ec, int color) {}
-
-    /** 动画帧数（观察窗粒子/指示灯闪烁节奏） */
-    private static final int FRAMES = 4;
-
-    /** 在用类别主题色表（EC3/EC6 暂无酶，不生成） */
-    private static List<Theme> themes() {
-        return List.of(
-                new Theme("ec1", 0x6FC3DF),   // EC1 氧化还原酶 蓝（GAPDH）
-                new Theme("ec2", 0xFFA94D),   // EC2 转移酶 橙（HK）
-                new Theme("ec4", 0xB57EDC),   // EC4 裂合酶 紫（参考图原色系）
-                new Theme("ec5", 0xFFD966)    // EC5 异构酶 黄（PGI）
-        );
-    }
+    /** 输出根目录 */
+    private static final String OUT_DIR = "tools/texturegen/output/enzyme";
 
     /**
-     * 颜色乘法压暗：rgb 各通道乘系数（保留不透明 alpha）
+     * 程序入口：绘制外壳 5 面 + 内容层 5 张 + 全部预览
      *
-     * @param rgb 0xRRGGBB 颜色
-     * @param f   亮度系数 0~1
-     * @return 压暗后的 0xRRGGBB
+     * @param args 未使用
      */
-    private static int shade(int rgb, float f) {
-        int r = (int) (((rgb >> 16) & 0xFF) * f);
-        int g = (int) (((rgb >> 8) & 0xFF) * f);
-        int b = (int) ((rgb & 0xFF) * f);
-        return (r << 16) | (g << 8) | b;
-    }
+    public static void main(String[] args) throws IOException {
+        save(shellFront(), "shell_front");
+        save(shellSide(), "shell_side");
+        save(shellBack(), "shell_back");
+        save(shellTop(), "shell_top");
+        save(shellBottom(), "shell_bottom");
 
-    /**
-     * 颜色压暗（暖色自动暖化修正）
-     * <p>
-     * 等比例乘法压暗会使橙/黄等暖色在低亮度下偏冷棕/橄榄绿（色相漂移），
-     * 修正规则：暖色相（r≥g≥b）压暗结果红通道上浮 15%、蓝通道下压 15%，
-     * 保持暖相（深橙红/金黄棕）；冷色相（蓝/紫）不受影响
-     *
-     * @param rgb 0xRRGGBB 颜色
-     * @param f   亮度系数 0~1
-     * @return 压暗后的 0xRRGGBB
-     */
-    private static int shadeWarm(int rgb, float f) {
-        int r = (int) (((rgb >> 16) & 0xFF) * f);
-        int g = (int) (((rgb >> 8) & 0xFF) * f);
-        int b = (int) ((rgb & 0xFF) * f);
-        int rs = (rgb >> 16) & 0xFF;
-        int gs = (rgb >> 8) & 0xFF;
-        int bs = rgb & 0xFF;
-        if (rs >= gs && gs >= bs) {
-            r = Math.min(255, (int) (r * 1.15f));
-            b = (int) (b * 0.85f);
+        save(layerWindow(), "layer_window");
+        save(layerNameplate(), "layer_nameplate");
+        save(layerButton(), "layer_button");
+        save(layerPipe(), "layer_pipe");
+        save(layerPort(), "layer_port");
+
+        // 染色模拟预览（与游戏内 tint 乘法一致），供自查亮度/饱和度
+        int[] themes = {0x6FC3DF, 0xFFA94D, 0xB57EDC, 0xFFD966};
+        String[] tags = {"ec1", "ec2", "ec4", "ec5"};
+        for (int i = 0; i < themes.length; i++) {
+            save(tint(layerWindow(), themes[i]), "window_tinted_" + tags[i] + "_preview");
+            save(tint(layerNameplate(), themes[i]), "nameplate_tinted_" + tags[i] + "_preview");
+            save(tint(layerButton(), themes[i]), "button_tinted_" + tags[i] + "_preview");
+            save(tint(layerPipe(), themes[i]), "pipe_tinted_" + tags[i] + "_preview");
+            save(tint(layerPort(), themes[i]), "port_tinted_" + tags[i] + "_preview");
         }
-        return (r << 16) | (g << 8) | b;
+        System.out.println("酶工厂分层贴图生成完成 -> " + OUT_DIR);
     }
 
     /**
-     * 颜色向白色混合：rgb 与白色按比例混合（提亮）
+     * 保存贴图原始图 + 8x 预览
      *
-     * @param rgb 0xRRGGBB 颜色
-     * @param w   白色比例 0~1
-     * @return 提亮后的 0xRRGGBB
+     * @param canvas 画布
+     * @param name   文件名（不含扩展名）
      */
-    private static int mixWhite(int rgb, float w) {
-        int r = (int) (((rgb >> 16) & 0xFF) + (255 - ((rgb >> 16) & 0xFF)) * w);
-        int g = (int) (((rgb >> 8) & 0xFF) + (255 - ((rgb >> 8) & 0xFF)) * w);
-        int b = (int) ((rgb & 0xFF) + (255 - (rgb & 0xFF)) * w);
-        return (r << 16) | (g << 8) | b;
+    private static void save(PixelCanvas canvas, String name) throws IOException {
+        canvas.save(OUT_DIR + "/" + name + ".png");
+        canvas.savePreview(OUT_DIR + "/" + name + "_preview.png", 8);
     }
 
     /**
-     * 绘制酶工厂正面贴图（32x32，frame 为动画帧号）
+     * 绘制外壳正面（64x64，全不透明）
      * <p>
-     * 构图（自参考图提炼，自上而下）：
-     * 四角铆钉 → 顶部 GPI 铭牌 → 中央观察窗（类别色四档渐变 + 上浮粒子 +
-     * 液面高光）→ 右侧指示灯（绿，随帧闪暗）→ 指示灯下方类别色按钮 →
-     * 左下双插槽 → 底部横向通风口；机身金属灰四档渐变（左上亮右下暗），
-     * 面板凹槽分界环绕元素
+     * 布局（自上而下）：凹槽面板（8..55 矩形）→ 四角铆钉（凹槽外）→
+     * 顶部铭牌框（金属框，内容层盖内）→ 中央观察窗框（双层，内容层盖内）→
+     * 右侧绿色指示灯与下方按钮占位（按钮由内容层染色盖住）→
+     * 凹槽外底部左侧双插槽 + 右侧通风口
      *
-     * @param t     类别主题色档案
-     * @param frame 动画帧号 0~3
-     * @return 32x32 画布
+     * @return 64x64 画布
      */
-    private static PixelCanvas front(Theme t, int frame) {
-        PixelCanvas p = new PixelCanvas(32, 32);
-
-        // 机身金属四档灰 + 轮廓 + 凹槽 + 部件色
-        p.color("outline", "#17171D");
-        p.color("bodyLightest", "#B9B9BE");
-        p.color("bodyLight", "#A0A0A5");
-        p.color("body", "#7A7A80");
-        p.color("bodyDark", "#5A5A5F");
-        p.color("bodyDarkest", "#45454B");
-        p.color("groove", "#2E2E33");
-        p.color("metal", "#B0B0B4");
-        p.color("slotBlack", "#1E1E23");
-        p.color("ledGreen", "#4ADE80");
-        p.color("ledDim", "#2FA05A");
-        p.color("ledHot", "#DFFFE8");
-        // 类别色五档色阶（参考图紫色阶比例微调：暗 0.40x/中暗 0.62x/亮混白 0.28/高光 0.55/亮白 0.9）
-        p.color("reacDark", 0xFF000000 | shadeWarm(t.color(), 0.40f));
-        p.color("reacMidDark", 0xFF000000 | shadeWarm(t.color(), 0.62f));
-        p.color("reac", 0xFF000000 | t.color());
-        p.color("reacBright", 0xFF000000 | mixWhite(t.color(), 0.28f));
-        p.color("reacGlow", 0xFF000000 | mixWhite(t.color(), 0.55f));
-        p.color("reacHot", 0xFF000000 | mixWhite(t.color(), 0.9f));
-
-        // 机身：中灰打底，上/左两行提亮、下/右两行压暗（左上光源惯例）
-        p.fill("body");
-        p.hline(1, 30, 1, "bodyLight");
-        p.hline(1, 30, 2, "bodyLight");
-        p.vline(1, 30, 1, "bodyLight");
-        p.vline(1, 30, 2, "bodyLight");
-        p.hline(1, 30, 29, "bodyDark");
-        p.hline(1, 30, 30, "bodyDark");
-        p.vline(1, 30, 29, "bodyDark");
-        p.vline(1, 30, 30, "bodyDark");
-        p.outline(0, 0, 31, 31, "outline");
-
-        // 面板凹槽分界（3..28 矩形凹线）
-        p.outline(3, 3, 28, 28, "groove");
-
-        // 四角铆钉（2x2 对角：左上亮右下暗模拟球面）
-        p.set(2, 2, "bodyLightest");
-        p.set(3, 2, "bodyLight");
-        p.set(2, 3, "bodyLight");
-        p.set(3, 3, "bodyDarkest");
-        p.set(29, 2, "bodyLightest");
-        p.set(28, 2, "bodyLight");
-        p.set(29, 3, "bodyLight");
-        p.set(28, 3, "bodyDarkest");
-        p.set(2, 29, "bodyLightest");
-        p.set(3, 29, "bodyLight");
-        p.set(2, 28, "bodyLight");
-        p.set(3, 28, "bodyDarkest");
-        p.set(29, 29, "bodyLightest");
-        p.set(28, 29, "bodyLight");
-        p.set(29, 28, "bodyLight");
-        p.set(28, 28, "bodyDarkest");
-
-        // 顶部 GPI 铭牌：金属框 + 深灰底 + 类别高光色 3x5 像素字（内容区 5 行高，文字不压框）
-        p.rect(4, 4, 20, 10, "metal");
-        p.rect(5, 5, 19, 9, "groove");
-        drawLetter(p, 6, 5, "G", "reacHot");
-        drawLetter(p, 10, 5, "P", "reacHot");
-        drawLetter(p, 14, 5, "I", "reacHot");
-
-        // 中央观察窗：双层框（凹槽外框 + 金属内框），液体区 x7..18 y13..22
-        p.outline(5, 11, 20, 24, "groove");
-        p.outline(6, 12, 19, 23, "metal");
-        // 液体逐行线性渐变：高光带（y13 特亮）→ 底部深色（暖色经暖化修正），无分档硬切
-        liquidGradient(p, 7, 18, 13, 22,
-                p.c("reacGlow"), 0xFF000000 | shadeWarm(t.color(), 0.32f));
-        // 粒子：三颗 2x2 亮点（高光底 + 亮白核），随帧上浮循环（周期 9 格）
-        int[] px = {9, 12, 16};
-        for (int i = 0; i < px.length; i++) {
-            int py = 21 - ((frame * 3 + i * 3) % 9);
-            p.set(px[i], py, "reacGlow");
-            p.set(px[i] + 1, py, "reacGlow");
-            p.set(px[i], py + 1, "reacGlow");
-            p.set(px[i] + 1, py + 1, "reacHot");
-        }
-
-        // 右侧指示灯（绿 3x3，随帧明暗交替模拟运行闪烁）
-        p.rect(24, 11, 27, 15, "groove");
-        p.rect(25, 12, 26, 14, frame % 2 == 0 ? "ledGreen" : "ledDim");
-        p.set(25, 12, "ledHot");
-        p.set(26, 12, "ledHot");
-
-        // 指示灯下方类别色按钮（顶部高光 + 底部双层阴影形成凸起立体感）
-        p.rect(25, 19, 27, 21, "reac");
-        p.set(25, 19, "reacBright");
-        p.set(25, 20, "reacBright");
-        p.hline(25, 27, 21, "reacDark");
-        p.hline(25, 27, 20, "reacMidDark");
-
-        // 左下双插槽（黑色内凹）
-        p.rect(4, 26, 5, 27, "slotBlack");
-        p.rect(7, 26, 8, 27, "slotBlack");
-
-        // 底部横向通风口：凹底 + 三条金属格栅竖条
-        p.rect(11, 26, 21, 29, "groove");
-        p.rect(12, 26, 13, 29, "metal");
-        p.rect(15, 26, 16, 29, "metal");
-        p.rect(18, 26, 19, 29, "metal");
-
+    private static PixelCanvas shellFront() {
+        PixelCanvas p = baseShell();
+        // 顶部铭牌框：金属外框 + 深灰内底（内容层盖 x20..44 y10..16）
+        p.rect(18, 8, 46, 18, "metal");
+        p.rect(19, 9, 45, 17, "groove");
+        // 中央观察窗框：凹槽外框 + 金属内框（内容层盖 x12..40 y28..48）
+        p.outline(10, 26, 42, 50, "groove");
+        p.outline(12, 28, 40, 48, "metal");
+        // 窗框内底色（被内容层完全覆盖，画灰防穿帮）
+        p.rect(13, 29, 39, 47, "bodyDark");
+        // 右侧绿色指示灯（固定色，外壳层）
+        p.rect(46, 26, 54, 34, "groove");
+        p.rect(48, 28, 52, 32, "ledGreen");
+        p.rect(48, 28, 49, 29, "ledHot");
+        // 按钮占位底（内容层盖 x46..54 y40..48）
+        p.rect(46, 40, 54, 48, "bodyDark");
+        // 凹槽外底部：左侧双插槽（黑色内凹）
+        p.rect(12, 57, 20, 61, "slotBlack");
+        p.rect(24, 57, 32, 61, "slotBlack");
+        p.hline(12, 20, 57, "bodyDarkest");
+        p.hline(24, 32, 57, "bodyDarkest");
+        // 右侧横向通风口：凹底 + 三组金属竖条
+        p.rect(36, 57, 58, 61, "groove");
+        p.rect(38, 57, 40, 61, "metal");
+        p.rect(44, 57, 46, 61, "metal");
+        p.rect(50, 57, 52, 61, "metal");
+        p.rect(56, 57, 58, 61, "metal");
         return p;
     }
 
     /**
-     * 垂直线性渐变填充（从 top 色到 bottom 色逐行插值）
+     * 绘制外壳侧面（64x64，全不透明）
      * <p>
-     * 用于观察窗液体：分档色阶在窄区域会产生硬切感，
-     * 逐行插值在 32x32 下最平滑；两色均须为不透明 0xRRGGBB
+     * 布局：凹槽面板 + 铆钉 + 中央贯穿管道区域（内容层盖 x20..44 y8..56，
+     * 底色画灰）+ 管道上下端金属法兰 + 右侧接口面板 + 左下散热条
      *
-     * @param p      目标画布
-     * @param x0     矩形左边界
-     * @param x1     矩形右边界
-     * @param y0     渐变起始行（top 色）
-     * @param y1     渐变结束行（bottom 色）
-     * @param top    顶部颜色 0xRRGGBB
-     * @param bottom 底部颜色 0xRRGGBB
+     * @return 64x64 画布
      */
-    private static void liquidGradient(PixelCanvas p, int x0, int x1, int y0, int y1, int top, int bottom) {
-        int span = Math.max(1, y1 - y0);
-        for (int y = y0; y <= y1; y++) {
-            float t = (float) (y - y0) / span;
-            int r = (int) (((top >> 16) & 0xFF) + ((((bottom >> 16) & 0xFF) - ((top >> 16) & 0xFF))) * t);
-            int g = (int) (((top >> 8) & 0xFF) + ((((bottom >> 8) & 0xFF) - ((top >> 8) & 0xFF))) * t);
-            int b = (int) ((top & 0xFF) + (((bottom & 0xFF) - (top & 0xFF))) * t);
-            int argb = 0xFF000000 | (r << 16) | (g << 8) | b;
-            for (int x = x0; x <= x1; x++) {
-                p.set(x, y, argb);
-            }
-        }
+    private static PixelCanvas shellSide() {
+        PixelCanvas p = baseShell();
+        // 管道占位底（内容层盖 x20..44 y8..56）
+        p.rect(20, 8, 44, 56, "bodyDark");
+        // 上下端法兰：金属环 + 凹槽内圈
+        p.rect(16, 4, 48, 10, "metal");
+        p.rect(18, 5, 46, 9, "groove");
+        p.rect(16, 54, 48, 60, "metal");
+        p.rect(18, 55, 46, 59, "groove");
+        // 右侧接口面板：凹底 + 三个圆点细节
+        p.rect(47, 14, 53, 28, "groove");
+        p.set(50, 17, "metal");
+        p.set(50, 21, "metal");
+        p.set(50, 25, "metal");
+        // 左下散热条：三条横向凹条
+        p.rect(8, 38, 16, 40, "groove");
+        p.rect(8, 44, 16, 46, "groove");
+        p.rect(8, 50, 16, 52, "groove");
+        return p;
     }
 
     /**
-     * 3x5 像素字体绘制（描点法，色名取自画布调色板）
+     * 绘制外壳背面（64x64，全不透明，无内容层）
      * <p>
-     * 点阵按位编码：每字符 3 位宽 x 5 位高，1=点亮 0=留空；
-     * 仅支持 G/P/I 三字符（铭牌专用，扩字时在此补充）
+     * 布局：凹槽面板 + 铆钉 + 中央大型散热格栅（凹底 + 六条金属竖条）+
+     * 底部横向通风口
+     *
+     * @return 64x64 画布
+     */
+    private static PixelCanvas shellBack() {
+        PixelCanvas p = baseShell();
+        // 中央散热格栅
+        p.rect(18, 12, 46, 52, "groove");
+        for (int x = 20; x <= 44; x += 4) {
+            p.rect(x, 12, x + 2, 52, "metal");
+        }
+        // 底部横向通风口
+        p.rect(18, 56, 46, 61, "groove");
+        for (int x = 20; x <= 44; x += 4) {
+            p.rect(x, 56, x + 2, 61, "metal");
+        }
+        return p;
+    }
+
+    /**
+     * 绘制外壳顶面（64x64，全不透明）
+     * <p>
+     * 布局：凹槽面板 + 铆钉 + 四角金属接口（带凹槽内芯）+
+     * 中央舱口金属环（内容层盖 x24..40 y24..40）
+     *
+     * @return 64x64 画布
+     */
+    private static PixelCanvas shellTop() {
+        PixelCanvas p = baseShell();
+        // 四角接口：金属框 + 凹槽内芯
+        for (int[] pos : new int[][]{{8, 8}, {48, 8}, {8, 48}, {48, 48}}) {
+            p.rect(pos[0], pos[1], pos[0] + 8, pos[1] + 8, "metal");
+            p.rect(pos[0] + 1, pos[1] + 1, pos[0] + 7, pos[1] + 7, "groove");
+        }
+        // 中央舱口环：金属外环 + 凹槽内环（内容层盖 x24..40 y24..40）
+        p.rect(18, 18, 46, 46, "metal");
+        p.rect(20, 20, 44, 44, "groove");
+        // 舱口芯占位底
+        p.rect(24, 24, 40, 40, "bodyDark");
+        return p;
+    }
+
+    /**
+     * 绘制外壳底面（64x64，全不透明，无内容层）
+     * <p>
+     * 布局：凹槽面板 + 铆钉 + 中央十字底座加强筋 + 四角固定孔
+     *
+     * @return 64x64 画布
+     */
+    private static PixelCanvas shellBottom() {
+        PixelCanvas p = baseShell();
+        // 中央十字加强筋
+        p.rect(30, 8, 34, 56, "metal");
+        p.rect(8, 30, 56, 34, "metal");
+        p.rect(32, 30, 33, 33, "body");
+        // 四角固定孔
+        for (int[] pos : new int[][]{{10, 10}, {50, 10}, {10, 50}, {50, 50}}) {
+            p.rect(pos[0], pos[1], pos[0] + 2, pos[1] + 2, "slotBlack");
+        }
+        return p;
+    }
+
+    /**
+     * 外壳公共底座：机身四档渐变 + 外框 + 凹槽面板 + 四角铆钉
+     * <p>
+     * 渐变（左上光源惯例）：上/左 6px 亮、下/右 6px 暗，逐像素插值平滑过渡
+     *
+     * @return 已铺好底座的 64x64 画布
+     */
+    private static PixelCanvas baseShell() {
+        PixelCanvas p = new PixelCanvas(64, 64);
+        p.color("outline", "#1C1C24");
+        p.color("bodyLightest", "#C6C6CC");
+        p.color("bodyLight", "#ACACB2");
+        p.color("body", "#8A8A90");
+        p.color("bodyDark", "#6A6A70");
+        p.color("bodyDarkest", "#52525A");
+        p.color("groove", "#33333B");
+        p.color("metal", "#B8B8BE");
+        p.color("slotBlack", "#1E1E23");
+        p.color("ledGreen", "#4ADE80");
+        p.color("ledHot", "#DFFFE8");
+
+        p.fill("body");
+        // 边缘渐变：上/左 8px 亮、下/右 8px 暗（逐像素插值，四档过渡）
+        gradientEdge(p, 0); // 上边
+        gradientEdge(p, 1); // 左边
+        gradientEdge(p, 2); // 下边
+        gradientEdge(p, 3); // 右边
+        p.outline(0, 0, 63, 63, "outline");
+        // 凹槽面板（8..55 矩形凹线）
+        p.outline(8, 8, 55, 55, "groove");
+        // 四角铆钉（3x3 对角渐变：左上高光右下暗）
+        rivet(p, 5, 5);
+        rivet(p, 56, 5);
+        rivet(p, 5, 56);
+        rivet(p, 56, 56);
+        return p;
+    }
+
+    /**
+     * 绘制一条边缘渐变带（8px 宽，四档过渡色）
+     * <p>
+     * 亮边（上/左）从外到内：最亮 -> 亮 -> 主体 -> 暗；
+     * 暗边（下/右）从外到内：最暗 -> 暗 -> 主体 -> 亮
      *
      * @param p    目标画布
-     * @param x0   字符左上角横坐标
-     * @param y0   字符左上角纵坐标
-     * @param ch   字符（G/P/I）
-     * @param name 调色板颜色名
+     * @param side 0=上边 1=左边 2=下边 3=右边
      */
-    private static void drawLetter(PixelCanvas p, int x0, int y0, String ch, String name) {
-        int[][] glyph = switch (ch) {
-            case "G" -> new int[][]{{1, 1, 1}, {1, 0, 0}, {1, 0, 1}, {1, 0, 1}, {0, 1, 1}};
-            case "P" -> new int[][]{{1, 1, 0}, {1, 0, 1}, {1, 1, 0}, {1, 0, 0}, {1, 0, 0}};
-            case "I" -> new int[][]{{1, 1, 1}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {1, 1, 1}};
-            default -> throw new IllegalArgumentException("未支持的铭牌字符: " + ch);
-        };
-        for (int row = 0; row < 5; row++) {
-            for (int col = 0; col < 3; col++) {
-                if (glyph[row][col] == 1) {
-                    p.set(x0 + col, y0 + row, name);
+    private static void gradientEdge(PixelCanvas p, int side) {
+        int lightest = p.c("bodyLightest");
+        int light = p.c("bodyLight");
+        int body = p.c("body");
+        int dark = p.c("bodyDark");
+        int darkest = p.c("bodyDarkest");
+        for (int i = 1; i <= 8; i++) {
+            int lightColor = i <= 2 ? lightest : (i <= 4 ? light : (i <= 6 ? body : dark));
+            int darkColor = i <= 2 ? darkest : (i <= 4 ? dark : (i <= 6 ? body : light));
+            int color = (side == 0 || side == 1) ? lightColor : darkColor;
+            if (side == 0 || side == 2) {
+                int y = side == 0 ? i : 64 - i;
+                for (int x = 0; x < 64; x++) {
+                    p.set(x, y, color);
+                }
+            } else {
+                int x = side == 1 ? i : 64 - i;
+                for (int y = 0; y < 64; y++) {
+                    p.set(x, y, color);
                 }
             }
         }
     }
 
     /**
-     * 程序入口：对四个在用类别各生成 4 帧正面贴图 + 8x 预览 + 堆叠动画图 + mcmeta
+     * 画单个铆钉（3x3 对角渐变：左上高光、右下暗）
      *
-     * @param args 未使用
+     * @param p 目标画布
+     * @param x 铆钉左上角横坐标
+     * @param y 铆钉左上角纵坐标
      */
-    public static void main(String[] args) throws IOException {
-        String outRoot = "tools/texturegen/output/enzyme";
-        for (Theme t : themes()) {
-            String dir = outRoot + "/" + t.ec();
-            List<PixelCanvas> frames = new ArrayList<>();
-            for (int f = 0; f < FRAMES; f++) {
-                PixelCanvas fc = front(t, f);
-                frames.add(fc);
-                fc.save(dir + "/front_" + f + ".png");
-                fc.savePreview(dir + "/front_" + f + "_preview.png", 8);
+    private static void rivet(PixelCanvas p, int x, int y) {
+        p.rect(x, y, x + 2, y + 2, "bodyLight");
+        p.set(x, y, "bodyLightest");
+        p.set(x + 2, y + 2, "bodyDarkest");
+        p.set(x + 2, y, "body");
+        p.set(x, y + 2, "body");
+    }
+
+    /**
+     * 绘制观察窗内容层（29x21 灰阶：液面高光 + 液体渐变 + 三颗上浮粒子）
+     * <p>
+     * 与外壳窗框内区域精确对应（x12..40 y28..48），全部不透明；
+     * 灰阶 150~240 保证染色后亮而饱和
+     *
+     * @return 29x21 画布
+     */
+    private static PixelCanvas layerWindow() {
+        PixelCanvas p = new PixelCanvas(29, 21);
+        p.color("gLow", "#8F8F9C");
+        p.color("gMid", "#B8B8C4");
+        p.color("gHigh", "#E0E0E8");
+        p.color("gTop", "#F2F2F7");
+        p.color("gParticle", "#FFFFFF");
+        // 液面高光（顶部 2px）+ 渐入主体 + 底部深色
+        p.rect(0, 0, 28, 1, "gTop");
+        p.rect(0, 2, 28, 5, "gHigh");
+        p.rect(0, 6, 28, 12, "gMid");
+        p.rect(0, 13, 28, 20, "gLow");
+        // 液体内部横向亮带（中部，模拟光照）
+        p.hline(4, 24, 9, "gHigh");
+        // 三颗上浮粒子（静态位置）
+        p.set(7, 5, "gParticle");
+        p.set(13, 3, "gParticle");
+        p.set(21, 8, "gParticle");
+        // 底部微气泡
+        p.set(5, 17, "gHigh");
+        p.set(16, 19, "gHigh");
+        return p;
+    }
+
+    /**
+     * 绘制铭牌内容层（25x7 灰阶亮底：顶部高光渐变，BER 文字叠画其上）
+     * <p>
+     * 与外壳铭牌框内区域精确对应（x20..44 y10..16）；染色后为亮主题色，
+     * BER 用主题色压暗 35% 的深色文字形成对比
+     *
+     * @return 25x7 画布
+     */
+    private static PixelCanvas layerNameplate() {
+        PixelCanvas p = new PixelCanvas(25, 7);
+        p.color("gTop", "#E8E8EE");
+        p.color("gMid", "#D0D0D8");
+        p.color("gLow", "#B0B0B8");
+        p.rect(0, 0, 24, 0, "gTop");
+        p.rect(0, 1, 24, 3, "gMid");
+        p.rect(0, 4, 24, 6, "gLow");
+        return p;
+    }
+
+    /**
+     * 绘制按钮内容层（9x9 灰阶：顶部高光渐变凸起按钮）
+     * <p>
+     * 与外壳按钮占位区域精确对应（x46..54 y40..48）；染色后呈主题色按钮
+     *
+     * @return 9x9 画布
+     */
+    private static PixelCanvas layerButton() {
+        PixelCanvas p = new PixelCanvas(9, 9);
+        p.color("gHigh", "#E8E8EE");
+        p.color("gMid", "#C8C8D0");
+        p.color("gLow", "#A0A0A8");
+        p.color("gWhite", "#FFFFFF");
+        p.rect(0, 0, 8, 1, "gHigh");
+        p.rect(0, 2, 8, 6, "gMid");
+        p.rect(0, 7, 8, 8, "gLow");
+        p.set(1, 1, "gWhite");
+        return p;
+    }
+
+    /**
+     * 绘制管道内容层（25x49 灰阶：竖直液体渐变 + 中央亮带）
+     * <p>
+     * 与外壳侧面管道占位区域精确对应（x20..44 y8..56）；
+     * 两端贴合法兰内侧
+     *
+     * @return 25x49 画布
+     */
+    private static PixelCanvas layerPipe() {
+        PixelCanvas p = new PixelCanvas(25, 49);
+        p.color("gLow", "#8F8F9C");
+        p.color("gMid", "#C0C0CC");
+        p.color("gHigh", "#E8E8F0");
+        p.color("gCore", "#F5F5FA");
+        p.rect(0, 0, 24, 48, "gMid");
+        p.rect(3, 0, 21, 48, "gHigh");
+        p.rect(8, 0, 16, 48, "gCore");
+        p.rect(0, 44, 24, 48, "gLow");
+        // 上下端液面折光
+        p.rect(3, 0, 21, 1, "gCore");
+        return p;
+    }
+
+    /**
+     * 绘制舱口芯内容层（17x17 灰阶：同心环径向渐变，中心亮）
+     * <p>
+     * 与外壳顶面舱口占位区域精确对应（x24..40 y24..40）
+     *
+     * @return 17x17 画布
+     */
+    private static PixelCanvas layerPort() {
+        PixelCanvas p = new PixelCanvas(17, 17);
+        p.color("gLow", "#8F8F9C");
+        p.color("gMid", "#B8B8C4");
+        p.color("gHigh", "#DCDCE4");
+        p.color("gCore", "#F2F2F7");
+        p.rect(0, 0, 16, 16, "gMid");
+        p.rect(2, 2, 14, 14, "gHigh");
+        p.rect(5, 5, 11, 11, "gCore");
+        p.color("gWhite", "#FFFFFF");
+        p.set(8, 8, "gWhite");
+        return p;
+    }
+
+    /**
+     * 染色模拟：灰阶图像乘主题色（与游戏内 BlockColors tint 乘法一致）
+     *
+     * @param gray  灰阶画布
+     * @param theme 主题色 0xRRGGBB
+     * @return 染色后的画布
+     */
+    private static PixelCanvas tint(PixelCanvas gray, int theme) {
+        PixelCanvas out = new PixelCanvas(gray.width(), gray.height());
+        int tr = (theme >> 16) & 0xFF;
+        int tg = (theme >> 8) & 0xFF;
+        int tb = theme & 0xFF;
+        for (int y = 0; y < gray.height(); y++) {
+            for (int x = 0; x < gray.width(); x++) {
+                int argb = gray.get(x, y);
+                int a = (argb >>> 24) & 0xFF;
+                int l = argb & 0xFF;
+                out.set(x, y, (a << 24) | ((l * tr / 255) << 16) | ((l * tg / 255) << 8) | (l * tb / 255));
             }
-            // 堆叠成动画贴图（32x32 x 4 帧 = 32x128）+ 动画声明（每帧 4 tick，帧间插值）
-            PixelCanvas.stackVertical(frames, dir + "/front.png");
-            PixelCanvas.writeMcmeta(dir + "/front.png", 4, true);
-            System.out.println("已生成 " + t.ec() + " 正面贴图 " + dir);
         }
-        System.out.println("酶工厂正面贴图生成完成");
+        return out;
     }
 }

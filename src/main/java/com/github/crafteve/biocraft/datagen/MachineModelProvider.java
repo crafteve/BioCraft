@@ -69,20 +69,21 @@ public class MachineModelProvider implements DataProvider {
     }
 
     /**
-     * 生成全部酶工厂方块模型（分层叠加：外壳 + 铭牌 + 染色涂层）
+     * 生成全部酶工厂方块模型（像素拼接分层：外壳 cube + 内容面片凸出覆盖）
      * <p>
-     * 贴图分层架构（与用户确认的规格）：
+     * 分层架构（与贴图脚本 EnzymeMachineScript 配套，规避 solid 渲染通道
+     * 透明像素不可靠的坑——曾致"叠加失败黑成一片"）：
      * <ul>
-     *   <li>外壳 cube [0,0,0]-[16,16,16]：六面引用 enzyme_shell_front /
-     *       占位侧/背/顶/底贴图，不染色；正面观察窗/铭牌区域透明</li>
-     *   <li>铭牌面片：位于正面 64 贴图 (22,5) 起 19x8 区域换算的方块坐标，
-     *       z 凸出 -0.01~0，引用灰度化 enzyme_layer_nameplate 贴图，tintindex 0
-     *       （运行时按类别主题色染色），文字由 BER 动态渲染</li>
-     *   <li>染色涂层面片：位于 (17,19) 起 30x28 区域，z 凸出 -0.02~-0.01，
-     *       引用灰度化 enzyme_layer_content 贴图，tintindex 0</li>
+     *   <li>外壳 cube [0,0,0]-[16,16,16]：六面全不透明 shell 贴图，不染色；
+     *       被内容覆盖的区域画机身色（防穿帮，反正被盖）</li>
+     *   <li>内容面片：方块外侧凸出 0.01~0.04（各面片 z 层错开 0.01 防 z-fight），
+     *       贴图与外壳对应区域像素精确拼接（无透明依赖，纯深度测试叠加），
+     *       tintindex 0 运行时按类别主题色染色</li>
+     *   <li>内容面片清单：正面观察窗液体（window）/ 铭牌底（nameplate，
+     *       文字由 BER 渲染）/ 按钮（button）；两侧管道（pipe，east/west 各一片）；
+     *       顶面舱口芯（port）</li>
      * </ul>
-     * 面片凸出方向为 -Z（方块外），避免与外壳 north 面深度冲突；
-     * 局部贴图通过元素 from/to 定位到方块面（即"定位渲染"），uv 恒整贴图
+     * 面片元素坐标 = 64 贴图像素 / 64（MC 模型浮点坐标），贴图 y 向下 → 方块 y 向上
      *
      * @return 输出路径到 JSON 内容的映射
      */
@@ -107,20 +108,23 @@ public class MachineModelProvider implements DataProvider {
             }
             blockState.add("variants", variants);
 
-            // 模型：外壳 cube + 铭牌面片 + 涂层面片
+            // 模型：外壳 cube + 内容面片
             JsonObject blockModelJson = new JsonObject();
             JsonObject textures = new JsonObject();
             textures.addProperty("shell_front", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_shell_front").toString());
-            textures.addProperty("shell_side", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_placeholder_side").toString());
-            textures.addProperty("shell_back", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_placeholder_back").toString());
-            textures.addProperty("shell_top", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_placeholder_top").toString());
-            textures.addProperty("shell_bottom", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_placeholder_bottom").toString());
+            textures.addProperty("shell_side", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_shell_side").toString());
+            textures.addProperty("shell_back", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_shell_back").toString());
+            textures.addProperty("shell_top", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_shell_top").toString());
+            textures.addProperty("shell_bottom", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_shell_bottom").toString());
+            textures.addProperty("window", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_layer_window").toString());
             textures.addProperty("nameplate", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_layer_nameplate").toString());
-            textures.addProperty("content", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_layer_content").toString());
+            textures.addProperty("button", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_layer_button").toString());
+            textures.addProperty("pipe", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_layer_pipe").toString());
+            textures.addProperty("port", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/enzyme_layer_port").toString());
             blockModelJson.add("textures", textures);
 
             JsonArray elements = new JsonArray();
-            // 外壳 cube：六面独立贴图，不染色
+            // 外壳 cube：六面独立贴图，不染色（内容覆盖区画机身色，被面片盖住）
             JsonObject shell = cubeElement(0, 0, 0, 16, 16, 16);
             shell.getAsJsonObject("faces").add("north", face("shell_front", "north"));
             shell.getAsJsonObject("faces").add("south", face("shell_back", "south"));
@@ -129,12 +133,23 @@ public class MachineModelProvider implements DataProvider {
             shell.getAsJsonObject("faces").add("up", face("shell_top", "up"));
             shell.getAsJsonObject("faces").add("down", face("shell_bottom", "down"));
             elements.add(shell);
-            // 铭牌面片：正面 (22,5) 起 19x8 区域，染色 + BER 文字
-            elements.add(panelElement(22f / 64f, 1f - 13f / 64f, -0.01f, 41f / 64f, 1f - 5f / 64f, 0f,
-                    "nameplate", 0));
-            // 染色涂层面片：正面 (17,19) 起 30x28 区域，染色
-            elements.add(panelElement(17f / 64f, 1f - 47f / 64f, -0.02f, 47f / 64f, 1f - 19f / 64f, -0.01f,
-                    "content", 0));
+            // 正面观察窗液体面片：贴图区域 x12..40 y28..48（29x21）
+            elements.add(panelElement(12f / 64f, 1f - 48f / 64f, -0.02f, 40f / 64f, 1f - 28f / 64f, -0.01f,
+                    "window", "north", 0));
+            // 正面铭牌底面片：贴图区域 x20..44 y10..16（25x7），文字由 BER 渲染
+            elements.add(panelElement(20f / 64f, 1f - 16f / 64f, -0.03f, 44f / 64f, 1f - 10f / 64f, -0.02f,
+                    "nameplate", "north", 0));
+            // 正面按钮面片：贴图区域 x46..54 y40..48（9x9）
+            elements.add(panelElement(46f / 64f, 1f - 48f / 64f, -0.04f, 54f / 64f, 1f - 40f / 64f, -0.03f,
+                    "button", "north", 0));
+            // 侧面管道面片：两侧各一片，贴图区域 x20..44 y8..56（25x49）
+            elements.add(panelElement(16.02f, 1f - 56f / 64f, 0f, 16.04f, 1f - 8f / 64f, 16f,
+                    "pipe", "east", 0));
+            elements.add(panelElement(-0.04f, 1f - 56f / 64f, 0f, -0.02f, 1f - 8f / 64f, 16f,
+                    "pipe", "west", 0));
+            // 顶面舱口芯面片：贴图区域 x24..40 y24..40（17x17）
+            elements.add(panelElement(24f / 64f, 16.02f, 24f / 64f, 40f / 64f, 16.04f, 40f / 64f,
+                    "port", "up", 0));
             blockModelJson.add("elements", elements);
 
             JsonObject itemModel = new JsonObject();
@@ -167,25 +182,26 @@ public class MachineModelProvider implements DataProvider {
     }
 
     /**
-     * 构造一个单面面片元素（仅 north 面有贴图，用于凸出贴面）
+     * 构造一个单面面片元素（仅指定方向有贴图，用于方块外侧凸出覆盖）
      * <p>
-     * north 面位于 z0 处（凸出方向 -Z），uv 恒整贴图 [0,0,16,16]；
-     * 其余五面省略（不渲染，透明区透出下层外壳）
+     * 贴面位于凸出侧（north 面在 z0、east 面在 x1、west 面在 x0、up 面在 y1），
+     * uv 恒整贴图 [0,0,16,16]；其余五面省略（不渲染）
      *
      * @param x0        面片左边界
      * @param y0        面片下边界
-     * @param z0        面片前侧 z（凸出面）
+     * @param z0        面片近侧 z
      * @param x1        面片右边界
      * @param y1        面片上边界
-     * @param z1        面片后侧 z
+     * @param z1        面片远侧 z
      * @param texture   贴图键（textures 中的 # 引用名）
+     * @param faceDir   贴图所在方向（north/east/west/up）
      * @param tintIndex 染色下标，-1 表示不染色
      * @return 元素 JSON
      */
     private static JsonObject panelElement(float x0, float y0, float z0, float x1, float y1, float z1,
-                                           String texture, int tintIndex) {
+                                           String texture, String faceDir, int tintIndex) {
         JsonObject element = cubeElement(x0, y0, z0, x1, y1, z1);
-        element.getAsJsonObject("faces").add("north", face(texture, null, tintIndex));
+        element.getAsJsonObject("faces").add(faceDir, face(texture, null, tintIndex));
         return element;
     }
 

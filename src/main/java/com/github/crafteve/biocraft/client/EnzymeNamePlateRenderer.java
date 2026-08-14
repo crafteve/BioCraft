@@ -29,16 +29,16 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
  */
 public class EnzymeNamePlateRenderer implements BlockEntityRenderer<EnzymeFactoryBlockEntity> {
 
-    /** 铭牌区域方块坐标（64 尺寸贴图规格换算，MC y 向上） */
-    private static final float PLATE_X0 = 22f / 64f;
-    /** 铭牌右边界（19px 宽：22+19=41） */
-    private static final float PLATE_X1 = 41f / 64f;
-    /** 铭牌下边界（贴图 y 13 → 方块 y 1-13/64） */
-    private static final float PLATE_Y0 = 1f - 13f / 64f;
-    /** 铭牌上边界（贴图 y 5 → 方块 y 1-5/64） */
-    private static final float PLATE_Y1 = 1f - 5f / 64f;
-    /** 文字 z 凸出量：位于外壳 north 面（z=0）与铭牌面片（z=-0.01）之间 */
-    private static final float TEXT_Z = -0.005f;
+    /** 铭牌区域方块坐标（64 尺寸贴图规格换算，MC y 向上；贴图区域 x20..44 y10..16） */
+    private static final float PLATE_X0 = 20f / 64f;
+    /** 铭牌右边界 */
+    private static final float PLATE_X1 = 44f / 64f;
+    /** 铭牌下边界（贴图 y 16 → 方块 y 1-16/64） */
+    private static final float PLATE_Y0 = 1f - 16f / 64f;
+    /** 铭牌上边界（贴图 y 10 → 方块 y 1-10/64） */
+    private static final float PLATE_Y1 = 1f - 10f / 64f;
+    /** 文字 z 凸出量：位于铭牌面片（z=-0.03）外侧 0.002 */
+    private static final float TEXT_Z = -0.032f;
     /** 文字高度占铭牌高度的比例 */
     private static final float TEXT_FILL = 0.9f;
 

@@ -138,6 +138,24 @@ public class PixelCanvas {
     }
 
     /**
+     * 画布宽度（像素）
+     *
+     * @return 宽度
+     */
+    public int width() {
+        return width;
+    }
+
+    /**
+     * 画布高度（像素）
+     *
+     * @return 高度
+     */
+    public int height() {
+        return height;
+    }
+
+    /**
      * 将整块画布填充为指定颜色
      *
      * @param name 调色板颜色名
