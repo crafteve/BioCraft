@@ -116,10 +116,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     // v-t 通量折线图（REACT 框下方）
     /**
-     * v-t 图顶部 y（单行方程式基准）：框底 50 + 2（fill 半开邻接处留 1px
-     * 空隙）+ 4（背景上扩 4px 后内容定位同步下移，避免背景顶盖住方程区）
+     * v-t 图顶部 y（单行方程式基准）：框底 50 + 1（空隙行）+ 4（背景
+     * 上扩 3px 后内容定位同步下移）——背景顶 52 = 方程区底下方 1px
      */
-    private static final int VT_Y_BASE = EQ_BOX_Y + EQ_BOX_H + 6;
+    private static final int VT_Y_BASE = EQ_BOX_Y + EQ_BOX_H + 5;
 
     /** v-t 图高度 60px */
     private static final int VT_H = 60;
@@ -132,6 +132,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     /** 刻度文字与 Y 轴左缘的间隙（显示 px） */
     private static final int VT_TICK_GAP = 2;
+
+    /** 速率实时显示区底部 y（GUI 相对，固定画到此处） */
+    private static final int RATE_AREA_BOTTOM = 164;
 
     /** 窗口点数（1s 一点，共 10 点 = 0~9s） */
     private static final int VT_POINTS = 10;
@@ -287,6 +290,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         outputArea.draw(graphics);
         drawVtChart(graphics);
         drawBalanceArea(graphics);
+        drawRateArea(graphics);
     }
 
     /**
@@ -314,7 +318,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.pose().scale(1.0F / ss, 1.0F / ss, 1.0F);
 
         int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
-        int areaH = 24;
+        int areaH = 20;
         int bgRight = (VT_BG_X1 - VT_BG_X0 + 1) * ss;
 
         // 浅色主题底（与图表区同色系、同列对齐）
@@ -344,21 +348,63 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         sliderX = Math.max(barX0, Math.min(barX0 + barW * ss - ss, sliderX));
         graphics.fill(sliderX, barY, sliderX + ss, barY + barH, 0xFF000000);
 
-        // 读数：Keq 与 Q 的值，2x 放大绘制（4x 超采样缩 1/4 → 显示 4px，
-        // 与图表区图注同一做法）；formatTickValue 已防 inf/NaN/极端值
-        String text = "Keq=" + formatTickValue(keq) + "  Q=" + formatTickValue(q);
-        drawScaledText(graphics, text, barX0, barY + barH + 2 * ss, 2.0F);
+        // 读数：Keq 左对齐滑槽左缘、Q 右对齐滑槽右缘（均在条下方 2px），
+        // 2x 放大绘制（4x 超采样缩 1/4 → 显示 4px，与图表区图注同一做法）
+        String keqText = "Keq=" + formatTickValue(keq);
+        String qText = "Q=" + formatTickValue(q);
+        int textY = barY + barH + 2 * ss;
+        drawScaledText(graphics, keqText, barX0, textY, 2.0F);
+        drawScaledText(graphics, qText,
+                barX0 + barW * ss - this.font.width(qText) * 2, textY, 2.0F);
 
         graphics.pose().popPose();
     }
 
     /**
-     * 平衡区顶部 y：图表区背景下扩 4px 的底（vtY+64）+ 1px 间隔
+     * 平衡区顶部 y：图表区背景下扩 3px 的底（vtY+63）+ 1px 间隔
      *
      * @return 平衡区顶部 GUI 相对 y
      */
     private int balanceY() {
-        return vtY() + VT_H + 4 + 1;
+        return vtY() + VT_H + 3 + 1;
+    }
+
+    /**
+     * 速率实时显示区：平衡区下方 1px 间隔，浅色底画到 y=164，
+     * 居中显示 v=xxx（个/tick，8px 黑色字体，不超采样）
+     * <p>
+     * 数值 = 引擎净通量（堆叠分数/s）× 64 × 0.05s = ×3.2（个/tick）；
+     * 2 位有效数字，|v| < 0.05 显示 "0.0"（接近 0 判定）；
+     * 区高不足 8px（多行方程式挤压）时跳过文字避免重叠
+     *
+     * @param graphics 渲染器
+     */
+    private void drawRateArea(GuiGraphics graphics) {
+        int y0 = this.topPos + rateY();
+        int y1 = this.topPos + RATE_AREA_BOTTOM;
+        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
+        graphics.fill(this.leftPos + VT_BG_X0, y0,
+                this.leftPos + VT_BG_X1 + 1, y1, lighten(theme));
+        int h = y1 - y0;
+        if (h < 8) {
+            return;
+        }
+        double v = menu.getFlux() * 3.2;
+        String vs = Math.abs(v) < 0.05 ? "0.0" : formatTickValue(v);
+        String text = "v=" + vs + " 个/tick";
+        int textW = this.font.width(text);
+        int x = this.leftPos + (VT_BG_X0 + VT_BG_X1) / 2 - textW / 2;
+        int y = y0 + (h - 8) / 2;
+        graphics.drawString(this.font, text, x, y, 0xFF000000, false);
+    }
+
+    /**
+     * 速率区顶部 y：平衡区（高 20）底 + 1px 间隔
+     *
+     * @return 速率区顶部 GUI 相对 y
+     */
+    private int rateY() {
+        return balanceY() + 20 + 1;
     }
 
     /**
@@ -471,9 +517,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int tailX = axisX + (VT_POINTS - 1) * VT_GRID_W * ss;
         int bgRight = (VT_BG_X1 - VT_BG_X0 + 1) * ss;
 
-        // 图表区浅色主题色背景：上下各扩展 4px（显示）——顶部/底部刻度
+        // 图表区浅色主题色背景：上下各扩展 3px（显示）——顶部/底部刻度
         // 标注与箭头超出原 0..60 边界，扩展后全部落在底色范围内
-        graphics.fill(0, -ss * 2, bgRight, bottomY + ss * 2, lighten(theme));
+        graphics.fill(0, -ss * 3, bgRight, bottomY + ss * 3, lighten(theme));
 
         // Y 轴：3px 宽（原 4px 减 20%）；箭头尖端（轴顶）向下渐变三角形
         //（3→8→12→16px 宽，超采样下更精细）
