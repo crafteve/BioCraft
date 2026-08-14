@@ -100,16 +100,23 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     /**
      * 反应方程式美化框：y 38~50（高 12px）——实测框距文字上顶面 1px
-     * 下顶面 2px，上顶面补 1px 后上下均为 2px（框上边上移 1、高 +1）
+     * 下顶面 2px，上顶面补 1px 后上下均为 2px（框上边上移 1、高 +1）；
+     * 多行时高度随行数增加（每行 +10px），顶部 38 保持不动
      */
     private static final int EQ_BOX_Y = EQ_Y - 3, EQ_BOX_H = 12;
+
+    /** 方程式行距（8px 字 + 2px 行距 = 10px） */
+    private static final int EQ_ROW_STEP = 10;
+
+    /** 方程式单行最大宽（x 67~188 全宽），超宽时在 + / 箭头附近换行 */
+    private static final int EQ_ROW_MAX_W = EQ_X1 - EQ_X0;
 
     /** 反应类型徽章 y（与 REACTION 上顶面对齐），x 右对齐方程式框右缘 */
     private static final int TAG_Y = REACTION_Y;
 
     // v-t 通量折线图（REACT 框下方）
-    /** v-t 图顶部 y：REACT 框底（38+12=50）+ 4px */
-    private static final int VT_Y = EQ_BOX_Y + EQ_BOX_H + 4;
+    /** v-t 图顶部 y（单行方程式基准）：REACT 框底（38+12=50）+ 4px */
+    private static final int VT_Y_BASE = EQ_BOX_Y + EQ_BOX_H + 4;
 
     /** v-t 图高度 60px */
     private static final int VT_H = 60;
@@ -177,6 +184,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     /** 采样 tick 计数（每 VT_SAMPLE_TICKS 采样一点） */
     private int vtTickCounter;
+
+    /** 反应方程式行数（换行后动态，v-t 图定位依赖） */
+    private int equationRowCount = 1;
 
     /**
      * @param menu            菜单实例
@@ -290,11 +300,12 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      */
     private void drawVtChart(GuiGraphics graphics) {
         int ss = VT_SUPERSAMPLE;
-        // 4x 超采样：平移到图表区左上角，此后全部以 4x 分辨率局部坐标绘制
+        // 4x 超采样：平移到图表区左上角，以 4x 分辨率局部坐标绘制，
+        // 再 scale(1/4) 缩小回 1x——fill 边缘经线性插值即抗锯齿
+        // 注意方向：内容已按 4x 绘制，必须缩 1/ss（误写 scale(ss) 会放大 4 倍，已修复）
         graphics.pose().pushPose();
-        graphics.pose().translate(this.leftPos + VT_X0, this.topPos + VT_Y, 0);
-        graphics.pose().scale(ss, ss, 1.0F);
-
+        graphics.pose().translate(this.leftPos + VT_X0, this.topPos + vtY(), 0);
+        graphics.pose().scale(1.0F / ss, 1.0F / ss, 1.0F);
         int bottomY = VT_H * ss;
         int tailX = (VT_POINTS - 1) * VT_GRID_W * ss;
 
@@ -421,11 +432,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * 方程式基于 JSON 解析分段绘制：
      * <ul>
      *   <li>系数（>1 时前缀）与物质缩写使用对应物品色（与卡片缩写同步
-     *       加深 1/5）；"+" 与 ⇌/→ 符号为纯黑</li>
-     *   <li>美化框：覆盖整个反应区宽（x 67~188）、高 11px（y 39~50），
-     *       主题色 1px 边框 + 浅填充，与标题区缩写文本框同风格</li>
-     *   <li>方程式 8px 原尺寸居中于框内（中心 x 127.5，y=41 顶部）——
-     *       早期 2x 放大版过大显示不全，已改回不缩放</li>
+     *       加深 1/5）；"+" 与 =/→ 符号为纯黑</li>
+     *   <li>换行：单行超过可用宽（67~188）时在 "+" / "=" / "→" 附近断开，
+     *       符号放行首；框高随行数增加（每行 +10px），v-t 图随之整体下移</li>
+     *   <li>美化框：宽 67~188 左右各回缩 1px、主题色 1px 边框 + 浅填充，
+     *       与标题区缩写文本框同风格</li>
      * </ul>
      *
      * @param graphics 渲染器
@@ -451,31 +462,97 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         segments.add(new EqSegment(enzymeData.reversible() ? "=" : "→", NAME_COLOR));
         appendEqSide(segments, enzymeData.products());
 
-        // 总宽（8px）→ 居中于 67~188：起点 = 中心 − 半宽
-        int totalW = 0;
-        for (EqSegment segment : segments) {
-            totalW += this.font.width(segment.text());
-        }
-        int x0 = (EQ_X0 + EQ_X1) / 2 - totalW / 2;
+        // 贪心换行（断点只在 + / 箭头附近），行数驱动框高与 v-t 定位
+        List<List<EqSegment>> rows = wrapEquation(segments);
+        this.equationRowCount = rows.size();
 
-        // 美化框：宽 67~188 左右各回缩 1px（68~187，fill 半开区间）、
-        // 高 12px（38~50），主题色 1px 边框 + 浅填充，与标题区文本框同风格
+        // 美化框：顶部 38 不动，高度 = 12 + (行数-1)×10
         int borderColor = theme | 0xFF000000;
         int fillColor = lighten(theme);
         int boxX0 = this.leftPos + EQ_X0 + 1;
         int boxX1 = this.leftPos + EQ_X1 - 1;
         int boxY0 = this.topPos + EQ_BOX_Y;
-        int boxY1 = this.topPos + EQ_BOX_Y + EQ_BOX_H;
+        int boxY1 = this.topPos + EQ_BOX_Y + EQ_BOX_H + (rows.size() - 1) * EQ_ROW_STEP;
         graphics.fill(boxX0, boxY0, boxX1 + 1, boxY1 + 1, borderColor);
         graphics.fill(boxX0 + 1, boxY0 + 1, boxX1, boxY1, fillColor);
 
-        // 方程式 8px 分段绘制（不缩放，逐段累加宽度）
-        int cursor = 0;
-        for (EqSegment segment : segments) {
-            graphics.drawString(this.font, segment.text(),
-                    this.leftPos + x0 + cursor, this.topPos + EQ_Y, segment.color(), false);
-            cursor += this.font.width(segment.text());
+        // 每行 8px 分段绘制，各自居中于 67~188（中心 127.5）
+        for (int r = 0; r < rows.size(); r++) {
+            List<EqSegment> row = rows.get(r);
+            int rowW = 0;
+            for (EqSegment segment : row) {
+                rowW += this.font.width(segment.text());
+            }
+            int rowX0 = (EQ_X0 + EQ_X1) / 2 - rowW / 2;
+            int cursor = 0;
+            int rowY = EQ_Y + r * EQ_ROW_STEP;
+            for (EqSegment segment : row) {
+                graphics.drawString(this.font, segment.text(),
+                        this.leftPos + rowX0 + cursor, this.topPos + rowY,
+                        segment.color(), false);
+                cursor += this.font.width(segment.text());
+            }
         }
+    }
+
+    /**
+     * 反应方程式贪心换行：断点只允许在 "+" / "=" / "→" 符号附近
+     * <p>
+     * 规则（逐段扫描，当前行放不下时）：
+     * <ul>
+     *   <li>超宽段是符号（+ 或箭头）：符号放新行首，结束当前行</li>
+     *   <li>超宽段是物质且行尾是 "+"：把 "+" 移到新行首（化学式排版惯例，
+     *       续行以 + 开头），物质随其后</li>
+     *   <li>超宽段是物质且行尾非 "+"（理论不发生，因符号总在物质间）：直接换行</li>
+     * </ul>
+     *
+     * @param segments 方程式全段序列（系数/物质/符号交替）
+     * @return 行列表（每行一段段序列，保持原顺序）
+     */
+    private List<List<EqSegment>> wrapEquation(List<EqSegment> segments) {
+        List<List<EqSegment>> rows = new ArrayList<>();
+        List<EqSegment> row = new ArrayList<>();
+        int rowW = 0;
+        for (EqSegment seg : segments) {
+            int w = this.font.width(seg.text());
+            boolean plus = seg.text().equals("+");
+            boolean arrow = seg.text().equals("=") || seg.text().equals("→");
+            if (!row.isEmpty() && rowW + w > EQ_ROW_MAX_W) {
+                if (plus || arrow) {
+                    // 符号放新行首
+                    rows.add(row);
+                    row = new ArrayList<>();
+                    rowW = 0;
+                } else if (row.get(row.size() - 1).text().equals("+")) {
+                    // 行尾 "+" 移到新行首，物质随其后
+                    EqSegment lastPlus = row.remove(row.size() - 1);
+                    rowW -= this.font.width("+");
+                    rows.add(row);
+                    row = new ArrayList<>();
+                    row.add(lastPlus);
+                    rowW = this.font.width("+");
+                } else {
+                    rows.add(row);
+                    row = new ArrayList<>();
+                    rowW = 0;
+                }
+            }
+            row.add(seg);
+            rowW += w;
+        }
+        if (!row.isEmpty()) {
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    /**
+     * v-t 图顶部 y：随方程式行数下移（每行 +10px），保证不与框重叠
+     *
+     * @return v-t 图顶部 GUI 相对 y
+     */
+    private int vtY() {
+        return VT_Y_BASE + (equationRowCount - 1) * EQ_ROW_STEP;
     }
 
     /**
