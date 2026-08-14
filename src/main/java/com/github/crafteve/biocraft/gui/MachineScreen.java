@@ -115,20 +115,20 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private static final int TAG_Y = REACTION_Y;
 
     // v-t 通量折线图（REACT 框下方）
-    /** v-t 图顶部 y（单行方程式基准）：REACT 框底（38+12=50）+ 1px 间隔 */
-    private static final int VT_Y_BASE = EQ_BOX_Y + EQ_BOX_H + 1;
+    /** v-t 图顶部 y（单行方程式基准）：框底 50 + 2（fill 半开邻接处留 1px 空隙） */
+    private static final int VT_Y_BASE = EQ_BOX_Y + EQ_BOX_H + 2;
 
     /** v-t 图高度 60px */
     private static final int VT_H = 60;
 
-    /** 图表区浅色底 x 范围（与方程区浅色底 68~187 列对齐） */
+    /** 图表区浅色底 x 范围（与方程区浅色底 68~187 列对齐，fill 半开补 1px） */
     private static final int VT_BG_X0 = 68, VT_BG_X1 = 187;
 
-    /** Y 轴显示 x（背景左缘右移 8px，腾出左侧放刻度值） */
-    private static final int VT_AXIS_X = 78;
+    /** 格子宽（1s/格，10px；10 点 9 段 = 90px，箭头尖端受限 ≤ 背景右缘−4px） */
+    private static final int VT_GRID_W = 10;
 
-    /** 格子宽（1s/格，12px；10 点 9 段 = 108px，点 0..108（4x 局部坐标）） */
-    private static final int VT_GRID_W = 12;
+    /** 刻度文字与 Y 轴左缘的间隙（显示 px） */
+    private static final int VT_TICK_GAP = 2;
 
     /** 窗口点数（1s 一点，共 10 点 = 0~9s） */
     private static final int VT_POINTS = 10;
@@ -316,21 +316,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.pose().scale(1.0F / ss, 1.0F / ss, 1.0F);
 
         int bottomY = VT_H * ss;
-        int axisX = (VT_AXIS_X - VT_BG_X0) * ss;                      // Y 轴超采样 x
-        int tailX = axisX + (VT_POINTS - 1) * VT_GRID_W * ss;         // 箭头屁股
-        int bgRight = (VT_BG_X1 - VT_BG_X0) * ss;                     // 背景右缘
         int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
-
-        // 图表区浅色主题色背景（无边框，x 68..187 与方程区列对齐）
-        graphics.fill(0, 0, bgRight, bottomY, lighten(theme));
-
-        // Y 轴：3px 宽（原 4px 减 20%）；箭头尖端（轴顶）向下渐变三角形
-        //（3→8→12→16px 宽，超采样下更精细）
-        graphics.fill(axisX, 0, axisX + ss - 1, bottomY + ss - 1, AXIS_COLOR);
-        graphics.fill(axisX, 0, axisX + ss - 1, ss - 1, AXIS_COLOR);
-        graphics.fill(axisX - ss / 2, ss - 1, axisX + ss + ss / 2, ss * 2 - 1, AXIS_COLOR);
-        graphics.fill(axisX - ss, ss * 2 - 1, axisX + ss * 2, ss * 3 - 1, AXIS_COLOR);
-        graphics.fill(axisX - ss + ss / 2, ss * 3 - 1, axisX + ss * 2 + ss / 2, ss * 4 - 1, AXIS_COLOR);
 
         // v 值域：[-vmaxR, vmaxF]（正向 kcat/TIME_SCALE；逆向 Haldane）
         ReactionDefinition definition = blockEntity.getSimulator().getDefinition();
@@ -344,6 +330,33 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         double vmaxRShow = definition.isReversible()
                 ? saturationReachable(vmaxR, definition.getRateProducts(), true) : 0.0;
         double span = Math.max(vmaxFShow + vmaxRShow, 1e-9);
+
+        // Y 轴 x 按刻度文字最大宽度自动缩放（右移）：
+        // 最长刻度右对齐 Y 轴左缘，其左缘恰好落在背景左缘 68——
+        // axisX 超采样 = maxTextW×2（2x 绘制） + 间隙×4
+        int maxTickW = 0;
+        for (int step = 0; step <= VT_H / 10; step++) {
+            int p = step * 10;
+            double v = vmaxFShow - span * p / VT_H;
+            int w = this.font.width(formatTickValue(v * 3.2));
+            maxTickW = Math.max(maxTickW, w);
+        }
+        int axisX = maxTickW * 2 + VT_TICK_GAP * ss;
+        // 点区 9 段 + 箭头 3px：尖端不得超过背景右缘 − 4px（往回缩 4px）
+        int tailX = axisX + (VT_POINTS - 1) * VT_GRID_W * ss;
+        int bgRight = (VT_BG_X1 - VT_BG_X0 + 1) * ss;
+
+        // 图表区浅色主题色背景（无边框，x 68..187 与方程区列对齐，
+        // fill 半开区间补 1px 使右缘一致）
+        graphics.fill(0, 0, bgRight, bottomY, lighten(theme));
+
+        // Y 轴：3px 宽（原 4px 减 20%）；箭头尖端（轴顶）向下渐变三角形
+        //（3→8→12→16px 宽，超采样下更精细）
+        graphics.fill(axisX, 0, axisX + ss - 1, bottomY + ss - 1, AXIS_COLOR);
+        graphics.fill(axisX, 0, axisX + ss - 1, ss - 1, AXIS_COLOR);
+        graphics.fill(axisX - ss / 2, ss - 1, axisX + ss + ss / 2, ss * 2 - 1, AXIS_COLOR);
+        graphics.fill(axisX - ss, ss * 2 - 1, axisX + ss * 2, ss * 3 - 1, AXIS_COLOR);
+        graphics.fill(axisX - ss + ss / 2, ss * 3 - 1, axisX + ss * 2 + ss / 2, ss * 4 - 1, AXIS_COLOR);
 
         // X 轴（v=0 基准线）：3px 高；底部向上按 vmaxRShow/span 比例定位；
         // 箭头尖端朝右 4 段渐变（屁股 16px 高 → 尖端 4px 高，段宽 3px）
@@ -361,7 +374,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             double v = vmaxFShow - span * p / VT_H;
             String label = formatTickValue(v * 3.2);
             int textW = this.font.width(label);
-            int tx = axisX - ss * 2 - textW * 2;
+            int tx = axisX - VT_TICK_GAP * ss - textW * 2;
             int ty = p * ss - ss * 2;
             drawScaledText(graphics, label, tx, ty, 2.0F);
         }
