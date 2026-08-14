@@ -39,15 +39,24 @@ public class EnzymeTexturePrep {
         writeImage(shell, OUT_DIR + "/shell_front.png");
         writePreview(shell, OUT_DIR + "/shell_front_preview.png", 8);
 
-        // 铭牌层：灰度化，尺寸 19x8（以文件实际尺寸为准）
+        // 铭牌层：灰度化（平方根提亮，保留明暗层次），尺寸 19x8（以文件实际尺寸为准）
         BufferedImage nameplate = toGrayscale(readImage(INPUT_DIR + "/model (6).png"));
         writeImage(nameplate, OUT_DIR + "/layer_nameplate.png");
         writePreview(nameplate, OUT_DIR + "/layer_nameplate_preview.png", 8);
 
-        // 中间染色涂层：灰度化，尺寸 30x28
+        // 中间染色涂层：灰度化（同上），尺寸 30x28
         BufferedImage content = toGrayscale(readImage(INPUT_DIR + "/model (7).png"));
         writeImage(content, OUT_DIR + "/layer_content.png");
         writePreview(content, OUT_DIR + "/layer_content_preview.png", 8);
+
+        // 染色模拟预览：灰阶 x 四类别主题色，供用户自查"游戏内实际观感"
+        // （深色素材灰度化后染色会近黑，此预览即用户报修的"一片漆黑"问题的复现与验证手段）
+        int[] themes = {0x6FC3DF, 0xFFA94D, 0xB57EDC, 0xFFD966};
+        for (int i = 0; i < themes.length; i++) {
+            String tag = new String[]{"ec1", "ec2", "ec4", "ec5"}[i];
+            writePreview(tint(nameplate, themes[i]), OUT_DIR + "/nameplate_tinted_" + tag + "_preview.png", 8);
+            writePreview(tint(content, themes[i]), OUT_DIR + "/content_tinted_" + tag + "_preview.png", 8);
+        }
 
         // 四张占位贴图（侧/背/顶/底，后续用户素材替换）
         placeholder("placeholder_side", 0, 0);
@@ -139,10 +148,15 @@ public class EnzymeTexturePrep {
     }
 
     /**
-     * 灰度化：亮度 L = 0.299R + 0.587G + 0.114B，alpha 保留
+     * 灰度化：亮度 L = 0.299R + 0.587G + 0.114B，alpha 保留，平方根提亮
      * <p>
      * 染色层贴图必须为灰阶：运行时 tint 是乘法（灰阶 x 主题色），
      * 灰阶保持原图明暗层次，且不产生跨色相漂移（暖色压暗偏棕问题天然消失）
+     * <p>
+     * 平方根提亮 L' = 255*sqrt(L/255)：素材原图（深紫液体/深灰铭牌底）亮度
+     * 常在 30~60，直接灰阶化后染色 = 主题色 x 0.15 近黑不可见（实测"一片漆黑"），
+     * 平方根映射保持单调（明暗层次不反转）但把深色区显著提亮（40 -> 101），
+     * 染色后约主题色 x 0.4，层次可辨
      *
      * @param src 源图像（ARGB）
      * @return 灰度 ARGB 图像（RGB 三通道相等）
@@ -159,7 +173,35 @@ public class EnzymeTexturePrep {
                 int g = (argb >> 8) & 0xFF;
                 int b = argb & 0xFF;
                 int l = (int) (0.299 * r + 0.587 * g + 0.114 * b);
+                l = (int) (255.0 * Math.sqrt(l / 255.0));
                 dst.setRGB(x, y, (a << 24) | (l << 16) | (l << 8) | l);
+            }
+        }
+        return dst;
+    }
+
+    /**
+     * 染色模拟：灰阶图像乘主题色（与游戏内 BlockColors tint 乘法一致）
+     * <p>
+     * 输出预览用于用户自查染色后的实际观感，避免进游戏才发现深色近黑
+     *
+     * @param gray   灰度图像
+     * @param theme  主题色 0xRRGGBB
+     * @return 染色后的 ARGB 图像
+     */
+    private static BufferedImage tint(BufferedImage gray, int theme) {
+        int tr = (theme >> 16) & 0xFF;
+        int tg = (theme >> 8) & 0xFF;
+        int tb = theme & 0xFF;
+        int w = gray.getWidth();
+        int h = gray.getHeight();
+        BufferedImage dst = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int argb = gray.getRGB(x, y);
+                int a = (argb >>> 24) & 0xFF;
+                int l = argb & 0xFF;
+                dst.setRGB(x, y, (a << 24) | ((l * tr / 255) << 16) | ((l * tg / 255) << 8) | (l * tb / 255));
             }
         }
         return dst;

@@ -1,1 +1,1 @@
-{"variants":{"facing=north":{"model":"biocraft:block/hexokinase"},"facing=east":{"model":"biocraft:block/hexokinase","y":90},"facing=south":{"model":"biocraft:block/hexokinase","y":180},"facing=west":{"model":"biocraft:block/hexokinase","y":270}}}
+{"variants":{"facing=north":{"model":"biocraft:block/hexokinase"},"facing=south":{"model":"biocraft:block/hexokinase","y":180},"facing=east":{"model":"biocraft:block/hexokinase","y":270},"facing=west":{"model":"biocraft:block/hexokinase","y":90}}}

@@ -66,17 +66,32 @@ public class EnzymeNamePlateRenderer implements BlockEntityRenderer<EnzymeFactor
         if (abbreviation.isEmpty()) {
             return;
         }
+        // 防御：方块被摧毁/替换后 BE 残留一帧渲染，此时方块状态为 AIR，
+        // 直接读取 FACING 会抛 IllegalArgumentException（实测崩溃），先校验属性存在
+        BlockState state = level.getBlockState(be.getBlockPos());
+        if (!state.hasProperty(BlockStateProperties.HORIZONTAL_FACING)) {
+            return;
+        }
 
-        // 文字色：类别主题色提亮 75%（灰阶铭牌底色染色后偏深，亮字保证对比）
+        // 文字色：铭牌底板素材为浅色（灰度 188~211），染色后呈亮主题色，
+        // 文字须用主题色压暗 + 深描边才能形成对比（亮字配亮底会看不清）
         int theme = MachineCategory.byId(be.getEnzymeData().category()).getThemeColor();
-        int textColor = 0xFF000000 | mixWhite(theme, 0.75f);
+        int textColor = 0xFF000000 | shade(theme, 0.35f);
         int outlineColor = 0xFF101014;
 
-        BlockState state = level.getBlockState(be.getBlockPos());
         pose.pushPose();
-        // 旋转对齐方块朝向：-toYRot 即逆时针 0/90/180/270，与模型 y 旋转约定一致
+        // 旋转对齐方块朝向：与模型 blockstate y 旋转完全一致（vanilla 惯例
+        // north=0/south=180/east=270/west=90，逆时针），文字面（-Z 凸出）随模型
+        // front 贴图同步转到对应朝向；勿用 -toYRot（那是 SignRenderer 的立牌约定）
+        float yRot = switch (state.getValue(BlockStateProperties.HORIZONTAL_FACING)) {
+            case NORTH -> 0f;
+            case SOUTH -> 180f;
+            case EAST -> 270f;
+            case WEST -> 90f;
+            default -> 0f;
+        };
         pose.translate(0.5, 0.5, 0.5);
-        pose.mulPose(Axis.YP.rotationDegrees(-state.getValue(BlockStateProperties.HORIZONTAL_FACING).toYRot()));
+        pose.mulPose(Axis.YP.rotationDegrees(yRot));
         pose.translate(-0.5, -0.5, -0.5);
         // 平移到铭牌中心，z 略凸出于外壳正面
         pose.translate((PLATE_X0 + PLATE_X1) / 2f, (PLATE_Y0 + PLATE_Y1) / 2f, TEXT_Z);
@@ -94,16 +109,18 @@ public class EnzymeNamePlateRenderer implements BlockEntityRenderer<EnzymeFactor
     }
 
     /**
-     * 颜色向白色混合（提亮），用于从主题色推导文字色
+     * 颜色乘法压暗：rgb 各通道乘系数（保留不透明 alpha）
+     * <p>
+     * 用于从主题色推导铭牌文字色（亮底配深字）
      *
      * @param rgb 0xRRGGBB 颜色
-     * @param w   白色比例 0~1
-     * @return 提亮后的 0xRRGGBB
+     * @param f   亮度系数 0~1
+     * @return 压暗后的 0xRRGGBB
      */
-    private static int mixWhite(int rgb, float w) {
-        int r = (int) (((rgb >> 16) & 0xFF) + (255 - ((rgb >> 16) & 0xFF)) * w);
-        int g = (int) (((rgb >> 8) & 0xFF) + (255 - ((rgb >> 8) & 0xFF)) * w);
-        int b = (int) ((rgb & 0xFF) + (255 - (rgb & 0xFF)) * w);
+    private static int shade(int rgb, float f) {
+        int r = (int) (((rgb >> 16) & 0xFF) * f);
+        int g = (int) (((rgb >> 8) & 0xFF) * f);
+        int b = (int) ((rgb & 0xFF) * f);
         return (r << 16) | (g << 8) | b;
     }
 }

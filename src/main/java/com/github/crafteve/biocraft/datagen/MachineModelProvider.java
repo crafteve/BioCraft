@@ -92,11 +92,11 @@ public class MachineModelProvider implements DataProvider {
             String blockName = block.getId().getPath();
             ResourceLocation blockModel = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/" + blockName);
 
-            // 方块状态：facing 四变体（模型 y 旋转 0/90/180/270，与放置朝向对应）
+            // 方块状态：facing 四变体（模型 y 旋转，vanilla 惯例 north=0/south=180/east=270/west=90）
             JsonObject blockState = new JsonObject();
             JsonObject variants = new JsonObject();
-            int[] rotations = {0, 90, 180, 270};
-            String[] facings = {"north", "east", "south", "west"};
+            int[] rotations = {0, 180, 270, 90};
+            String[] facings = {"north", "south", "east", "west"};
             for (int i = 0; i < facings.length; i++) {
                 JsonObject variant = new JsonObject();
                 variant.addProperty("model", blockModel.toString());
