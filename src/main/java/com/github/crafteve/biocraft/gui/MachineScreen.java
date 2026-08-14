@@ -283,6 +283,111 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         inputArea.draw(graphics);
         outputArea.draw(graphics);
         drawVtChart(graphics);
+        drawBalanceArea(graphics);
+    }
+
+    /**
+     * 平衡区：图表区下方 1px 间隔，浅色主题底色 + 渐变平衡条 + 滑块 + Keq/Q 读数
+     * <p>
+     * 布局（与用户给定约束对应）：
+     * <ul>
+     *   <li>浅色底 x 68..187（与图表区/方程区列对齐），高 24px</li>
+     *   <li>渐变条：高 10px、宽 = 区宽 − 24 居中；水平渐变——两端为加深
+     *       主题色、中间为白色（逐列 1px 线性插值）</li>
+     *   <li>滑块：黑色 1px 宽 × 条高，位置 = 平衡位置——log10(Q/Keq) 缩放，
+     *       Q=Keq（平衡）时居中、偏离时滑向两端（log 缩放），钳制在条内</li>
+     *   <li>读数：条下方 2px，Minecraft 8px 黑色字体：Keq 与 Q 的值
+     *       （两位有效数字）</li>
+     * </ul>
+     *
+     * @param graphics 渲染器
+     */
+    private void drawBalanceArea(GuiGraphics graphics) {
+        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
+        int areaX0 = this.leftPos + VT_BG_X0;
+        int areaX1 = this.leftPos + VT_BG_X1 + 1;
+        int areaY0 = this.topPos + vtY() + VT_H + 1;   // 图表区底 + 1px 间隔
+
+        // 浅色主题底（与图表区同色系、同列对齐）
+        graphics.fill(areaX0, areaY0, areaX1, areaY0 + 24, lighten(theme));
+
+        // 渐变条：高 10px，宽 = 区宽 − 24，左右各 12px 内边距居中
+        int barW = (VT_BG_X1 - VT_BG_X0) - 24;
+        int barX0 = areaX0 + 12;
+        int barY = areaY0 + 2;
+        int barH = 10;
+        int deep = darken(theme);
+        // 水平渐变：两端深色、中间白色（t：两端 1 → 中间 0）
+        for (int col = 0; col < barW; col++) {
+            double t = Math.abs(col - (barW - 1) / 2.0) / ((barW - 1) / 2.0);
+            graphics.fill(barX0 + col, barY, barX0 + col + 1, barY + barH,
+                    lerpColor(deep, 0xFFFFFFFF, (float) (1.0 - t)));
+        }
+
+        // 滑块：黑色 1px 宽 × 条高，log10(Q/Keq) 缩放定位，钳制在条内
+        double keq = enzymeData.keq();
+        double q = computeQ();
+        double logRatio = Math.log10(Math.max(q / keq, 1e-6));
+        int mid = barX0 + barW / 2;
+        // ±3 个数量级对应条半宽（log 缩放）
+        double halfRange = barW / 2.0 / 3.0;
+        int sliderX = mid + (int) Math.round(logRatio * halfRange);
+        sliderX = Math.max(barX0, Math.min(barX0 + barW - 1, sliderX));
+        graphics.fill(sliderX, barY, sliderX + 1, barY + barH, 0xFF000000);
+
+        // 读数：Keq 与 Q 的值，Minecraft 8px 黑色字体
+        String text = "Keq=" + formatTickValue(keq) + "  Q=" + formatTickValue(q);
+        graphics.drawString(this.font, text,
+                barX0, barY + barH + 2, 0xFF000000, false);
+    }
+
+    /**
+     * 计算当前浓度商 Q = ∏产物^系数 / ∏底物^系数
+     * <p>
+     * 浓度取客户端重建值（槽位数量 + 同步余量）/64，与进度条同源；
+     * 速率项条目从引擎定义取（固定活性物种不参与）
+     *
+     * @return 浓度商 Q（>0）
+     */
+    private double computeQ() {
+        ReactionDefinition definition = blockEntity.getSimulator().getDefinition();
+        double numerator = 1.0;
+        for (ReactionDefinition.SpeciesEntry entry : definition.getRateProducts()) {
+            numerator *= Math.pow(Math.max(concentrationOf(entry.index()), 1e-9), entry.coeff());
+        }
+        double denominator = 1.0;
+        for (ReactionDefinition.SpeciesEntry entry : definition.getRateReactants()) {
+            denominator *= Math.pow(Math.max(concentrationOf(entry.index()), 1e-9), entry.coeff());
+        }
+        return numerator / denominator;
+    }
+
+    /**
+     * 物种槽位浓度（客户端重建：槽位数量 + 同步余量）/64，钳制 [0,1]
+     *
+     * @param slot 物种槽位下标
+     * @return 浓度 0~1
+     */
+    private double concentrationOf(int slot) {
+        return Math.max(0.0, Math.min(
+                (menu.getSlot(slot).getItem().getCount() + menu.getRemainder(slot)) / 64.0, 1.0));
+    }
+
+    /**
+     * 两色线性插值
+     *
+     * @param c1 起点颜色（ARGB）
+     * @param c2 终点颜色（ARGB）
+     * @param t  插值系数（0 = 全 c1，1 = 全 c2）
+     * @return 插值后的颜色（alpha 恒 0xFF）
+     */
+    private static int lerpColor(int c1, int c2, float t) {
+        int r1 = (c1 >> 16) & 0xFF, g1 = (c1 >> 8) & 0xFF, b1 = c1 & 0xFF;
+        int r2 = (c2 >> 16) & 0xFF, g2 = (c2 >> 8) & 0xFF, b2 = c2 & 0xFF;
+        int r = (int) (r1 + (r2 - r1) * t);
+        int g = (int) (g1 + (g2 - g1) * t);
+        int b = (int) (b1 + (b2 - b1) * t);
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
     /**
@@ -346,9 +451,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int tailX = axisX + (VT_POINTS - 1) * VT_GRID_W * ss;
         int bgRight = (VT_BG_X1 - VT_BG_X0 + 1) * ss;
 
-        // 图表区浅色主题色背景（无边框，x 68..187 与方程区列对齐，
-        // fill 半开区间补 1px 使右缘一致）
-        graphics.fill(0, 0, bgRight, bottomY, lighten(theme));
+        // 图表区浅色主题色背景：上下各扩展 4px（显示）——顶部/底部刻度
+        // 标注与箭头超出原 0..60 边界，扩展后全部落在底色范围内
+        graphics.fill(0, -ss * 2, bgRight, bottomY + ss * 2, lighten(theme));
 
         // Y 轴：3px 宽（原 4px 减 20%）；箭头尖端（轴顶）向下渐变三角形
         //（3→8→12→16px 宽，超采样下更精细）
