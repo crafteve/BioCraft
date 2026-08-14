@@ -3,26 +3,33 @@ package com.github.crafteve.biocraft.gui;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
 import com.github.crafteve.biocraft.init.EnzymeFactoryRegistry;
 import com.github.crafteve.biocraft.init.ModBlocks;
+import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+
+import java.util.List;
 
 /**
  * 酶工厂菜单（experiment/gui-remake 分支全新重建）
  * <p>
- * 重建第一版（v1）：仅含玩家背包槽位 + 基底贴图 gui_v1.png，
- * 物种槽与仪表盘待后续逐项追加
+ * 重建第二版（v2）：滚动卡片反应物槽位 + 玩家背包槽位 + 基底贴图 gui_v1.png
  * <p>
- * 背包槽布局（全酶工厂统一，写死源码不做 json 解析）：
+ * 槽位布局（全酶工厂统一，写死源码不做 json 解析）：
  * <ul>
- *   <li>槽位定位点 = 16×16 可交互 Slot 对象内容区左上角（非 18px 贴图位置）</li>
- *   <li>起始 (48,174)，x 步进 18（48, 66, 84, ... 每行 9 个）</li>
- *   <li>行距 18：主背包三行 y = 174 / 192 / 210，快捷栏 y = 232</li>
+ *   <li>物种槽（反应物卡片）：槽位数 = JSON 反应物条目数；每个槽位初始
+ *       位于滚动卡片内（卡片内相对 (2,3)，16×16 内容区左上角），
+ *       实际 y 由 Screen 每 tick 按滚动偏移更新（Slot.y 为 public 可变字段，
+ *       客户端渲染与点击判定均读它，滚动时槽位与卡片同步移动）</li>
+ *   <li>玩家背包槽位：起始 (48,174)，x 步进 18；主背包三行 y = 174/192/210，
+ *       快捷栏 y = 232</li>
  * </ul>
  * 打开数据包协议（与 writeClientSideData 对齐）：
  * 酶 id → 历史长度 → 历史数组 → BlockPos（NeoForge 后写）
@@ -40,7 +47,26 @@ public class MachineMenu extends AbstractContainerMenu {
     /** 快捷栏起始 y（与主背包行距不同，固定 232） */
     private static final int HOTBAR_Y = 232;
 
-    /** 方块实体引用，菜单生命周期内保持存活（stillValid 与后续物种槽用） */
+    // 滚动卡片容器布局常量（Menu 与 Screen 共享，全酶工厂统一写死）
+    /** 滚动容器左上角 (7,41)，区域 y 41~162，宽 56 */
+    public static final int SCROLL_X = 7, SCROLL_Y = 41, SCROLL_W = 56, SCROLL_H = 121;
+
+    /** 卡片尺寸 56×28，间距 1，卡片色 #c6c6c6 */
+    public static final int CARD_W = 56, CARD_H = 28, CARD_GAP = 1;
+
+    /** 卡片步进（高 + 间距） */
+    public static final int CARD_STEP = CARD_H + CARD_GAP;
+
+    /** 槽位贴图（slot.png 18×18）在卡片内的相对位置 (1,2)（png 左上顶点） */
+    public static final int SLOT_PNG_X = 1, SLOT_PNG_Y = 2;
+
+    /** 16×16 可交互 Slot 在卡片内的相对位置 (2,3)（居中于 18×18 贴图内） */
+    public static final int SLOT_X = SLOT_PNG_X + 1, SLOT_Y = SLOT_PNG_Y + 1;
+
+    /** 槽位物品 displayname 相对槽位贴图：png 右侧 4px、png 顶面下方 4px */
+    public static final int NAME_DX = 18 + 4, NAME_DY = 4;
+
+    /** 方块实体引用，菜单生命周期内保持存活（stillValid 与物种槽用） */
     private final EnzymeFactoryBlockEntity blockEntity;
 
     /** 酶数据档案（客户端与服务端同源查表，Screen 渲染用） */
@@ -57,6 +83,7 @@ public class MachineMenu extends AbstractContainerMenu {
         super(ModBlocks.ENZYME_FACTORY_MENU.get(), containerId);
         this.blockEntity = blockEntity;
         this.enzymeData = blockEntity.getEnzymeData();
+        addSpeciesSlots(blockEntity);
         addPlayerInventory(playerInventory);
     }
 
@@ -106,6 +133,29 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
+     * 添加反应物物种槽（槽位数 = JSON 反应物条目数）
+     * <p>
+     * 每张滚动卡片一个槽位，mayPlace 锁死对应物品（玩家放置与
+     * Shift 转移都经 mayPlace 拦截）
+     * <p>
+     * 位置约定：Slot.x/y 是 final 静态字段（vanilla 渲染与命中直接读字段），
+     * 滚动卡片槽位位置由 Screen 全接管——槽位 isActive() 恒 false 使 vanilla
+     * 完全跳过（渲染/hover/点击），Screen 按滚动偏移手动计算位置绘制与
+     * 命中（见 MachineScreen.findDynamicSlot 与 drawScrollCards）
+     *
+     * @param blockEntity 方块实体（提供容器与酶数据）
+     */
+    private void addSpeciesSlots(EnzymeFactoryBlockEntity blockEntity) {
+        Container container = blockEntity.getContainer();
+        List<EnzymeFactoryData.SpeciesSpec> reactants = enzymeData.reactants();
+        for (int i = 0; i < reactants.size(); i++) {
+            Item item = ModItems.byId(reactants.get(i).item()).get();
+            // x/y 传 0 占位（final 字段无实义，实际位置由 Screen 计算）
+            addSlot(new RestrictedSlot(container, i, 0, 0, item));
+        }
+    }
+
+    /**
      * 添加玩家背包槽位（36 个：主背包 3×9 + 快捷栏 1×9）
      * <p>
      * 槽位坐标 = 16×16 内容区左上角（Slot 对象定位点，用户给定的像素值）
@@ -138,15 +188,49 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * Shift 点击转移：当前无物种槽，暂无转移目标，直接返回空堆（不做任何转移）
+     * Shift 点击转移逻辑：物种槽 → 背包；背包 → 物种槽（受 mayPlace 限制）
      *
      * @param player 操作玩家
      * @param index  被点击的槽位索引
-     * @return 空堆（无转移发生）
+     * @return 转移后的物品堆（空堆表示全部转移成功）
      */
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
-        return ItemStack.EMPTY;
+        ItemStack moved = ItemStack.EMPTY;
+        Slot slot = this.slots.get(index);
+        int speciesCount = enzymeData.reactants().size();
+        if (slot != null && slot.hasItem()) {
+            ItemStack original = slot.getItem();
+            moved = original.copy();
+            if (index < speciesCount) {
+                if (!this.moveItemStackTo(original, speciesCount, speciesCount + 36, true)) {
+                    return ItemStack.EMPTY;
+                }
+            } else {
+                if (!this.moveItemStackTo(original, 0, speciesCount, false)) {
+                    return ItemStack.EMPTY;
+                }
+            }
+            if (original.isEmpty()) {
+                slot.setByPlayer(ItemStack.EMPTY);
+            } else {
+                slot.setChanged();
+            }
+            if (original.getCount() == moved.getCount()) {
+                return ItemStack.EMPTY;
+            }
+            slot.onTake(player, original);
+        }
+        return moved;
+    }
+
+    /**
+     * 反应物物种槽位数（滚动卡片数）
+     *
+     * @return 反应物条目数
+     */
+    public int getSpeciesSlotCount() {
+        return enzymeData.reactants().size();
     }
 
     /**
@@ -165,5 +249,31 @@ public class MachineMenu extends AbstractContainerMenu {
      */
     public EnzymeFactoryBlockEntity getBlockEntity() {
         return blockEntity;
+    }
+
+    /**
+     * 受限槽位：仅允许放入对应物种物品（玩家放置与 Shift 转移都经 mayPlace）
+     * <p>
+     * isActive 恒 false：vanilla 的槽位遍历（渲染/hover/点击命中）全部跳过
+     * 本槽位，其滚动位置由 Screen 手动计算（slot.x/y 为 final 无法动态移动，
+     * 见 MachineScreen 的手动绘制与命中方案）
+     */
+    private static class RestrictedSlot extends Slot {
+        private final Item acceptedItem;
+
+        RestrictedSlot(Container container, int slot, int x, int y, Item acceptedItem) {
+            super(container, slot, x, y);
+            this.acceptedItem = acceptedItem;
+        }
+
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            return stack.is(acceptedItem);
+        }
+
+        @Override
+        public boolean isActive() {
+            return false;
+        }
     }
 }

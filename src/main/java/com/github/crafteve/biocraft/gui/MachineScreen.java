@@ -3,20 +3,23 @@ package com.github.crafteve.biocraft.gui;
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
 import com.github.crafteve.biocraft.blockentity.MachineCategory;
+import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
  * 酶工厂屏幕（experiment/gui-remake 分支全新重建）
  * <p>
- * 重建第一版（v1）：整张 gui_v1.png 作为 GUI 基底 1:1 blit，
- * 不做任何缩放与虚化；标题区（方块图标 + 缩写文本框）已就位，
- * 物种槽与仪表盘待逐项追加
+ * 重建第二版（v2）：整张 gui_v1.png 作为 GUI 基底 1:1 blit；
+ * 标题区（方块图标 + 缩写文本框 + displayname + INPUT/OUTPUT 标签）
+ * 与滚动反应物卡片（JSON 条目数驱动 + 槽位元素）已就位，
+ * 仪表盘与产物卡待逐项追加
  * <p>
  * GUI 画布尺寸与基底贴图一致（gui_v1.png 为 256×256）：
  * 画布左上角 = 贴图左上角，容器坐标（leftPos/topPos）即贴图 blit 原点
@@ -26,12 +29,14 @@ import net.minecraft.world.item.ItemStack;
  *   <li>方块物品图标：左上角 (8,8)，16×16（renderItem 标准物品图标尺寸）</li>
  *   <li>缩写文本框：1px 矩形框架（不倒圆角），左上角 (28,10)、下沿 y=21；
  *       宽 = 文字宽 + 左右各 2px 内边距 + 各 1px 边框；边框为主题色原色
- *       （补 alpha），填充为主题色向白混合 4/5；中轴线 15.5——框内文字与
- *       displayname 均以 15.5 为垂直中轴（8px 字形 y=12、16px 中文 y=8），
- *       全部绝对定位</li>
- *   <li>displayname：文本框右缘 + 4px，纯黑文字，vanilla 默认字体
- *       （中文由 MC 自动回退 16px unicode 字形）</li>
+ *       （补 alpha），填充为主题色向白混合 4/5；框内缩写与 displayname
+ *       垂直居中于中轴线 15.5（8px 字形绝对定位 y=13）</li>
+ *   <li>displayname：文本框右缘 + 4px，纯黑文字，vanilla 默认字体</li>
  *   <li>INPUT 标签：(9,30)；OUTPUT 标签：(195,30)，英文大写 8px 纯黑</li>
+ *   <li>滚动反应物卡片：视口 (7,41)~(63,162)，卡片数 = JSON 反应物条目数；
+ *       每卡含槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中）
+ *       与物品缩写（png 右侧 4px、顶面下方 4px）；滚轮连续滚动 + 平滑
+ *       插值，Slot.y 每 tick 同步实现槽位随卡滚动，视口 scissor 裁剪</li>
  * </ul>
  * 字体约定：全程使用 Minecraft 自带字体（含中文的 unicode 自动回退），
  * 不加载任何自定义 TTF 字体资源
@@ -74,24 +79,17 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** OUTPUT 标签左上角 */
     private static final int OUTPUT_X = 195, OUTPUT_Y = 30;
 
-    // 滚动卡片容器约束（JSON 数据驱动布局的样板：容器/卡片/间距/颜色全部为约束值）
-    /** 滚动容器左上角 (7,41)，区域 y 41~162，宽 56 */
-    private static final int SCROLL_X = 7, SCROLL_Y = 41, SCROLL_W = 56, SCROLL_H = 121;
+    // 滚动卡片布局常量统一引用 MachineMenu（Menu 与 Screen 共享，全酶工厂写死）
 
-    /** 卡片尺寸 56×28，间距 1，卡片色 #c6c6c6（0xC6C6C6 24 位 RGB，补 alpha 使用） */
-    private static final int CARD_W = 56, CARD_H = 28, CARD_GAP = 1;
-
-    /** 卡片步进（高 + 间距） */
-    private static final int CARD_STEP = CARD_H + CARD_GAP;
-
-    /** 测试占位卡片数（滚动机制演示用，将来由酶数据条目数驱动） */
-    private static final int CARD_COUNT = 10;
+    /** 槽位贴图（slot.png 18×18）资源 */
+    private static final ResourceLocation SLOT =
+            ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/slot.png");
 
     /** 卡片颜色（#c6c6c6 补 alpha） */
     private static final int CARD_COLOR = 0xFFC6C6C6;
 
-    /** 卡片编号文字颜色（测试占位用） */
-    private static final int CARD_TEXT_COLOR = 0xFF333333;
+    /** 卡片内物品 displayname 文字颜色（纯黑） */
+    private static final int CARD_NAME_COLOR = 0xFF000000;
 
     /** 每个滚轮刻度移动的像素量（连续像素滚动，非逐张步进） */
     private static final double SCROLL_PIXELS_PER_NOTCH = 20.0;
@@ -135,6 +133,12 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
+        // 动态槽位 tooltip：物种槽 isActive=false 不进入 vanilla hoveredSlot
+        // 机制，悬停时手动渲染物品 tooltip（与背包槽的 renderTooltip 互补）
+        Slot hovered = findDynamicSlot(mouseX, mouseY);
+        if (hovered != null && hovered.hasItem()) {
+            graphics.renderTooltip(this.font, hovered.getItem(), mouseX, mouseY);
+        }
         this.renderTooltip(graphics, mouseX, mouseY);
     }
 
@@ -157,7 +161,16 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 滚动卡片元素：视口 (7,41)~(63,162) 内的 #c6c6c6 卡片列表
+     * 滚动卡片元素：视口内 #c6c6c6 反应物卡片列表
+     * <p>
+     * 卡片数 = JSON 反应物条目数（由 Menu 物种槽数驱动）；每张卡片含
+     * 一个槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中）与
+     * 物品 displayname（缩写，png 右侧 4px、顶面下方 4px）
+     * <p>
+     * 槽位内容由本方法手动绘制（非 vanilla renderSlot）：物种槽
+     * isActive 恒 false 被 vanilla 跳过，Slot.x/y 为 final 无法动态移动，
+     * 故按滚动偏移手动计算位置绘制 slot.png/物品/数量/hover 高亮——
+     * 槽位与卡片同步滚动，点击命中见 findDynamicSlot
      * <p>
      * 滚动机制：
      * <ul>
@@ -165,25 +178,46 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      *   <li>enableScissor 裁剪视口——超出视口上/下边界的卡片部分被裁掉，
      *       即"上方卡片消失、下方卡片出现"的滚动视觉</li>
      *   <li>滚动按像素连续（非逐张）：滚轮事件更新 scrollTarget，
-     *       containerTick 中按 SCROLL_LERP 插值逼近，滚动平滑不生硬；
-     *       偏移钳制 [0, 内容总高 − 视口高]，数据不足一屏时不滚动</li>
+     *       containerTick 中按 SCROLL_LERP 插值逼近；偏移钳制
+     *       [0, 内容总高 − 视口高]，数据不足一屏时不滚动</li>
      * </ul>
-     * 卡片内容当前为编号占位（测试滚动机制用），将来由酶数据条目驱动
      *
      * @param graphics 渲染器
      */
     private void drawScrollCards(GuiGraphics graphics) {
-        int x = this.leftPos + SCROLL_X;
-        int y = this.topPos + SCROLL_Y;
+        int x = this.leftPos + MachineMenu.SCROLL_X;
+        int y = this.topPos + MachineMenu.SCROLL_Y;
         // 视口裁剪：仅 (x, y)~(x+56, y+121) 内可见
-        graphics.enableScissor(x, y, x + SCROLL_W, y + SCROLL_H);
+        graphics.enableScissor(x, y, x + MachineMenu.SCROLL_W, y + MachineMenu.SCROLL_H);
         int offset = (int) Math.round(scrollOffset);
-        for (int i = 0; i < CARD_COUNT; i++) {
-            int cardY = y + i * CARD_STEP - offset;
-            graphics.fill(x, cardY, x + CARD_W, cardY + CARD_H, CARD_COLOR);
-            // 编号文字：卡片 28px 高内 8px 字上下居中（cardY+10）
-            graphics.drawString(this.font, String.format("%02d", i + 1),
-                    x + 2, cardY + 10, CARD_TEXT_COLOR, false);
+        int count = menu.getSpeciesSlotCount();
+        for (int i = 0; i < count; i++) {
+            int cardY = y + i * MachineMenu.CARD_STEP - offset;
+            graphics.fill(x, cardY, x + MachineMenu.CARD_W, cardY + MachineMenu.CARD_H, CARD_COLOR);
+            // 槽位元素：slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中于 (2,3)
+            int pngX = x + MachineMenu.SLOT_PNG_X;
+            int pngY = cardY + MachineMenu.SLOT_PNG_Y;
+            Slot slot = menu.getSlot(i);
+            graphics.blit(SLOT, pngX, pngY, 0, 0, 18, 18, 18, 18);
+            ItemStack stack = slot.getItem();
+            if (!stack.isEmpty()) {
+                graphics.renderItem(stack, pngX + 1, pngY + 1,
+                        (pngX + 1) + (pngY + 1) * this.imageWidth);
+                graphics.renderItemDecorations(this.font, stack, pngX + 1, pngY + 1, null);
+            }
+            // hover 高亮（半透明白，与 vanilla 同色，盖在物品上）
+            // 1.21 Screen 无 mouseX/mouseY 字段，从 MouseHandler 取屏幕坐标
+            int mx = (int) net.minecraft.client.Minecraft.getInstance().mouseHandler.xpos() - this.leftPos;
+            int my = (int) net.minecraft.client.Minecraft.getInstance().mouseHandler.ypos() - this.topPos;
+            if (mx >= pngX + 1 && mx < pngX + 17 && my >= pngY + 1 && my < pngY + 17) {
+                graphics.fill(pngX + 1, pngY + 1, pngX + 17, pngY + 17, 0x80FFFFFF);
+            }
+            // 物品 displayname（缩写）：槽位 png 右侧 4px、png 顶面下方 4px
+            String itemId = enzymeData.reactants().get(i).item();
+            String abbr = ModItems.byId(itemId).get().getAbbreviation();
+            graphics.drawString(this.font, abbr,
+                    x + MachineMenu.SLOT_PNG_X + MachineMenu.NAME_DX,
+                    cardY + MachineMenu.SLOT_PNG_Y + MachineMenu.NAME_DY, CARD_NAME_COLOR, false);
         }
         graphics.disableScissor();
     }
@@ -207,9 +241,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                                  double horizontalAmount, double verticalAmount) {
         int localX = (int) mouseX - this.leftPos;
         int localY = (int) mouseY - this.topPos;
-        if (localX >= SCROLL_X && localX < SCROLL_X + SCROLL_W
-                && localY >= SCROLL_Y && localY < SCROLL_Y + SCROLL_H) {
-            int maxScroll = Math.max(0, CARD_COUNT * CARD_STEP - CARD_GAP - SCROLL_H);
+        if (localX >= MachineMenu.SCROLL_X && localX < MachineMenu.SCROLL_X + MachineMenu.SCROLL_W
+                && localY >= MachineMenu.SCROLL_Y && localY < MachineMenu.SCROLL_Y + MachineMenu.SCROLL_H) {
+            int count = menu.getSpeciesSlotCount();
+            int maxScroll = Math.max(0, count * MachineMenu.CARD_STEP
+                    - MachineMenu.CARD_GAP - MachineMenu.SCROLL_H);
             this.scrollTarget = Math.max(0,
                     Math.min(scrollTarget - verticalAmount * SCROLL_PIXELS_PER_NOTCH, maxScroll));
             return true;
@@ -221,7 +257,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * 每 tick 滚动平滑插值：显示偏移向目标偏移逼近
      * <p>
      * 滚轮事件直接改目标值，本方法按 SCROLL_LERP 比例插值，
-     * 差距小于 0.5px 时直接吸附（避免永不停歇的亚像素抖动）
+     * 差距小于 0.5px 时直接吸附（避免永不停歇的亚像素抖动）；
+     * 槽位位置在绘制与命中的瞬间按当前偏移计算，天然与卡片同步
      */
     @Override
     protected void containerTick() {
@@ -230,6 +267,57 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         if (Math.abs(this.scrollTarget - this.scrollOffset) < 0.5) {
             this.scrollOffset = this.scrollTarget;
         }
+    }
+
+    /**
+     * 鼠标点击：优先命中滚动卡片内的动态槽位（手动计算位置）
+     * <p>
+     * 物种槽 isActive 恒 false 被 vanilla 完全跳过，此处复刻 vanilla
+     * 点击核心逻辑：左键拾取/放置（PICKUP）、Shift+左键快速转移
+     * （QUICK_MOVE）、右键拆分；双击快速收集暂不支持（vanilla 的
+     * 双击状态字段为私有无法子类维护）
+     *
+     * @param mouseX 鼠标 x（屏幕坐标）
+     * @param mouseY 鼠标 y（屏幕坐标）
+     * @param button 鼠标按键（0 左键 / 1 右键）
+     * @return 是否消费事件
+     */
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        Slot slot = findDynamicSlot(mouseX, mouseY);
+        if (slot != null && (button == 0 || button == 1)) {
+            boolean shiftDown = net.minecraft.client.gui.screens.Screen.hasShiftDown();
+            net.minecraft.world.inventory.ClickType type = shiftDown
+                    ? net.minecraft.world.inventory.ClickType.QUICK_MOVE
+                    : net.minecraft.world.inventory.ClickType.PICKUP;
+            this.slotClicked(slot, slot.index, button, type);
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    /**
+     * 按滚动偏移计算鼠标命中的动态槽位（无命中返回 null）
+     * <p>
+     * 槽位位置 = 卡片位置 + 卡片内相对 (2,3)，命中区域 16×16；
+     * 与 drawScrollCards 的绘制位置严格一致（同一公式）
+     *
+     * @param mouseX 鼠标 x（屏幕坐标）
+     * @param mouseY 鼠标 y（屏幕坐标）
+     * @return 命中的物种槽，未命中为 null
+     */
+    private Slot findDynamicSlot(double mouseX, double mouseY) {
+        int localX = (int) mouseX - this.leftPos;
+        int localY = (int) mouseY - this.topPos;
+        int offset = (int) Math.round(scrollOffset);
+        for (int i = 0; i < menu.getSpeciesSlotCount(); i++) {
+            int sx = MachineMenu.SCROLL_X + MachineMenu.SLOT_X;
+            int sy = MachineMenu.SCROLL_Y + i * MachineMenu.CARD_STEP - offset + MachineMenu.SLOT_Y;
+            if (localX >= sx && localX < sx + 16 && localY >= sy && localY < sy + 16) {
+                return menu.getSlot(i);
+            }
+        }
+        return null;
     }
 
     /**
@@ -269,20 +357,21 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 boxX + boxW - ABBR_BORDER, boxY2 - ABBR_BORDER, fillColor);
 
         // 缩写文字：vanilla 默认 8px 位图字体，绝对定位（不写居中公式）：
-        // 中轴线 15.5（y 范围 10~21），8px 字形中心 = y+3.5 → y = boxY + 2
+        // 中轴线 15.5（y 范围 10~21），8px 字形中心 = y+3.5 → y = boxY + 2；
+        // 实测文字整体向上偏移 1px，故下移 1px → y = boxY + 3
         // 左右于边框+内边距之后（x+3），文字色用加深主题色
         graphics.drawString(this.font, abbr,
                 boxX + ABBR_BORDER + ABBR_PAD,
-                boxY + 2, textColor, false);
+                boxY + 3, textColor, false);
 
         // displayname：文本框右缘 + 4px，纯黑文字，绝对定位：
         // 中文与英文统一按 8px 处理（实测 MC 中文渲染也是 8px 高，非 16px），
-        // 与缩写文本同中轴（y = boxY + 2）
+        // 与缩写文本同中轴且同步下移 1px（y = boxY + 3）
         String language = net.minecraft.client.Minecraft.getInstance().getLanguageManager().getSelected();
         boolean chinese = language != null && language.startsWith("zh");
         String name = chinese ? enzymeData.nameZn() : enzymeData.nameEn();
         int nameX = boxX + boxW + NAME_GAP;
-        int nameY = boxY + 2;
+        int nameY = boxY + 3;
         graphics.drawString(this.font, name, nameX, nameY, NAME_COLOR, false);
 
         // INPUT / OUTPUT 标签：英文大写，vanilla 8px 字体，纯黑
