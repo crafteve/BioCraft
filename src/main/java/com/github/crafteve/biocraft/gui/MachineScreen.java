@@ -120,14 +120,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** v-t 图右边缘 x（工作区右减 3px） */
     private static final int VT_X1 = 185;
 
-    /** 格子宽（0.5s/格，11px；10 格 = 110px，X 轴 75..185） */
+    /** 格子宽（1s/格，11px；10 点 9 段，点 70..169） */
     private static final int VT_GRID_W = 11;
 
-    /** 窗口点数（0~5s，每 0.5s 一点 = 11 点） */
-    private static final int VT_POINTS = 11;
+    /** 窗口点数（1s 一点，共 10 点 = 0~9s） */
+    private static final int VT_POINTS = 10;
 
-    /** 采样间隔（0.5s = 10 tick） */
-    private static final int VT_SAMPLE_TICKS = 10;
+    /** 采样间隔（1s = 20 tick） */
+    private static final int VT_SAMPLE_TICKS = 20;
 
     /** 坐标轴颜色（深灰） */
     private static final int AXIS_COLOR = 0xFF555555;
@@ -188,6 +188,29 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, 0, enzymeData.reactants());
         this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X,
                 enzymeData.reactants().size(), enzymeData.products());
+        initVtHistory(menu.getFluxHistory());
+    }
+
+    /**
+     * 用服务端下发的历史初始化 v-t 环形缓冲（打开瞬间折线图即有数据）
+     * <p>
+     * 历史为每 tick 通量×1000（旧→新，100 tick = 5s）；按 1s（20 tick）
+     * 采样，旧→新顺序写入环形缓冲——最新样本落在 vtIndex-1，
+     * 与绘制循环"最新点在最左端"的取数逻辑一致
+     *
+     * @param history 历史快照（旧→新，可能为空数组）
+     */
+    private void initVtHistory(int[] history) {
+        if (history.length == 0) {
+            return;
+        }
+        int samples = 0;
+        for (int t = 0; t < history.length && samples < VT_POINTS; t += VT_SAMPLE_TICKS) {
+            vtFlux[vtIndex] = history[t] / 1000.0;
+            vtIndex = (vtIndex + 1) % VT_POINTS;
+            samples++;
+        }
+        vtSampleCount = samples;
     }
 
     /**
@@ -241,14 +264,17 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * <ul>
      *   <li>Y 轴：x=70（图像左边缘），60×1px 深灰竖线 + 箭头——箭头顶端
      *       与线段结束点（顶端）重合：尖端行 = 轴顶行，向下张开 3 行</li>
-     *   <li>X 轴（v=0 基准线）：横线 70..185 + 左端箭头（尖端朝左，
-     *       尖端 = 线段左端 = Y 轴交点）；v=0 按值域比例定位——
-     *       [-vmaxR, vmaxF]（正向 kcat/TIME_SCALE、逆向 Haldane 注册期
-     *       计算），对称可逆居中、不可逆贴底（v 可能为负）</li>
-     *   <li>折线（心电图式滚动）：X 轴右侧为 0、左侧为 5（0.5s/格，
-     *       格宽 11px）；新点绘制在 x=0（右端），每 0.5s 采样后旧点
-     *       左移一格，最左点被挤出窗口；2×2 主题色方形点（不加深）
-     *       + 1px 主题色折线连接</li>
+     *   <li>X 轴（v=0 基准线）：横线 70..185 + 右端箭头（尖端朝右，
+     *       尖端 = 线段右端，向左张开 3 列）；v=0 按值域比例定位——
+     *       [-vmaxRShow, +vmaxFShow]，对称可逆居中、不可逆贴底</li>
+     *   <li>y 轴满刻度用"饱和可达速率"：引擎通量在底物/产物满堆（浓度 1）
+     *       时趋近 vmax·∏(1/Km)/(1+∏(1/Km)) 而非 vmax（Km 饱和项），
+     *       以可达速率作满刻度后满堆工况恰好顶到 y 最大/最小值
+     *       （相对位置 0 和 60）</li>
+     *   <li>折线（从左往右滚动）：X 轴左侧 x=0（最新点）、右侧 x=10
+     *       （最旧）；新点绘制在 x=0（左端），每 1s 采样后旧点右移一格，
+     *       最右点被挤出窗口；2×2 主题色方形点（不加深）+ 1px 主题色
+     *       折线连接</li>
      * </ul>
      *
      * @param graphics 渲染器
@@ -269,16 +295,22 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         double vmaxF = definition.getVmaxF();
         double vmaxR = definition.isReversible()
                 ? definition.vmaxBForTemperature(KineticConstants.T0) : 0.0;
-        double span = Math.max(vmaxF + vmaxR, 1e-9);
+        // 饱和可达速率作满刻度：满堆（浓度 1）时引擎通量顶到 y 边界
+        double vmaxFShow = saturationReachable(vmaxF, definition.getRateReactants());
+        double vmaxRShow = definition.isReversible()
+                ? saturationReachable(vmaxR, definition.getRateProducts()) : 0.0;
+        double span = Math.max(vmaxFShow + vmaxRShow, 1e-9);
 
-        // X 轴（v=0 基准线）：底部向上按 vmaxR/span 比例定位（不可逆贴底）；
-        // 箭头尖端朝左 = 线段左端（Y 轴交点），向右张开 3 列
-        int zeroY = bottomY - (int) Math.round(vmaxR / span * VT_H);
+        // X 轴（v=0 基准线）：底部向上按 vmaxRShow/span 比例定位（不可逆贴底）；
+        // 箭头尖端朝右 = 线段右端（VT_X1），向左张开 3 列
+        int zeroY = bottomY - (int) Math.round(vmaxRShow / span * VT_H);
         graphics.fill(axX, zeroY, this.leftPos + VT_X1 + 1, zeroY + 1, AXIS_COLOR);
-        graphics.fill(axX, zeroY, axX + 1, zeroY + 1, AXIS_COLOR);
-        graphics.fill(axX + 1, zeroY - 1, axX + 4, zeroY + 2, AXIS_COLOR);
+        graphics.fill(this.leftPos + VT_X1, zeroY,
+                this.leftPos + VT_X1 + 1, zeroY + 1, AXIS_COLOR);
+        graphics.fill(this.leftPos + VT_X1 - 3, zeroY - 1,
+                this.leftPos + VT_X1, zeroY + 2, AXIS_COLOR);
 
-        // 折线：心电图式——最新点在右端（x=185），旧点逐格左移
+        // 折线：从左往右滚动——最新点在左端（x=70），旧点逐格右移
         int count = Math.min(vtSampleCount, VT_POINTS);
         if (count < 2) {
             return;
@@ -290,8 +322,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int prevX = 0, prevY = 0;
         for (int i = 0; i < count; i++) {
             double v = vtFlux[(latest - i + VT_POINTS) % VT_POINTS];
-            int x = this.leftPos + VT_X1 - i * VT_GRID_W;
-            int y = bottomY - (int) Math.round((v + vmaxR) / span * VT_H);
+            int x = axX + i * VT_GRID_W;
+            int y = bottomY - (int) Math.round((v + vmaxRShow) / span * VT_H);
             y = Math.max(topY, Math.min(bottomY, y));
             if (i > 0) {
                 drawLine(graphics, prevX, prevY, x, y, lineColor);
@@ -300,6 +332,28 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             prevX = x;
             prevY = y;
         }
+    }
+
+    /**
+     * 饱和可达速率：底物/产物满堆（浓度 1）时引擎通量能逼近的最大值
+     * <p>
+     * 可逆共享分母形式下 v = vmax·∏(1/Km)/(1+∏(1/Km))（浓度 1 时），
+     * 单底物小 Km 时显著低于 vmax（如 PGI 满堆 ≈ 0.7·vmax）——GUI 的
+     * y 轴满刻度用它标定后，满堆工况恰好顶到边界（引擎饱和有界是
+     * 正确物理，这里只做显示标定不做引擎修改）
+     *
+     * @param vmax    方向最大速率（正向或逆向）
+     * @param entries 该方向的速率项条目（含 Km 堆叠分数）
+     * @return 饱和可达速率（>0）
+     */
+    private static double saturationReachable(double vmax, List<ReactionDefinition.SpeciesEntry> entries) {
+        double product = 1.0;
+        for (ReactionDefinition.SpeciesEntry entry : entries) {
+            if (entry.kmFraction() > 0) {
+                product *= Math.pow(1.0 / entry.kmFraction(), entry.coeff());
+            }
+        }
+        return vmax * product / (1.0 + product);
     }
 
     /**

@@ -89,17 +89,23 @@ public class MachineMenu extends AbstractContainerMenu {
     /** 容器数据（服务端权威，每 tick 同步：温度/通量/主产物浓度 + 每物种余量×1000） */
     private final ContainerData data;
 
+    /** v-t 通量历史（服务端打开时下发，Screen 构造时初始化折线图；服务端不使用） */
+    private final int[] fluxHistory;
+
     /**
      * 服务端主构造（createMenu 直接调用）
      *
      * @param containerId     菜单容器编号
      * @param playerInventory 玩家物品栏
      * @param blockEntity     方块实体
+     * @param fluxHistory     v-t 历史快照（旧→新，每 tick 通量×1000）
      */
-    public MachineMenu(int containerId, Inventory playerInventory, EnzymeFactoryBlockEntity blockEntity) {
+    public MachineMenu(int containerId, Inventory playerInventory,
+                       EnzymeFactoryBlockEntity blockEntity, int[] fluxHistory) {
         super(ModBlocks.ENZYME_FACTORY_MENU.get(), containerId);
         this.blockEntity = blockEntity;
         this.enzymeData = blockEntity.getEnzymeData();
+        this.fluxHistory = fluxHistory == null ? new int[0] : fluxHistory;
         this.data = new SimpleContainerData(DATA_REMAINDER_BASE + enzymeData.reactants().size()
                 + enzymeData.products().size());
         refreshData();
@@ -110,7 +116,7 @@ public class MachineMenu extends AbstractContainerMenu {
 
     /**
      * 客户端构造（MenuType 数据包工厂）：按服务端写入顺序读取
-     * 酶 id → 历史数组（当前版本弃用仅消费）→ BlockPos，再经查表定位实体
+     * 酶 id → 历史数组 → BlockPos，再经查表定位实体
      *
      * @param containerId     菜单容器编号
      * @param playerInventory 玩家物品栏
@@ -121,21 +127,33 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
+     * 统一私有构造（客户端经数据包解析调用）
+     *
+     * @param containerId     菜单容器编号
+     * @param playerInventory 玩家物品栏
+     * @param initData        打开初始化数据（实体 + 历史）
+     */
+    private MachineMenu(int containerId, Inventory playerInventory, InitData initData) {
+        this(containerId, playerInventory, initData.blockEntity(), initData.fluxHistory());
+    }
+
+    /**
      * 解析打开数据包并定位方块实体（与 EnzymeFactoryBlockEntity.writeClientSideData
      * 的写入顺序严格对应：酶 id → 历史长度 → 历史数组 → BlockPos）
      * <p>
      * 方块已被破坏时按数据表档案构造占位实体（防御降级，避免菜单崩溃）；
-     * 历史数组本版不保留（v-t 图重建后再接回）
+     * 历史数组保留并随初始化数据传入 Screen（打开瞬间折线图即有数据）
      *
      * @param playerInventory 玩家物品栏
      * @param buffer          打开数据包缓冲
-     * @return 定位到的方块实体（可能为占位实体）
+     * @return 初始化数据（实体 + 历史快照）
      */
-    private static EnzymeFactoryBlockEntity parseOpenBuffer(Inventory playerInventory, RegistryFriendlyByteBuf buffer) {
+    private static InitData parseOpenBuffer(Inventory playerInventory, RegistryFriendlyByteBuf buffer) {
         String enzymeId = buffer.readUtf();
         int historyLength = buffer.readVarInt();
+        int[] history = new int[historyLength];
         for (int i = 0; i < historyLength; i++) {
-            buffer.readVarInt();
+            history[i] = buffer.readVarInt();
         }
         BlockPos pos = buffer.readBlockPos();
         EnzymeFactoryBlockEntity be = playerInventory.player.level().getBlockEntity(pos)
@@ -150,7 +168,16 @@ public class MachineMenu extends AbstractContainerMenu {
         if (!enzymeId.equals(be.getEnzymeData().id())) {
             throw new IllegalStateException("酶 id 不一致: 包内 " + enzymeId + " / 实体 " + be.getEnzymeData().id());
         }
-        return be;
+        return new InitData(be, history);
+    }
+
+    /**
+     * 打开初始化数据：方块实体 + v-t 历史快照
+     *
+     * @param blockEntity 方块实体
+     * @param fluxHistory 历史快照（旧→新）
+     */
+    private record InitData(EnzymeFactoryBlockEntity blockEntity, int[] fluxHistory) {
     }
 
     /**
@@ -258,6 +285,15 @@ public class MachineMenu extends AbstractContainerMenu {
      */
     public double getFlux() {
         return data.get(DATA_FLUX) / 1000.0;
+    }
+
+    /**
+     * 获取 v-t 通量历史（打开时服务端下发，Screen 初始化折线图用）
+     *
+     * @return 历史快照（旧→新，每 tick 通量×1000）
+     */
+    public int[] getFluxHistory() {
+        return fluxHistory;
     }
 
     /**
