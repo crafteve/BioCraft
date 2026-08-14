@@ -124,6 +124,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** v-t 图左边缘 x（Y 轴，工作区 67~188 左减 3px） */
     private static final int VT_X0 = 70;
 
+    /** v-t 图右边缘 x（工作区右减 3px，图表区背景宽度用） */
+    private static final int VT_X1 = 185;
+
     /** 格子宽（1s/格，12px；10 点 9 段 = 108px，点 0..108（4x 局部坐标）） */
     private static final int VT_GRID_W = 12;
 
@@ -139,6 +142,12 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * 位图字体不参与缩放，无糊字风险
      */
     private static final int VT_SUPERSAMPLE = 4;
+
+    /** 折线点尺寸（超采样像素，10px = 显示 2.5px，原 4px 缩 60%） */
+    private static final int VT_POINT_SIZE = 10;
+
+    /** 折线宽（超采样像素，5px = 显示 1.25px，原 1px 加粗 25%） */
+    private static final int VT_LINE_WIDTH = 5;
 
     /** 坐标轴颜色（深灰） */
     private static final int AXIS_COLOR = 0xFF555555;
@@ -306,13 +315,21 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.pose().pushPose();
         graphics.pose().translate(this.leftPos + VT_X0, this.topPos + vtY(), 0);
         graphics.pose().scale(1.0F / ss, 1.0F / ss, 1.0F);
+
         int bottomY = VT_H * ss;
         int tailX = (VT_POINTS - 1) * VT_GRID_W * ss;
 
-        // Y 轴：1px 竖线 → 4px 宽；箭头尖端（轴顶）向下张开 3 行（12px）
+        // 图表区浅色主题色背景（无边框，与反应区同色系）
+        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
+        graphics.fill(0, 0, (VT_X1 - VT_X0) * ss, bottomY, lighten(theme));
+
+        // Y 轴：1px 竖线 → 4px 宽；箭头尖端（轴顶）向下 4 段渐变三角形
+        //（宽 4→8→12→16px，各段居中于轴中心 x=2，超采样下更精细）
         graphics.fill(0, 0, ss, bottomY + ss, AXIS_COLOR);
         graphics.fill(0, 0, ss, ss, AXIS_COLOR);
-        graphics.fill(-ss, ss, ss * 2, ss * 4, AXIS_COLOR);
+        graphics.fill(-ss / 2, ss, ss + ss / 2, ss * 2, AXIS_COLOR);
+        graphics.fill(-ss, ss * 2, ss * 2, ss * 3, AXIS_COLOR);
+        graphics.fill(-ss + ss / 2, ss * 3, ss * 2 + ss / 2, ss * 4, AXIS_COLOR);
 
         // v 值域：[-vmaxR, vmaxF]（正向 kcat/TIME_SCALE；逆向 Haldane）
         ReactionDefinition definition = blockEntity.getSimulator().getDefinition();
@@ -330,11 +347,13 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         double span = Math.max(vmaxFShow + vmaxRShow, 1e-9);
 
         // X 轴（v=0 基准线）：底部向上按 vmaxRShow/span 比例定位（不可逆贴底）；
-        // 横线 0..箭头屁股，箭头尖端朝右延伸 3 列
+        // 横线 0..箭头屁股，箭头尖端朝右 4 段渐变（16→12→8→4px 高）
         int zeroY = bottomY - (int) Math.round(vmaxRShow / span * VT_H * ss);
         graphics.fill(0, zeroY, tailX + ss, zeroY + ss, AXIS_COLOR);
-        graphics.fill(tailX, zeroY - ss, tailX + ss * 3, zeroY + ss * 2, AXIS_COLOR);
-        graphics.fill(tailX + ss * 3, zeroY, tailX + ss * 4, zeroY + ss, AXIS_COLOR);
+        graphics.fill(tailX, zeroY - ss * 2, tailX + ss, zeroY + ss * 2, AXIS_COLOR);
+        graphics.fill(tailX + ss, zeroY - ss * 2 + 2, tailX + ss * 2, zeroY + ss * 2 - 2, AXIS_COLOR);
+        graphics.fill(tailX + ss * 2, zeroY - ss, tailX + ss * 3, zeroY + ss, AXIS_COLOR);
+        graphics.fill(tailX + ss * 3, zeroY - ss / 2, tailX + ss * 4, zeroY + ss / 2, AXIS_COLOR);
 
         // 折线：从左往右滚动——最新点在左端（x=0），旧点逐格右移，
         // 最右点恰好落在 X 轴箭头屁股（消失处）
@@ -343,7 +362,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             graphics.pose().popPose();
             return;
         }
-        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
         int lineColor = theme | 0xFF000000;
         // 点色必须补 alpha：MachineCategory 主题色为 24 位 RGB，直接 fill
         // 会画出全透明矩形（实测 bug：只画了线没画点，已修复）
@@ -356,15 +374,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             int y = bottomY - (int) Math.round((v + vmaxRShow) / span * VT_H * ss);
             y = Math.max(0, Math.min(bottomY, y));
             if (i > 0) {
-                drawLine(graphics, prevX, prevY, x, y, lineColor);
+                drawLine(graphics, prevX, prevY, x, y, VT_LINE_WIDTH, lineColor);
             }
-            graphics.fill(x - ss * 2, y - ss * 2, x + ss * 2, y + ss * 2, pointColor);
+            graphics.fill(x - VT_POINT_SIZE / 2, y - VT_POINT_SIZE / 2,
+                    x + VT_POINT_SIZE / 2, y + VT_POINT_SIZE / 2, pointColor);
             prevX = x;
             prevY = y;
         }
         graphics.pose().popPose();
     }
-
     /**
      * 饱和可达速率：底物/产物满堆（浓度 1）时引擎通量能逼近的最大值
      * <p>
@@ -403,16 +421,18 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 画 1px 折线段（按 x/y 步进的整数插值，双轴均分步数防断线）
+     * 画折线段（按 x/y 步进的整数插值，双轴均分步数防断线，线宽可调）
      *
      * @param graphics 渲染器
      * @param x1       起点 x（屏幕坐标）
      * @param y1       起点 y（屏幕坐标）
      * @param x2       终点 x（屏幕坐标）
      * @param y2       终点 y（屏幕坐标）
+     * @param width    线宽（像素，超采样坐标系下为超采样像素）
      * @param color    线段颜色
      */
-    private static void drawLine(GuiGraphics graphics, int x1, int y1, int x2, int y2, int color) {
+    private static void drawLine(GuiGraphics graphics, int x1, int y1, int x2, int y2,
+                                 int width, int color) {
         int dx = x2 - x1;
         int dy = y2 - y1;
         int steps = Math.max(Math.abs(dx), Math.abs(dy));
@@ -422,7 +442,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         for (int i = 0; i <= steps; i++) {
             int x = x1 + dx * i / steps;
             int y = y1 + dy * i / steps;
-            graphics.fill(x, y, x + 1, y + 1, color);
+            graphics.fill(x, y, x + width, y + width, color);
         }
     }
 
@@ -466,15 +486,13 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         List<List<EqSegment>> rows = wrapEquation(segments);
         this.equationRowCount = rows.size();
 
-        // 美化框：顶部 38 不动，高度 = 12 + (行数-1)×10
-        int borderColor = theme | 0xFF000000;
+        // 美化背景：无边框，只填浅色主题色（与 v-t 图背景同色系）
         int fillColor = lighten(theme);
         int boxX0 = this.leftPos + EQ_X0 + 1;
         int boxX1 = this.leftPos + EQ_X1 - 1;
         int boxY0 = this.topPos + EQ_BOX_Y;
         int boxY1 = this.topPos + EQ_BOX_Y + EQ_BOX_H + (rows.size() - 1) * EQ_ROW_STEP;
-        graphics.fill(boxX0, boxY0, boxX1 + 1, boxY1 + 1, borderColor);
-        graphics.fill(boxX0 + 1, boxY0 + 1, boxX1, boxY1, fillColor);
+        graphics.fill(boxX0, boxY0, boxX1 + 1, boxY1 + 1, fillColor);
 
         // 每行 8px 分段绘制，各自居中于 67~188（中心 127.5）
         for (int r = 0; r < rows.size(); r++) {
