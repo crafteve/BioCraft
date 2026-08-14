@@ -8,7 +8,6 @@ import mezz.jei.api.gui.builder.IRecipeLayoutBuilder;
 import mezz.jei.api.gui.builder.IRecipeSlotBuilder;
 import mezz.jei.api.gui.drawable.IDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
-import mezz.jei.api.helpers.IGuiHelper;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
@@ -19,25 +18,23 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.Locale;
-
 /**
  * 酶工厂配方类别（JEI 显示层核心）
  * <p>
- * 布局规格（像素单位）：
+ * 布局规格（像素单位，一行只放一个信息）：
  * <pre>
  *   y=2    [槽1] [槽2]   ⇌/→    [槽1] [槽2]   槽 18x18、槽距 20、标准槽纹理
- *   y=22   Km=    Km=    Keq=    Km=    Km=    行 1：白字 + 阴影（MC 标准字体）
- *   y=34   [酶槽] [PGI]                      行 2：酶槽（标准纹理放酶方块）
- *   y=43   磷酸葡萄糖异构酶                         右侧上部缩写（主题色+阴影）
- *   y=56   Vmax_f = 0.79 个/tick · Vmax_b = 0.26 个/tick
- *                                             行 3：饱和可达最大速率（白字+阴影）
+ *   y=22   Keq = 4.8×10³                     行 1：仅 Keq（白字 + 阴影）
+ *   y=34   [酶槽]                            行 2：酶工厂方块槽（CATALYST 可交互，
+ *                                                  hover 显示酶名，点击查看本酶配方）
+ *   y=56   正向速率最大值 0.18 个/tick        行 3：饱和可达正向速率（白字 + 阴影）
+ *   y=65   逆向速率最大值 0.026 个/tick       行 4：饱和可达逆向速率（白字 + 阴影）
  * </pre>
  * 输入槽从 x=2 起排布，箭头区固定在输入末槽右侧（arrowX = 2 + nIn*20 + 8），
  * 输出槽在箭头右侧（outputX = arrowX + 24）；卡宽固定 154（容纳最多 3 输入 + 3 输出）
  * <p>
- * 槽位统一使用 JEI 标准槽纹理；固定活性物种（H₂O/H⁺）仅在 tooltip 中说明
- * （不参与速率计算）；Km/Keq/Vmax 全部白字带阴影，酶缩写用 EC 类别主题色
+ * 槽位统一使用 JEI 标准槽纹理；Km 不占卡片行位（每槽 tooltip 中显示）；
+ * 固定活性物种（H₂O/H⁺）仅在 tooltip 中说明；主信息全部 MC 标准字体白字带阴影
  */
 public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipeDisplay> {
     /** 槽位尺寸与间距 */
@@ -45,33 +42,21 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
     private static final int SLOT_GAP = 20;
     /** 槽区垂直起点 */
     private static final int SLOT_Y = 2;
-    /** Km/Keq 文本行（槽底 20 + 2） */
-    private static final int KM_Y = 22;
-    /** 酶信息区：酶槽位置与右侧文字位置 */
-    private static final int ENZ_SLOT_Y = 34;
-    private static final int ENZ_TEXT_X = 24;
-    private static final int ABBR_Y = 34;
-    private static final int NAME_Y = 43;
-    /** Vmax 行（酶槽下方 4px） */
-    private static final int VMAX_Y = 56;
+    /** Keq 文本行（槽底 20 + 2） */
+    private static final int KEQ_Y = 22;
+    /** 酶工厂方块槽（行 2） */
+    private static final int MACHINE_SLOT_Y = 34;
+    /** Vmax 两行（酶槽下方 4px，各自独立一行） */
+    private static final int VMAX_F_Y = 56;
+    private static final int VMAX_B_Y = 65;
     /** 配方卡尺寸（background 为 null 时必须覆写 getWidth/getHeight） */
     private static final int WIDTH = 154;
-    private static final int HEIGHT = 66;
+    private static final int HEIGHT = 74;
 
     /** 文本颜色：主信息全白带阴影；tooltip 说明灰色 */
     private static final int COLOR_WHITE = 0xFFFFFF;
     private static final int COLOR_DIM = 0x9E9E9E;
     private static final int COLOR_ARROW = 0xFFC0C0C0;
-
-    /** JEI 标准槽纹理（酶信息区槽位与配方槽共用同一视觉） */
-    private final IDrawable slotDrawable;
-
-    /**
-     * @param guiHelper JEI 图形助手（注册类别时由插件传入，取标准槽纹理）
-     */
-    public EnzymeFactoryRecipeCategory(IGuiHelper guiHelper) {
-        this.slotDrawable = guiHelper.getSlotDrawable();
-    }
 
     /**
      * 本类别对应的配方类型
@@ -129,7 +114,7 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
     }
 
     /**
-     * 配方卡高度（槽 + Km 行 + 酶信息块 + Vmax 行）
+     * 配方卡高度（槽 + Keq 行 + 酶槽 + Vmax 两行）
      *
      * @return 高度像素
      */
@@ -139,10 +124,11 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
     }
 
     /**
-     * 布槽：输入在左、输出在右，中间留出箭头区
+     * 布槽：反应物/产物槽（INPUT/OUTPUT）+ 酶工厂方块槽（CATALYST）
      * <p>
-     * 槽位角色（INPUT/OUTPUT）同时驱动 JEI 的点击用途反向索引，
-     * 玩家点任意分子物品即可追溯参与的所有酶反应
+     * 反应物/产物槽角色同时驱动 JEI 的点击用途反向索引；
+     * 酶槽用 CATALYST 角色：hover 显示酶名、点击直接查看本酶配方，
+     * 与 registerRecipeCatalysts 的全局注册指向同一配方，不冲突
      *
      * @param builder 布局构建器
      * @param recipe  展示模型
@@ -164,6 +150,15 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
             configureSlot(slot, output);
             outputX += SLOT_GAP;
         }
+
+        // 酶工厂方块槽：标准槽纹理，CATALYST 角色（可交互），tooltip 显示酶名
+        IRecipeSlotBuilder machineSlot = builder
+                .addSlot(RecipeIngredientRole.CATALYST, 2, MACHINE_SLOT_Y)
+                .addItemStack(recipe.machineStack());
+        machineSlot.setStandardSlotBackground();
+        machineSlot.addTooltipCallback((view, tooltip) ->
+                tooltip.add(Component.literal(recipe.displayName())
+                        .withStyle(style -> style.withColor(COLOR_WHITE))));
     }
 
     /**
@@ -190,9 +185,9 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
     }
 
     /**
-     * 配方卡绘制：箭头 + Km/Keq 行 + 酶信息块（槽+缩写+显示名）+ Vmax 行
+     * 配方卡绘制：箭头 + Keq 行 + Vmax 两行（每行只放一个信息）
      * <p>
-     * 主信息全部 MC 标准字体白字带阴影（小字号阴影避免模糊）；酶缩写用 EC 主题色带阴影
+     * 主信息全部 MC 标准字体白字带阴影（小字号阴影避免模糊）
      *
      * @param recipe     展示模型
      * @param slotsView  已布局的槽视图（本类别不使用）
@@ -210,44 +205,21 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
         int arrowY = SLOT_Y + SLOT / 2 - 1;
         drawArrow(graphics, arrowX, arrowY, recipe.reversible());
 
-        // 行 1：Keq 画在箭头正下方，Km 画在每个槽正下方（白字带阴影）
+        // 行 1：仅 Keq（箭头正下方），一行只放一个信息
         graphics.drawString(font,
                 Component.translatable("jei.biocraft.keq", CompatRenderUtil.formatKeq(recipe.keq()))
                         .withStyle(style -> style.withColor(COLOR_WHITE)),
-                arrowX - 4, KM_Y, COLOR_WHITE, true);
-        int x = 2;
-        for (Entry input : recipe.inputs()) {
-            if (!input.fixedActivity()) {
-                graphics.drawString(font,
-                        Component.translatable("jei.biocraft.km", CompatRenderUtil.formatKm(input.km()))
-                                .withStyle(style -> style.withColor(COLOR_WHITE)),
-                        x, KM_Y, COLOR_WHITE, true);
-            }
-            x += SLOT_GAP;
-        }
-        int outputX = arrowX + 24;
-        for (Entry output : recipe.outputs()) {
-            if (!output.fixedActivity()) {
-                graphics.drawString(font,
-                        Component.translatable("jei.biocraft.km", CompatRenderUtil.formatKm(output.km()))
-                                .withStyle(style -> style.withColor(COLOR_WHITE)),
-                        outputX, KM_Y, COLOR_WHITE, true);
-            }
-            outputX += SLOT_GAP;
-        }
+                arrowX - 4, KEQ_Y, COLOR_WHITE, true);
 
-        // 行 2：酶信息块——标准槽放酶方块，右侧上部缩写（主题色+阴影）、下部显示名（白+阴影）
-        slotDrawable.draw(graphics, 2, ENZ_SLOT_Y);
-        graphics.renderItem(recipe.machineStack(), 2 + 1, ENZ_SLOT_Y + 1);
-        int theme = CompatRenderUtil.themeColor(recipe.ecCategory());
-        graphics.drawString(font, recipe.abbreviation(), ENZ_TEXT_X, ABBR_Y, theme, true);
-        graphics.drawString(font, recipe.displayName(), ENZ_TEXT_X, NAME_Y, COLOR_WHITE, true);
-
-        // 行 3：正向/逆向饱和可达最大速率（个/tick，白字带阴影，两位小数）
-        String vmaxText = "Vmax_f = " + CompatRenderUtil.formatRate(recipe.vmaxFPerTick())
-                + " 个/tick · Vmax_b = " + CompatRenderUtil.formatRate(recipe.vmaxBPerTick())
-                + " 个/tick";
-        graphics.drawString(font, vmaxText, 2, VMAX_Y, COLOR_WHITE, true);
+        // 行 3/4：正向/逆向饱和可达最大速率，各自独立一行（中文文案，两位有效数字，个/tick）
+        graphics.drawString(font,
+                Component.translatable("jei.biocraft.vmax_f", CompatRenderUtil.formatRate(recipe.vmaxFPerTick()))
+                        .withStyle(style -> style.withColor(COLOR_WHITE)),
+                2, VMAX_F_Y, COLOR_WHITE, true);
+        graphics.drawString(font,
+                Component.translatable("jei.biocraft.vmax_b", CompatRenderUtil.formatRate(recipe.vmaxBPerTick()))
+                        .withStyle(style -> style.withColor(COLOR_WHITE)),
+                2, VMAX_B_Y, COLOR_WHITE, true);
     }
 
     /**

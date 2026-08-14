@@ -42,15 +42,12 @@ public class BioCraftJeiPlugin implements IModPlugin {
 
     /**
      * 注册配方类别（酶工厂配方卡）
-     * <p>
-     * 类别构造时传入 JEI 图形助手（提供标准槽纹理等绘制资源）
      *
      * @param registration 类别注册器
      */
     @Override
     public void registerCategories(IRecipeCategoryRegistration registration) {
-        registration.addRecipeCategories(
-                new EnzymeFactoryRecipeCategory(registration.getJeiHelpers().getGuiHelper()));
+        registration.addRecipeCategories(new EnzymeFactoryRecipeCategory());
     }
 
     /**

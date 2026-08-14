@@ -136,15 +136,20 @@ public final class CompatRenderUtil {
     }
 
     /**
-     * 速率文本格式化（固定两位小数）
+     * 速率文本格式化（两位有效数字，含 e 时回退两位小数）
      * <p>
-     * 用于 Vmax 等以"个/tick"为单位的展示值
+     * 用于 Vmax 等以"个/tick"为单位的展示值；与 GUI 速率条刻度同款处理
+     * （%.2g 含 e 回退 %.2f），避免科学计数法符号挤占卡片宽度
      *
      * @param value 速率值（个/tick）
      * @return 显示文本
      */
     public static String formatRate(double value) {
-        return String.format(Locale.ROOT, "%.2f", value);
+        String s = String.format(Locale.ROOT, "%.2g", value);
+        if (s.contains("e")) {
+            s = String.format(Locale.ROOT, "%.2f", value);
+        }
+        return s;
     }
 
     /**

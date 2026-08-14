@@ -154,6 +154,10 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "激活剂: %s" : "Activators: %s");
         translations.put("jei.biocraft.count",
                 zh ? "数量 ×%s" : "Count ×%s");
+        translations.put("jei.biocraft.vmax_f",
+                zh ? "正向速率最大值 %s 个/tick" : "Fwd Max Rate %s/tick");
+        translations.put("jei.biocraft.vmax_b",
+                zh ? "逆向速率最大值 %s 个/tick" : "Rev Max Rate %s/tick");
     }
 
     /**
