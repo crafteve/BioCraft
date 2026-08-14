@@ -117,20 +117,21 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** v-t 图左边缘 x（Y 轴，工作区 67~188 左减 3px） */
     private static final int VT_X0 = 70;
 
-    /** v-t 图右边缘 x（工作区右减 3px） */
-    private static final int VT_X1 = 185;
-
-    /** 格子宽（1s/格，12px；10 点 9 段 = 108px，点 70..178） */
+    /** 格子宽（1s/格，12px；10 点 9 段 = 108px，点 0..108（4x 局部坐标）） */
     private static final int VT_GRID_W = 12;
 
     /** 窗口点数（1s 一点，共 10 点 = 0~9s） */
     private static final int VT_POINTS = 10;
 
-    /** X 轴横线右端 = 箭头屁股 = 最右点消失处（点区右端） */
-    private static final int VT_AXIS_END = VT_X0 + (VT_POINTS - 1) * VT_GRID_W;
-
     /** 采样间隔（1s = 20 tick） */
     private static final int VT_SAMPLE_TICKS = 20;
+
+    /**
+     * v-t 图超采样倍数：4x 分辨率绘制 + pose 缩放回 1x——fill 矩形边缘经
+     * GPU 线性插值即抗锯齿（等效 4x 超采样下采样）。图表区无文字，
+     * 位图字体不参与缩放，无糊字风险
+     */
+    private static final int VT_SUPERSAMPLE = 4;
 
     /** 坐标轴颜色（深灰） */
     private static final int AXIS_COLOR = 0xFF555555;
@@ -268,35 +269,39 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /**
      * v-t 通量折线图：REACT 框下方 4px、高 60px、宽 = 工作区 − 6px
      * <p>
+     * 高清渲染：整图在 4x 超采样坐标系内绘制（全部坐标 ×4），再经
+     * pose.scale(1/4) 缩放回原尺寸——fill 矩形边缘线性插值 = 抗锯齿
+     * <p>
      * 布局（与用户给定约束一一对应）：
      * <ul>
-     *   <li>Y 轴：x=70（图像左边缘），60×1px 深灰竖线 + 箭头——箭头顶端
-     *       与线段结束点（顶端）重合：尖端行 = 轴顶行，向下张开 3 行</li>
-     *   <li>X 轴（v=0 基准线）：横线 70..185 + 右端箭头（尖端朝右，
-     *       尖端 = 线段右端，向左张开 3 列）；v=0 按值域比例定位——
-     *       [-vmaxRShow, +vmaxFShow]，对称可逆居中、不可逆贴底</li>
-     *   <li>y 轴满刻度用"饱和可达速率"：引擎通量在底物/产物满堆（浓度 1）
-     *       时趋近 vmax·∏(1/Km)/(1+∏(1/Km)) 而非 vmax（Km 饱和项），
-     *       以可达速率作满刻度后满堆工况恰好顶到 y 最大/最小值
-     *       （相对位置 0 和 60）</li>
-     *   <li>折线（从左往右滚动）：X 轴左侧 x=0（最新点）、右侧 x=10
-     *       （最旧）；新点绘制在 x=0（左端），每 1s 采样后旧点右移一格，
-     *       最右点被挤出窗口；2×2 主题色方形点（不加深）+ 1px 主题色
-     *       折线连接</li>
+     *   <li>Y 轴：图像左边缘，60×1px 深灰竖线 + 箭头——箭头顶端与线段
+     *       结束点（顶端）重合：尖端行 = 轴顶行，向下张开 3 行</li>
+     *   <li>X 轴（v=0 基准线）：横线 0..箭头屁股 + 右端箭头（尖端朝右）；
+     *       v=0 按值域比例定位 [-vmaxRShow, +vmaxFShow]，对称可逆居中、
+     *       不可逆贴底</li>
+     *   <li>y 轴满刻度用"饱和可达速率"（可逆共享分母 / 不可逆米氏积
+     *       两种形式区分），满堆工况恰好顶到 y 最大/最小值</li>
+     *   <li>折线（从左往右滚动）：左侧 x=0 最新点、右侧箭头屁股为消失处；
+     *       每 1s 采样一点共 10 点；4×4 主题色方形点（补 alpha 防透明）
+     *       + 1px 主题色折线连接</li>
      * </ul>
      *
      * @param graphics 渲染器
      */
     private void drawVtChart(GuiGraphics graphics) {
-        int axX = this.leftPos + VT_X0;
-        int topY = this.topPos + VT_Y;
-        int bottomY = topY + VT_H;
+        int ss = VT_SUPERSAMPLE;
+        // 4x 超采样：平移到图表区左上角，此后全部以 4x 分辨率局部坐标绘制
+        graphics.pose().pushPose();
+        graphics.pose().translate(this.leftPos + VT_X0, this.topPos + VT_Y, 0);
+        graphics.pose().scale(ss, ss, 1.0F);
 
-        // Y 轴：60×1px 深灰竖线（图像左边缘）+ 箭头
-        // 箭头尖端与线段结束点（轴顶）重合：尖端行 = topY，向下张开 3 行
-        graphics.fill(axX, topY, axX + 1, bottomY + 1, AXIS_COLOR);
-        graphics.fill(axX, topY, axX + 1, topY + 1, AXIS_COLOR);
-        graphics.fill(axX - 1, topY + 1, axX + 2, topY + 4, AXIS_COLOR);
+        int bottomY = VT_H * ss;
+        int tailX = (VT_POINTS - 1) * VT_GRID_W * ss;
+
+        // Y 轴：1px 竖线 → 4px 宽；箭头尖端（轴顶）向下张开 3 行（12px）
+        graphics.fill(0, 0, ss, bottomY + ss, AXIS_COLOR);
+        graphics.fill(0, 0, ss, ss, AXIS_COLOR);
+        graphics.fill(-ss, ss, ss * 2, ss * 4, AXIS_COLOR);
 
         // v 值域：[-vmaxR, vmaxF]（正向 kcat/TIME_SCALE；逆向 Haldane）
         ReactionDefinition definition = blockEntity.getSimulator().getDefinition();
@@ -314,36 +319,39 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         double span = Math.max(vmaxFShow + vmaxRShow, 1e-9);
 
         // X 轴（v=0 基准线）：底部向上按 vmaxRShow/span 比例定位（不可逆贴底）；
-        // 横线 70..178（箭头屁股 = 最右点消失处），箭头尖端朝右延伸 3 列
-        int zeroY = bottomY - (int) Math.round(vmaxRShow / span * VT_H);
-        int tailX = this.leftPos + VT_AXIS_END;
-        graphics.fill(axX, zeroY, tailX + 1, zeroY + 1, AXIS_COLOR);
-        graphics.fill(tailX, zeroY - 1, tailX + 3, zeroY + 2, AXIS_COLOR);
-        graphics.fill(tailX + 3, zeroY, tailX + 4, zeroY + 1, AXIS_COLOR);
+        // 横线 0..箭头屁股，箭头尖端朝右延伸 3 列
+        int zeroY = bottomY - (int) Math.round(vmaxRShow / span * VT_H * ss);
+        graphics.fill(0, zeroY, tailX + ss, zeroY + ss, AXIS_COLOR);
+        graphics.fill(tailX, zeroY - ss, tailX + ss * 3, zeroY + ss * 2, AXIS_COLOR);
+        graphics.fill(tailX + ss * 3, zeroY, tailX + ss * 4, zeroY + ss, AXIS_COLOR);
 
-        // 折线：从左往右滚动——最新点在左端（x=70），旧点逐格右移，
-        // 最右点恰好落在 X 轴箭头屁股（点区右端 = 消失处）
+        // 折线：从左往右滚动——最新点在左端（x=0），旧点逐格右移，
+        // 最右点恰好落在 X 轴箭头屁股（消失处）
         int count = Math.min(vtSampleCount, VT_POINTS);
         if (count < 2) {
+            graphics.pose().popPose();
             return;
         }
         int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
         int lineColor = theme | 0xFF000000;
-        int pointColor = theme;
+        // 点色必须补 alpha：MachineCategory 主题色为 24 位 RGB，直接 fill
+        // 会画出全透明矩形（实测 bug：只画了线没画点，已修复）
+        int pointColor = theme | 0xFF000000;
         int latest = (vtIndex - 1 + VT_POINTS) % VT_POINTS;
         int prevX = 0, prevY = 0;
         for (int i = 0; i < count; i++) {
             double v = vtFlux[(latest - i + VT_POINTS) % VT_POINTS];
-            int x = axX + i * VT_GRID_W;
-            int y = bottomY - (int) Math.round((v + vmaxRShow) / span * VT_H);
-            y = Math.max(topY, Math.min(bottomY, y));
+            int x = i * VT_GRID_W * ss;
+            int y = bottomY - (int) Math.round((v + vmaxRShow) / span * VT_H * ss);
+            y = Math.max(0, Math.min(bottomY, y));
             if (i > 0) {
                 drawLine(graphics, prevX, prevY, x, y, lineColor);
             }
-            graphics.fill(x - 2, y - 2, x + 2, y + 2, pointColor);
+            graphics.fill(x - ss * 2, y - ss * 2, x + ss * 2, y + ss * 2, pointColor);
             prevX = x;
             prevY = y;
         }
+        graphics.pose().popPose();
     }
 
     /**
