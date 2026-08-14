@@ -48,3 +48,6 @@ tools/texturegen/output/
 
 ### 化学引擎单测编译产物 ###
 tools/engineTest/out/
+
+### 外部 mod 依赖 jar（AUI，dev 运行用，不提交）###
+libs/

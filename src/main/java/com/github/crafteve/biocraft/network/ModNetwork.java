@@ -12,8 +12,8 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  * NeoForge 1.21.1 的 payload 注册新风格：在 RegisterPayloadHandlersEvent 中
  * 通过 PayloadRegistrar 声明每个数据包的类型、编解码器与处理器
  * <p>
- * 当前仅有一个客户端→服务端数据包（DNA 序列提交）；进度/状态同步
- * 走 Menu 的 ContainerData 自动同步机制，无需额外网络包
+ * 当前有两个数据包：DNA 序列提交（客户端→服务端）、酶工厂 GUI 运行时数据
+ * （服务端→客户端，替代 AUI 容器模型下缺失的 ContainerData 自动同步）
  */
 @EventBusSubscriber(modid = BioCraft.MODID, bus = EventBusSubscriber.Bus.MOD)
 public final class ModNetwork {
@@ -35,5 +35,9 @@ public final class ModNetwork {
                 ServerboundDnaSequencePacket.TYPE,
                 ServerboundDnaSequencePacket.STREAM_CODEC,
                 ServerboundDnaSequencePacket::handle);
+        registrar.playToClient(
+                ClientboundEnzymeGuiPacket.TYPE,
+                ClientboundEnzymeGuiPacket.STREAM_CODEC,
+                ClientboundEnzymeGuiPacket::handle);
     }
 }

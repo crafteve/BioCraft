@@ -5,8 +5,13 @@ import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
 import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.blockentity.MachineBlockEntity;
 import com.github.crafteve.biocraft.blockentity.MachineType;
+import com.github.crafteve.biocraft.gui.EnzymeGuiConstants;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
+import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.element.ContainerDeclaration;
+import com.sighs.apricityui.network.handler.ApricityScreenNetworkHandler;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -22,6 +27,9 @@ import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
 
 import javax.annotation.Nullable;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * 唯一的机器方块类（AGENTS.md 1.4 硬性规则）
@@ -124,8 +132,30 @@ public class MachineBlock extends Block implements EntityBlock {
      */
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hitResult) {
-        if (!level.isClientSide && level.getBlockEntity(pos) instanceof MachineBlockEntity machine) {
-            player.openMenu(machine, pos);
+        if (!level.isClientSide) {
+            switch (spec) {
+                // 中心法则原始机器：走 vanilla openMenu（DNA 编码器）
+                case MachineSpec.Primitive(MachineType type) -> {
+                    if (level.getBlockEntity(pos) instanceof MachineBlockEntity machine) {
+                        player.openMenu(machine, pos);
+                    }
+                }
+                // 酶工厂：经 AUI 打开 HTML 容器 GUI（数据驱动，绑定本机 IItemHandler + 玩家背包）
+                case MachineSpec.Enzyme(EnzymeFactoryData data) -> {
+                    if (player instanceof ServerPlayer serverPlayer
+                            && level.getBlockEntity(pos) instanceof EnzymeFactoryBlockEntity factory) {
+                        ApricityScreenNetworkHandler.openScreen(serverPlayer, EnzymeGuiConstants.GUI_PATH,
+                                List.of(
+                                        new ContainerDeclaration("block_entity", ContainerBindType.BLOCK_ENTITY, 0, true),
+                                        new ContainerDeclaration("player", ContainerBindType.PLAYER, 36, false)),
+                                Map.of("block_entity", Map.of(
+                                        "x", String.valueOf(pos.getX()),
+                                        "y", String.valueOf(pos.getY()),
+                                        "z", String.valueOf(pos.getZ()))));
+                        factory.openForViewer(serverPlayer);
+                    }
+                }
+            }
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }

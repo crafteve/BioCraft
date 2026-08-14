@@ -1,0 +1,272 @@
+/* 酶工厂仪表盘 —— 浅色学术风格，高饱和度纯色强调 */
+:root {
+    --accent: #FFA94D;            /* 由 Java 按酶类别主题色注入 */
+    --accent-ink: #1C2333;        /* 深色正文 */
+    --muted: #8A93A6;             /* 次级文字 */
+    --card: #FFFFFF;              /* 卡片底色 */
+    --card-line: #D8DDE6;         /* 卡片描边 */
+    --track: #E9EDF3;             /* 进度条轨道 */
+    --bg: #F3F5F9;                /* 页面底色 */
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    width: 360px;
+    height: 252px;
+    background: var(--bg);
+    color: var(--accent-ink);
+    font-size: 11px;
+    line-height: 1.35;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ---------- 标题栏 ---------- */
+.titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    height: 36px;
+    border-bottom: 1px solid var(--card-line);
+    background: var(--card);
+}
+
+.abbr {
+    min-width: 34px;
+    height: 24px;
+    padding: 0 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent);
+    color: #FFFFFF;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    border-radius: 6px;
+}
+
+.name {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-ink);
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.env {
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+/* ---------- 主体布局 ---------- */
+.layout {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    gap: 8px;
+    padding: 8px;
+}
+
+.species-area {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+}
+
+.column {
+    width: 92px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.col-title {
+    margin: 0;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 1px;
+}
+
+.scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+    min-height: 0;
+    padding: 1px;
+}
+
+/* ---------- 物种卡片 ---------- */
+.species-card {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--card);
+    border: 1px solid var(--card-line);
+    border-radius: 8px;
+    padding: 4px;
+    flex-shrink: 0;
+}
+
+.species-slot {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    background: #FFFFFF;
+    border: 1px solid var(--card-line);
+    border-radius: 5px;
+}
+
+.species-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.species-name {
+    font-size: 9px;
+    color: var(--accent-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    font-weight: 600;
+}
+
+.species-abbr {
+    font-size: 8px;
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.species-gauge {
+    width: 100%;
+    height: 5px;
+    margin-top: 2px;
+}
+
+/* ---------- 仪表盘 ---------- */
+.dashboard {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--card);
+    border: 1px solid var(--card-line);
+    border-radius: 10px;
+    padding: 10px;
+    min-width: 0;
+}
+
+.equation {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.rate-row {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+}
+
+.rate-label {
+    font-size: 10px;
+    color: var(--muted);
+}
+
+.rate-dir {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.rate-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent-ink);
+}
+
+.rate-unit {
+    font-size: 10px;
+    color: var(--muted);
+}
+
+.progress-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.progress-label {
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+biocraft-progress {
+    flex: 1;
+    height: 10px;
+}
+
+.progress-pct {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 30px;
+    text-align: right;
+}
+
+biocraft-balance {
+    width: 100%;
+    height: 14px;
+}
+
+biocraft-vtchart {
+    width: 100%;
+    flex: 1;
+    min-height: 40px;
+}
+
+/* ---------- 玩家背包 ---------- */
+.inventory {
+    height: 84px;
+    padding: 6px 10px;
+    border-top: 1px solid var(--card-line);
+    background: var(--card);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+container#player {
+    display: grid;
+    gap: 3px;
+}
+
+container#player slot {
+    width: 18px;
+    height: 18px;
+    background: #FFFFFF;
+    border: 1px solid var(--card-line);
+    border-radius: 4px;
+}

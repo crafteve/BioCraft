@@ -88,6 +88,14 @@ Example mod description.
     ordering="NONE"
     side="BOTH"
 
+# 晴雪 UI（AUI）硬前置：酶工厂 GUI 由 AUI 的 HTML/CSS 引擎渲染
+[[dependencies.${mod_id}]]
+    modId="apricityui"
+    type="required"
+    versionRange="[1.2.1,)"
+    ordering="NONE"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

@@ -30,10 +30,11 @@ import java.util.List;
  * <p>
  * 两类机器：
  * <ul>
- *   <li>DNA 编码器：MachineType 枚举手动注册（中心法则链原始机器）</li>
+ *   <li>DNA 编码器：MachineType 枚举手动注册（中心法则链原始机器），
+ *       附带独立 BlockEntityType 与 MenuType</li>
  *   <li>酶工厂：由 EnzymeFactoryRegistry 数据驱动循环注册，全部实例共享
- *       一个 BlockEntityType（实体从方块取回酶数据）与一个 MenuType
- *       （数据包缓冲传 enzymeId，M3 实现 Menu）</li>
+ *       一个 BlockEntityType（实体从方块取回酶数据）；GUI 由 AUI 渲染，
+ *       不再注册 vanilla MenuType</li>
  * </ul>
  */
 public final class ModBlocks {
@@ -72,17 +73,6 @@ public final class ModBlocks {
     public static final DeferredHolder<MenuType<?>, MenuType<DNAEncoderMenu>> DNA_ENCODER_MENU =
             MENUS.register(MachineType.DNA_ENCODER.getId(),
                     () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(DNAEncoderMenu::new));
-
-    /**
-     * 酶工厂共享菜单类型（全部酶实例一个 MenuType）
-     * <p>
-     * 打开数据包内容：BlockPos（NeoForge 自动写入）→ 酶 id → v-t 历史数组
-     * （由 EnzymeFactoryBlockEntity.writeClientSideData 写入）
-     */
-    public static final DeferredHolder<MenuType<?>, MenuType<com.github.crafteve.biocraft.gui.MachineMenu>> ENZYME_FACTORY_MENU =
-            MENUS.register("enzyme_factory",
-                    () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(
-                            com.github.crafteve.biocraft.gui.MachineMenu::new));
 
     /** 全部酶工厂方块（数据驱动注册，注册名 = 酶 id） */
     private static final List<DeferredBlock<MachineBlock>> ENZYME_BLOCKS = new ArrayList<>();

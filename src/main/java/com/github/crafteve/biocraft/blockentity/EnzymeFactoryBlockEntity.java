@@ -4,19 +4,24 @@ import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.block.MachineBlock;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModItems;
+import com.github.crafteve.biocraft.network.ClientboundEnzymeGuiPacket;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.github.crafteve.biocraft.reaction.EnzymeSimulator;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
 import com.github.crafteve.biocraft.reaction.KineticsCalculator;
+import com.sighs.apricityui.screen.ApricityContainerMenu;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Containers;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
  * 酶工厂方块实体（共享一个 BlockEntityType，全酶实例共用）
@@ -65,22 +70,106 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     private int historyIndex;
 
     /**
+     * 当前正在查看本机 GUI 的玩家（不存档）
+     * <p>
+     * 每 tick 检测其容器是否仍为 AUI 容器（菜单关闭时 containerMenu 会变回
+     * inventoryMenu），据此决定是否继续发送运行时数据包，避免向所有附近玩家
+     * 无条件广播
+     */
+    private ServerPlayer viewer;
+
+    /**
+     * 方块实体物品槽视图（NeoForge IItemHandler capability）
+     * <p>
+     * 供 AUI 的 blockEntity 容器数据源读取：getSlots = 物种数，槽位下标 = 物种下标，
+     * isItemValid 锁定对应物种物品（等价替换原 RestrictedSlot.mayPlace 过滤，
+     * 玩家 GUI 放置与漏斗直塞都经此校验）
+     */
+    private final IItemHandler itemHandler = new IItemHandler() {
+        @Override
+        public int getSlots() {
+            return speciesIds.length;
+        }
+
+        @Override
+        public ItemStack getStackInSlot(int slot) {
+            return inventory.getItem(slot);
+        }
+
+        @Override
+        public ItemStack insertItem(int slot, ItemStack stack, boolean simulate) {
+            if (stack.isEmpty() || !isItemValid(slot, stack)) {
+                return stack;
+            }
+            ItemStack existing = inventory.getItem(slot);
+            int limit = Math.min(getSlotLimit(slot), stack.getMaxStackSize());
+            if (!existing.isEmpty()) {
+                if (!ItemStack.isSameItemSameComponents(existing, stack)) {
+                    return stack;
+                }
+                int insertable = Math.min(limit - existing.getCount(), stack.getCount());
+                if (insertable <= 0) {
+                    return stack;
+                }
+                if (!simulate) {
+                    existing.grow(insertable);
+                    inventory.setChanged();
+                }
+                ItemStack remainder = stack.copy();
+                remainder.shrink(insertable);
+                return remainder;
+            }
+            int insertable = Math.min(limit, stack.getCount());
+            if (!simulate) {
+                ItemStack toSet = stack.copy();
+                toSet.setCount(insertable);
+                inventory.setItem(slot, toSet);
+                inventory.setChanged();
+            }
+            ItemStack remainder = stack.copy();
+            remainder.shrink(insertable);
+            return remainder;
+        }
+
+        @Override
+        public ItemStack extractItem(int slot, int amount, boolean simulate) {
+            if (amount <= 0) {
+                return ItemStack.EMPTY;
+            }
+            ItemStack existing = inventory.getItem(slot);
+            if (existing.isEmpty()) {
+                return ItemStack.EMPTY;
+            }
+            int toExtract = Math.min(amount, existing.getCount());
+            ItemStack result = existing.copy();
+            result.setCount(toExtract);
+            if (!simulate) {
+                existing.shrink(toExtract);
+                if (existing.isEmpty()) {
+                    inventory.setItem(slot, ItemStack.EMPTY);
+                }
+                inventory.setChanged();
+            }
+            return result;
+        }
+
+        @Override
+        public int getSlotLimit(int slot) {
+            return 64;
+        }
+
+        @Override
+        public boolean isItemValid(int slot, ItemStack stack) {
+            return stack.is(ModItems.byId(speciesIds[slot]).get());
+        }
+    };
+
+    /**
      * @param pos   方块位置
      * @param state 方块状态（其方块必须是酶工厂 MachineBlock）
      */
     public EnzymeFactoryBlockEntity(BlockPos pos, BlockState state) {
         this(pos, state, enzymeDataFromState(state));
-    }
-
-    /**
-     * 回退构造：菜单打开竞态（方块已被破坏）时，用数据表档案 + AIR 状态
-     * 构造占位实体，避免菜单崩溃；仅由 MachineMenu 的防御降级路径调用
-     *
-     * @param pos  方块位置
-     * @param data 酶数据档案
-     */
-    public EnzymeFactoryBlockEntity(BlockPos pos, EnzymeFactoryData data) {
-        this(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), data);
     }
 
     /**
@@ -102,8 +191,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     /**
      * 从方块状态安全提取酶数据档案
      * <p>
-     * 非 MachineBlock 方块（如菜单回退路径的 AIR）不直接强转，抛异常
-     * 快速暴露错误而非静默产生空实体
+     * 非 MachineBlock 方块不直接强转，抛异常快速暴露错误而非静默产生空实体
      *
      * @param state 方块状态
      * @return 酶数据档案
@@ -151,6 +239,68 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      */
     public double getRemainder(int slot) {
         return remainder[slot];
+    }
+
+    /**
+     * 暴露 IItemHandler capability 给 AUI 容器数据源
+     * <p>
+     * AUI 的 blockEntity 绑定经 {@code level.getCapability(Capabilities.ItemHandler.BLOCK, ...)}
+     * 取本 capability（由 ModCapabilities 的 RegisterCapabilitiesEvent 注册），
+     * 槽位下标 = 物种下标，isItemValid 实现物种锁定
+     *
+     * @return 物品槽视图
+     */
+    public IItemHandler getItemHandler() {
+        return itemHandler;
+    }
+
+    /**
+     * 玩家打开本机 GUI：登记查看者并立即下发首包运行时数据
+     * <p>
+     * 由 MachineBlock 在经 AUI 打开菜单后调用；首包保证客户端在文档创建前就拿到
+     * 酶档案（客户端查表），文档创建后由每 tick 的 tickViewerSync 持续推送
+     *
+     * @param player 打开 GUI 的玩家
+     */
+    public void openForViewer(ServerPlayer player) {
+        this.viewer = player;
+        sendGuiSync(player);
+    }
+
+    /**
+     * 查看者数据推送（每 tick 调用）
+     * <p>
+     * 玩家菜单关闭（containerMenu 变回 inventoryMenu）或连接断开时清除查看者，
+     * 停止推送；否则发送当前引擎状态的运行时数据包
+     */
+    private void tickViewerSync() {
+        if (viewer == null) {
+            return;
+        }
+        if (viewer.containerMenu == null || viewer.connection == null
+                || !(viewer.containerMenu instanceof ApricityContainerMenu)) {
+            viewer = null;
+            return;
+        }
+        sendGuiSync(viewer);
+    }
+
+    /**
+     * 向指定玩家发送当前引擎状态的运行时数据包
+     * <p>
+     * 定点缩放避免浮点编解码：浓度×1000、温度×100、通量×1000；
+     * 历史快照按时间顺序展开（最旧→最新）
+     *
+     * @param player 目标玩家
+     */
+    private void sendGuiSync(ServerPlayer player) {
+        double[] x = simulator.getState().getConcentrations();
+        int[] concentrations = new int[x.length];
+        for (int i = 0; i < x.length; i++) {
+            concentrations[i] = (int) Math.round(KineticsCalculator.clamp01(x[i]) * 1000.0);
+        }
+        PacketDistributor.sendToPlayer(player, new ClientboundEnzymeGuiPacket(
+                enzymeData.id(), cachedTempX100, cachedFluxX1000, concentrations, historySnapshot()));
     }
 
     /**
@@ -234,6 +384,8 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         updateCachedData();
         fluxHistory[historyIndex] = cachedFluxX1000;
         historyIndex = (historyIndex + 1) % HISTORY_LENGTH;
+
+        tickViewerSync();
 
         if (level.getGameTime() % 20 == 0) {
             BioCraft.LOGGER.debug("酶工厂 [{}] 槽位: {}, 浓度: {}, 通量×1000: {}",
@@ -379,34 +531,19 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
-     * 创建菜单：酶工厂菜单（服务端，历史快照传入供客户端初始化 v-t 图）
+     * 创建菜单（vanilla 路径，酶工厂已不再使用）
+     * <p>
+     * 酶工厂 GUI 由 AUI 打开（MachineBlock 经 ApricityScreenNetworkHandler.openScreen），
+     * 不走 vanilla 的 openMenu/createMenu 路径，本方法不会被调用
      *
      * @param containerId     菜单容器编号
      * @param playerInventory 玩家物品栏
      * @param player          打开菜单的玩家
-     * @return 酶工厂菜单实例
+     * @return 恒为 null（实际不被调用）
      */
     @Override
     public AbstractContainerMenu createMenu(int containerId, Inventory playerInventory, Player player) {
-        return new com.github.crafteve.biocraft.gui.MachineMenu(containerId, playerInventory, this, historySnapshot());
-    }
-
-    /**
-     * 打开菜单时向客户端写入自定义数据（NeoForge 扩展点）
-     * <p>
-     * 写入内容：酶 id（校验用）+ v-t 历史数组（按时间展开为旧→新顺序）
-     *
-     * @param menu   刚创建的服务端菜单
-     * @param buffer 打开数据包缓冲
-     */
-    @Override
-    public void writeClientSideData(AbstractContainerMenu menu, net.minecraft.network.RegistryFriendlyByteBuf buffer) {
-        buffer.writeUtf(enzymeData.id());
-        int[] snapshot = historySnapshot();
-        buffer.writeVarInt(snapshot.length);
-        for (int value : snapshot) {
-            buffer.writeVarInt(value);
-        }
+        return null;
     }
 
     /**

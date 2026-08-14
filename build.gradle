@@ -28,7 +28,11 @@ sourceSets.main.resources {
 }
 
 repositories {
-    // Add here additional repositories if required by some of the dependencies below.
+    // 晴雪 UI（AUI）官方 Maven 仓库
+    maven {
+        url "https://maven.sighs.cc/repository/maven-public/"
+        name "sighs"
+    }
 }
 
 base {
@@ -173,6 +177,11 @@ dependencies {
     implementation(cdkAll)
     additionalRuntimeClasspath(cdkAll)
     jarJar(cdkAll)
+
+    // 晴雪 UI（AUI）：酶工厂 GUI 渲染框架（外部硬前置模组，不打包进本模组）
+    // compileOnly 仅编译期引用 AUI API；运行时由玩家单独安装 AUI，
+    // dev 运行（runClient）由 ./libs 目录下的 AUI jar 提供（ModDevGradle 自动发现 libs 目录）
+    compileOnly 'com.sighs:ApricityUI-neoforge-1.21.1:1.2.1'
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
