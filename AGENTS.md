@@ -191,6 +191,8 @@ com.github.crafteve.biocraft
 18. **引擎速率公式三大数学性质（勿改坏）**：①平衡精确——可逆多底物共享分母乘积形式下 v=0 时 ∏产物/∏底物 = Keq（Haldane 保证），Keq 绝不缩放红线由构建断言+收敛测试双重守护；②逆向 Vmax 由 `Vmax_f·∏KmP/(∏KmS·Keq)` 决定而非独立逆向数据（Keq 小时逆向极强是正确行为）；③饱和有界——高浓度速率 ≤ Vmax_f 不爆表
 19. **边界截断是正确物流行为不是 bug**：RK4 终值越界时全局同比缩放（scale=0 反应冻结）——产物满堆、逆向底物满堆、固定活性资源耗尽（水解缺水/H⁺ 耗尽无法逆向）都会表现为"反应停摆"，物理语义正确，测试场景设计时必须给预期方向的产物留出容量空间
 20. **固定活性物种约定**：`{water, hydrogen_ion}` 不进速率方程（eQuilibrator 变换值已隐含 H₂O 活度 1/pH7）但参与化学计量结算（ENO 产水物品），反应物侧耗尽停供（水解必须供水）
+21. **JEI/EMI 双装的 EMI 配方 id 重复噪音**：EMI 的 JEI 兼容桥会把 JEI 内置的 tag 分组配方（`jei:/minecraft/planks`、`jei:/c/dyed/*` 等）导入自身，与 JEI 自己注册的同 id 配方冲突，产生 340+ 条 `[EMI] 2 recipes loaded with the same id: jei:/...` ERROR 日志。这是 JEI+EMI 同时安装时的已知无害噪音（玩家只装一个管理器时不出现），id 全为 `jei:` 前缀与 mod 自身无关，勿为此折腾配置或版本
+22. **dev 环境依赖 mod 放置约定**：runClient 需要的可选依赖 mod（JEI/EMI）只放 `run/mods/` 目录（FML 直接扫描加载，日志可证实），**不要再加 localRuntime 冗余**——双份 jar 会被 mod 发现扫描两次（UniqueModListBuilder 虽会按版本去重，但 classpath 冗余属配置错误）
 
 ## 第三章 编码与开发规范
 

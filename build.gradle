@@ -183,11 +183,9 @@ dependencies {
 
     // ---- 配方显示 mod 联动（JEI/EMI 均为可选 mod，玩家自装）----
     // 编译期只依赖 API/全量 jar 做类型检查；运行期由 run/mods 目录中的 mod jar 提供
-    // （localRuntime 仅保证 dev 环境不缺失，绝不 jarJar 打进发布产物）
+    // （FML 直接扫描加载 run/mods，勿再加 localRuntime——双份 jar 会重复扫描）
     compileOnly "mezz.jei:jei-1.21.1-neoforge-api:19.44.0.401"
     compileOnly "maven.modrinth:emi:1.1.24+1.21.1+neoforge"
-    localRuntime "mezz.jei:jei-1.21.1-neoforge:19.44.0.401"
-    localRuntime "maven.modrinth:emi:1.1.24+1.21.1+neoforge"
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
