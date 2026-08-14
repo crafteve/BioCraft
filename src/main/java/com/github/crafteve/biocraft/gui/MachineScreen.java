@@ -111,8 +111,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** v-t 图顶部 y：REACT 框底（38+12=50）+ 4px */
     private static final int VT_Y = EQ_BOX_Y + EQ_BOX_H + 4;
 
-    /** v-t 图高度 120px */
-    private static final int VT_H = 120;
+    /** v-t 图高度 60px */
+    private static final int VT_H = 60;
 
     /** v-t 图左边缘 x（Y 轴，工作区 67~188 左减 3px） */
     private static final int VT_X0 = 70;
@@ -120,11 +120,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** v-t 图右边缘 x（工作区右减 3px） */
     private static final int VT_X1 = 185;
 
-    /** 折线点水平步进（每 0.5s 一点，间距 4px） */
-    private static final int VT_POINT_STEP = 4;
+    /** 格子宽（0.5s/格，11px；10 格 = 110px，X 轴 75..185） */
+    private static final int VT_GRID_W = 11;
 
-    /** 窗口点数（= 步进数 + 1，115/4 = 28 步 → 29 点 ≈ 14.5 秒） */
-    private static final int VT_POINTS = (VT_X1 - VT_X0) / VT_POINT_STEP + 1;
+    /** 窗口点数（0~5s，每 0.5s 一点 = 11 点） */
+    private static final int VT_POINTS = 11;
 
     /** 采样间隔（0.5s = 10 tick） */
     private static final int VT_SAMPLE_TICKS = 10;
@@ -235,18 +235,20 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * v-t 通量折线图：REACT 框下方 4px、高 120px、宽 = 工作区 − 6px
+     * v-t 通量折线图：REACT 框下方 4px、高 60px、宽 = 工作区 − 6px
      * <p>
      * 布局（与用户给定约束一一对应）：
      * <ul>
-     *   <li>Y 轴：x=70（图像左边缘），120×1px 深灰竖线 + 顶端三角形箭头
-     *       （宽 3px 长 4px）</li>
-     *   <li>X 轴（v=0 基准线）：图像区按 v 值域比例定位——值域
-     *       [-vmaxR, vmaxF]（正向 = kcat/TIME_SCALE，逆向 = Haldane
-     *       关系注册期计算），对称时可逆居中、逆向 vmax=0（不可逆）
-     *       时贴底——因为 v 可能为负（逆向反应）</li>
-     *   <li>折线：每 0.5s（10 tick）采样一点，点距 4px，2×2 深色主题色
-     *       方形点 + 1px 主题色折线连接，窗口 29 点 ≈ 14.5 秒</li>
+     *   <li>Y 轴：x=70（图像左边缘），60×1px 深灰竖线 + 箭头——箭头顶端
+     *       与线段结束点（顶端）重合：尖端行 = 轴顶行，向下张开 3 行</li>
+     *   <li>X 轴（v=0 基准线）：横线 70..185 + 左端箭头（尖端朝左，
+     *       尖端 = 线段左端 = Y 轴交点）；v=0 按值域比例定位——
+     *       [-vmaxR, vmaxF]（正向 kcat/TIME_SCALE、逆向 Haldane 注册期
+     *       计算），对称可逆居中、不可逆贴底（v 可能为负）</li>
+     *   <li>折线（心电图式滚动）：X 轴右侧为 0、左侧为 5（0.5s/格，
+     *       格宽 11px）；新点绘制在 x=0（右端），每 0.5s 采样后旧点
+     *       左移一格，最左点被挤出窗口；2×2 主题色方形点（不加深）
+     *       + 1px 主题色折线连接</li>
      * </ul>
      *
      * @param graphics 渲染器
@@ -256,10 +258,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int topY = this.topPos + VT_Y;
         int bottomY = topY + VT_H;
 
-        // Y 轴：120×1px 深灰竖线（图像左边缘）+ 顶端箭头（宽 3px 长 4px）
+        // Y 轴：60×1px 深灰竖线（图像左边缘）+ 箭头
+        // 箭头尖端与线段结束点（轴顶）重合：尖端行 = topY，向下张开 3 行
         graphics.fill(axX, topY, axX + 1, bottomY + 1, AXIS_COLOR);
-        graphics.fill(axX, topY - 4, axX + 1, topY - 3, AXIS_COLOR);
-        graphics.fill(axX - 1, topY - 3, axX + 2, topY, AXIS_COLOR);
+        graphics.fill(axX, topY, axX + 1, topY + 1, AXIS_COLOR);
+        graphics.fill(axX - 1, topY + 1, axX + 2, topY + 4, AXIS_COLOR);
 
         // v 值域：[-vmaxR, vmaxF]（正向 kcat/TIME_SCALE；逆向 Haldane）
         ReactionDefinition definition = blockEntity.getSimulator().getDefinition();
@@ -268,23 +271,26 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 ? definition.vmaxBForTemperature(KineticConstants.T0) : 0.0;
         double span = Math.max(vmaxF + vmaxR, 1e-9);
 
-        // X 轴（v=0 基准线）：底部向上按 vmaxR/span 比例定位（不可逆贴底）
+        // X 轴（v=0 基准线）：底部向上按 vmaxR/span 比例定位（不可逆贴底）；
+        // 箭头尖端朝左 = 线段左端（Y 轴交点），向右张开 3 列
         int zeroY = bottomY - (int) Math.round(vmaxR / span * VT_H);
         graphics.fill(axX, zeroY, this.leftPos + VT_X1 + 1, zeroY + 1, AXIS_COLOR);
+        graphics.fill(axX, zeroY, axX + 1, zeroY + 1, AXIS_COLOR);
+        graphics.fill(axX + 1, zeroY - 1, axX + 4, zeroY + 2, AXIS_COLOR);
 
-        // 折线：0.5s 一点，线性映射 (v+vmaxR)/span → 底部..顶部
+        // 折线：心电图式——最新点在右端（x=185），旧点逐格左移
         int count = Math.min(vtSampleCount, VT_POINTS);
         if (count < 2) {
             return;
         }
-        int start = (vtIndex - count + VT_POINTS) % VT_POINTS;
         int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
         int lineColor = theme | 0xFF000000;
-        int pointColor = darken(theme);
+        int pointColor = theme;
+        int latest = (vtIndex - 1 + VT_POINTS) % VT_POINTS;
         int prevX = 0, prevY = 0;
         for (int i = 0; i < count; i++) {
-            double v = vtFlux[(start + i) % VT_POINTS];
-            int x = axX + i * VT_POINT_STEP;
+            double v = vtFlux[(latest - i + VT_POINTS) % VT_POINTS];
+            int x = this.leftPos + VT_X1 - i * VT_GRID_W;
             int y = bottomY - (int) Math.round((v + vmaxR) / span * VT_H);
             y = Math.max(topY, Math.min(bottomY, y));
             if (i > 0) {
