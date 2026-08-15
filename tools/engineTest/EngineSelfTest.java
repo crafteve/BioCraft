@@ -54,6 +54,7 @@ public final class EngineSelfTest {
         run("20 ATPase 含 fe 物种构建通过 + H₂O 耗尽停供", EngineSelfTest::test20AtpaseSupply);
         run("21 ATPase 满能量镜像停转（边界缩放回压）", EngineSelfTest::test21AtpaseFullEnergyStall);
         run("22 LDH 平衡收敛至 Keq 判决点（乳酸线可逆酶）", EngineSelfTest::test22LdhConvergence);
+        run("23 RK4 刚性自适应：TPI kcat=9000 数据浓度正常推进", EngineSelfTest::test23RigidAdaptive);
 
         if (failures > 0) {
             System.err.println("引擎单测失败: " + failures + "/" + total);
@@ -598,6 +599,40 @@ public final class EngineSelfTest {
         checkNear(q, 22000.0, 0.02 * 22000.0, "LDH 平衡商 Q 未收敛到 Keq（2% 容差）");
         check(x[idx(sim, "lactate")] > 0.9, "LDH 强偏产物，乳酸应接近满堆");
         check(x[idx(sim, "hydrogen_ion")] > 0.0, "H⁺ 不应耗尽（停供门不得误触发）");
+    }
+
+    /**
+     * RK4 刚性自适应守护：高 kcat（TPI 9000）数据必须正常推进到平衡
+     * <p>
+     * 回归根因（AGENTS.md 2.6 欠账 28）：旧引擎 RK4 在此数据下四阶项
+     * 剧烈震荡自抵消——通量报告 3168/tick 但 Δ浓度 ≈ 1.6e-5（卡死）。
+     * 修复后引擎自动细分步长，200 tick 内应收敛到 Keq 判决点
+     * （G3P = Keq/(1+Keq)，与 PGI/ENO 收敛用例同口径）
+     */
+    private static void test23RigidAdaptive() {
+        EnzymeFactoryData rigidTpi = new EnzymeFactoryData(
+                "tpi_rigid", "刚性TPI", "Rigid TPI", "TPIR", "EC5",
+                List.of(new EnzymeFactoryData.SpeciesSpec("dihydroxyacetone_phosphate", 1, 0.88)),
+                List.of(new EnzymeFactoryData.SpeciesSpec("glyceraldehyde_3_phosphate", 1, 0.79)),
+                true, 0.10874, null, 9000.0, 298.15,
+                1, 1);
+        EnzymeSimulator sim = rigidTpi.buildSimulator();
+        double[] x = sim.getState().getConcentrations();
+        x[idx(sim, "dihydroxyacetone_phosphate")] = 1.0;
+        double expected = 0.10874 / 1.10874;
+        // 收敛过程快速检查：前 5 tick 内 G3P 必须显著推进（证明未卡死）
+        runTicks(sim, 5);
+        double g3pEarly = x[idx(sim, "glyceraldehyde_3_phosphate")];
+        check(g3pEarly > 0.02, String.format("刚性 TPI 前 5 tick G3P 应显著推进（实测 %.6f，疑似卡死）", g3pEarly));
+        // 200 tick 应收敛到平衡（2% 容差，与 PGI/ENO 同口径）
+        runTicks(sim, 200);
+        double g3p = x[idx(sim, "glyceraldehyde_3_phosphate")];
+        checkNear(g3p, expected, 0.02 * expected,
+                "刚性 TPI 200 tick 未收敛到 Keq 判决点（自适应细分失效）");
+        // 通量报告与浓度一致：平衡时净通量趋近 0（不再"v 大但不动"）
+        StepResult r = sim.step(KineticConstants.TICK_SECONDS);
+        check(Math.abs(r.fluxNet()) < 0.01,
+                String.format("平衡后净通量应趋近 0（实测 %.6f）", r.fluxNet()));
     }
 
     private EngineSelfTest() {

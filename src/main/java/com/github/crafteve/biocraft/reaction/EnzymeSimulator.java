@@ -21,6 +21,18 @@ package com.github.crafteve.biocraft.reaction;
  * 终值做边界缩放保证守恒与 [0,1] 钳制
  */
 public final class EnzymeSimulator {
+    /** 刚性自适应最大子步数（dt 细分上限，防极端情况死循环） */
+    private static final int MAX_SUBSTEPS = 64;
+
+    /**
+     * 刚性自抵消判据阈值：RK4 增量小于欧拉预测的此比例即视为步长过大
+     * <p>
+     * 正常系统 RK4 增量 ≈ 欧拉预测（比值 0.4~1.0）；刚性系统四阶项
+     * 剧烈震荡互相抵消，比值可小到 1e-4（TPI kcat=9000 实测）——
+     * 比值低于 0.25 即触发步长细分
+     */
+    private static final double RIGID_SELF_CANCEL_RATIO = 0.25;
+
     /** 不可变反应网络档案（构造期装配，全程只读） */
     private final ReactionDefinition definition;
 
@@ -76,8 +88,14 @@ public final class EnzymeSimulator {
     /**
      * 执行一次引擎步进（每游戏 tick 调用一次）
      * <p>
-     * 流水线：温度缓存检查（0.1K 阈值）→ 供料门 → RK4 积分 →
-     * 边界缩放与钳制 → 有效通量报告。浓度原地更新
+     * 流水线：温度缓存检查（0.1K 阈值）→ 供料门 → 刚性自适应细分探测 →
+     * 逐子步 RK4 积分（每子步边界缩放与钳制）→ 有效通量报告。浓度原地更新
+     * <p>
+     * 刚性自适应：RK4 是显式方法，稳定性受"步长 × 系统特征速率"限制。
+     * 高 kcat（如 TPI 9000）使逆向 Vmax 巨大（Haldane：Vmax_b 可达 74），
+     * 单步内通量在正逆向间剧烈震荡，四阶项互相抵消——通量报告正常但
+     * 浓度几乎不推进（AGENTS.md 2.6 欠账 28 的"v 大但卡死"根因）。
+     * 探测到自抵消（RK4 增量 << 欧拉预测）时步长二分重试，直到子步稳定
      *
      * @param dt 步长（秒），游戏 tick 为 KineticConstants.TICK_SECONDS
      * @return 有效通量报告（已含活性与边界缩放）
@@ -99,10 +117,74 @@ public final class EnzymeSimulator {
             return new StepResult(0.0, 0.0, 0.0);
         }
 
-        double[] k1 = derivatives(x, vmaxB, activity, dt);
-        double[] k2 = derivatives(shift(x, k1, 0.5), vmaxB, activity, dt);
-        double[] k3 = derivatives(shift(x, k2, 0.5), vmaxB, activity, dt);
-        double[] k4 = derivatives(shift(x, k3, 1.0), vmaxB, activity, dt);
+        // 刚性探测：单步是否出现高阶项自抵消（不修改浓度，只算采样）
+        int substeps = 1;
+        double h = dt;
+        if (isRigid(x, vmaxB, activity, h)) {
+            substeps = 2;
+            for (; substeps <= MAX_SUBSTEPS; substeps *= 2) {
+                h = dt / substeps;
+                if (!isRigid(x, vmaxB, activity, h)) {
+                    break;
+                }
+            }
+            if (substeps > MAX_SUBSTEPS) {
+                substeps = MAX_SUBSTEPS;
+                h = dt / substeps;
+            }
+        }
+        // 逐子步积分；追踪全 tick 最小边界缩放（满堆截断时通量报告归零）
+        double minScale = 1.0;
+        for (int s = 0; s < substeps; s++) {
+            minScale = Math.min(minScale, rk4Step(x, h, vmaxB, activity));
+        }
+
+        double forward = KineticsCalculator.forwardFlux(definition, x, vmaxB) * activity * minScale;
+        double reverse = KineticsCalculator.reverseFlux(definition, x, vmaxB) * activity * minScale;
+        return new StepResult(forward, reverse, forward - reverse);
+    }
+
+    /**
+     * 刚性探测：从当前浓度执行一次完整 RK4 采样（不修改浓度），
+     * 检查任一物种出现"高阶项自抵消"——RK4 增量远小于欧拉预测
+     * 意味着步长内通量剧烈往返（采样点震荡），显式积分不可信
+     *
+     * @param x        当前浓度（只读）
+     * @param vmaxB    当前温度逆向 Vmax
+     * @param activity 活性因子
+     * @param h        待探测的步长
+     * @return true 表示该步长刚性震荡，应细分
+     */
+    private boolean isRigid(double[] x, double vmaxB, double activity, double h) {
+        double[] k1 = derivatives(x, vmaxB, activity, h);
+        double[] k2 = derivatives(shift(x, k1, 0.5), vmaxB, activity, h);
+        double[] k3 = derivatives(shift(x, k2, 0.5), vmaxB, activity, h);
+        double[] k4 = derivatives(shift(x, k3, 1.0), vmaxB, activity, h);
+        for (int i = 0; i < x.length; i++) {
+            double euler = k1[i];
+            double rk4 = (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]) / 6.0;
+            if (Math.abs(euler) > 1e-12 && Math.abs(rk4) < RIGID_SELF_CANCEL_RATIO * Math.abs(euler)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 单步 RK4 积分（子步内部）：四阶龙格-库塔 + 边界缩放 + 钳制，
+     * 浓度原地更新；返回本子步的边界缩放因子（供全 tick 最小缩放追踪）
+     *
+     * @param x        浓度数组（原地更新）
+     * @param h        本子步步长（秒）
+     * @param vmaxB    当前温度逆向 Vmax
+     * @param activity 活性因子
+     * @return 本子步边界缩放因子（0~1，1 表示未截断）
+     */
+    private double rk4Step(double[] x, double h, double vmaxB, double activity) {
+        double[] k1 = derivatives(x, vmaxB, activity, h);
+        double[] k2 = derivatives(shift(x, k1, 0.5), vmaxB, activity, h);
+        double[] k3 = derivatives(shift(x, k2, 0.5), vmaxB, activity, h);
+        double[] k4 = derivatives(shift(x, k3, 1.0), vmaxB, activity, h);
 
         double[] next = new double[x.length];
         for (int i = 0; i < x.length; i++) {
@@ -113,10 +195,7 @@ public final class EnzymeSimulator {
         for (int i = 0; i < x.length; i++) {
             x[i] = KineticsCalculator.clampConcentration(x[i] + (next[i] - x[i]) * scale);
         }
-
-        double forward = KineticsCalculator.forwardFlux(definition, x, vmaxB) * activity * scale;
-        double reverse = KineticsCalculator.reverseFlux(definition, x, vmaxB) * activity * scale;
-        return new StepResult(forward, reverse, forward - reverse);
+        return scale;
     }
 
     /**
