@@ -6,6 +6,7 @@ import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.github.crafteve.biocraft.reaction.EnzymeSimulator;
+import com.github.crafteve.biocraft.reaction.EnergyKinetics;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
 import com.github.crafteve.biocraft.reaction.KineticsCalculator;
 import net.minecraft.core.BlockPos;
@@ -45,8 +46,32 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     /** 引擎模拟器实例（注册期构建，含数据防火墙断言） */
     private final EnzymeSimulator simulator;
 
-    /** 物种注册名数组（槽位下标 = 物种下标） */
+    /** 物种注册名数组（槽位下标 = 物种下标；含 fe 能量物种，引擎权威） */
     private final String[] speciesIds;
+
+    /**
+     * 槽位 → 物种下标映射（排除 fe 能量物种）
+     * <p>
+     * fe 无物品槽：引擎物种表含 fe（化学计量结算），但容器/GUI/管道
+     * 只操作非 fe 物种——本映射是"槽位序号 ↔ 引擎浓度下标"的唯一桥梁，
+     * 投影/回写/存档/物品校验全部经它换算
+     */
+    private final int[] slotToSpeciesIndex;
+
+    /** fe 能量物种的引擎浓度下标（无能量酶为 -1） */
+    private final int feSpeciesIndex;
+
+    /** 能量存量（FE，仅含 fe 酶使用；容量 = EnergyKinetics.capacity(count)） */
+    private int energyStored;
+
+    /** 每 tick 能量结算缓存（FE/tick，GUI 产率读数数据源，定点 ×10 同步） */
+    private double cachedEnergyRate;
+
+    /** 能量 IO 适配器（懒加载单例，capability 查询复用） */
+    private net.neoforged.neoforge.energy.IEnergyStorage energyStorage;
+
+    /** 能量存档脏标记（避免每 tick 触发 setChanged 存档写盘） */
+    private int energyStoredSnapshot = -1;
 
     /** 每物种余量（浓度小数部分 = 下一个物品的积累进度，GUI 进度条数据源） */
     private final double[] remainder;
@@ -87,19 +112,79 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
-     * 统一私有构造：槽位数从酶数据推导，不再依赖方块状态强转
+     * 统一私有构造：槽位数从酶数据推导（排除 fe 能量物种），
+     * 不再依赖方块状态强转
      *
      * @param pos   方块位置
      * @param state 方块状态
      * @param data  酶数据档案
      */
     private EnzymeFactoryBlockEntity(BlockPos pos, BlockState state, EnzymeFactoryData data) {
-        super(ModBlocks.ENZYME_FACTORY_BE.get(), pos, state,
-                data.reactants().size() + data.products().size());
+        super(ModBlocks.ENZYME_FACTORY_BE.get(), pos, state, slotCount(data));
         this.enzymeData = data;
         this.simulator = enzymeData.buildSimulator();
         this.speciesIds = simulator.getDefinition().getSpeciesIds();
-        this.remainder = new double[speciesIds.length];
+        this.slotToSpeciesIndex = buildSlotMapping(speciesIds);
+        this.feSpeciesIndex = findFeIndex(speciesIds);
+        this.remainder = new double[getContainer().getContainerSize()];
+    }
+
+    /**
+     * 槽位数：物种总数 − fe 能量物种数（fe 无物品槽）
+     *
+     * @param data 酶数据档案
+     * @return 容器槽位数
+     */
+    private static int slotCount(EnzymeFactoryData data) {
+        int total = data.reactants().size() + data.products().size();
+        int energy = 0;
+        for (EnzymeFactoryData.SpeciesSpec spec : data.reactants()) {
+            if (EnergyKinetics.isEnergySpecies(spec.item())) {
+                energy++;
+            }
+        }
+        for (EnzymeFactoryData.SpeciesSpec spec : data.products()) {
+            if (EnergyKinetics.isEnergySpecies(spec.item())) {
+                energy++;
+            }
+        }
+        return total - energy;
+    }
+
+    /**
+     * 建立槽位 → 物种下标映射（物种表顺序 = 反应物先产物后，与槽位一致）
+     *
+     * @param speciesIds 全物种注册名（引擎权威顺序）
+     * @return 映射表：槽位 i → 物种下标（长度 = 非 fe 物种数）
+     */
+    private static int[] buildSlotMapping(String[] speciesIds) {
+        int[] mapping = new int[speciesIds.length];
+        int slot = 0;
+        for (int i = 0; i < speciesIds.length; i++) {
+            if (EnergyKinetics.isEnergySpecies(speciesIds[i])) {
+                continue;
+            }
+            mapping[slot++] = i;
+        }
+        if (slot != mapping.length) {
+            throw new IllegalStateException("槽位映射长度不符: 期望 " + mapping.length + " 实际 " + slot);
+        }
+        return mapping;
+    }
+
+    /**
+     * 查找 fe 能量物种的引擎浓度下标（无能量酶返回 -1）
+     *
+     * @param speciesIds 全物种注册名
+     * @return fe 下标或 -1
+     */
+    private static int findFeIndex(String[] speciesIds) {
+        for (int i = 0; i < speciesIds.length; i++) {
+            if (EnergyKinetics.isEnergySpecies(speciesIds[i])) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /**
@@ -144,6 +229,87 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
+     * 获取能量 IO 适配器（懒加载单例）
+     * <p>
+     * 无 fe 物种的酶返回 null（ModCapabilities 不注册该面能力）；
+     * 方向由 fe 净化学计量自动判定：产物侧（stoich>0）发电机只可抽出，
+     * 反应物侧（stoich<0）合成器只可充入
+     *
+     * @return 本实体的 IEnergyStorage，无能量物种时 null
+     */
+    public net.neoforged.neoforge.energy.IEnergyStorage getEnergyStorage() {
+        if (feSpeciesIndex < 0) {
+            return null;
+        }
+        if (energyStorage == null) {
+            double stoich = simulator.getDefinition().getStoich(feSpeciesIndex);
+            energyStorage = new MachineEnergyStorage(this, getEnergyCapacity(), stoich > 0.0);
+        }
+        return energyStorage;
+    }
+
+    /**
+     * 能量容量（FE）：count × 1000 × 64 × MAX_CONCENTRATION（kFE 约定）
+     * <p>
+     * 满存量 = 满浓度镜像 → 引擎边界缩放停转（回压），
+     * 容量公式只由引擎 EnergyKinetics 给出，显示层不得复制
+     *
+     * @return 容量（FE）
+     */
+    public int getEnergyCapacity() {
+        if (feSpeciesIndex < 0) {
+            return 0;
+        }
+        return EnergyKinetics.capacity(simulator.getDefinition().getStoich(feSpeciesIndex) > 0
+                ? (int) simulator.getDefinition().getStoich(feSpeciesIndex)
+                : (int) -simulator.getDefinition().getStoich(feSpeciesIndex));
+    }
+
+    /**
+     * 当前能量存量（FE）
+     *
+     * @return 存量
+     */
+    public int getEnergyStored() {
+        return energyStored;
+    }
+
+    /**
+     * 当前能量产率缓存（FE/tick，GUI 读数数据源）
+     *
+     * @return FE/tick（正 = 充能、负 = 消耗）
+     */
+    public double getCachedEnergyRate() {
+        return cachedEnergyRate;
+    }
+
+    /**
+     * 外部充能（能量管道 receiveEnergy 执行路径）
+     * <p>
+     * 钳制到容量；变更经 setChanged 标记存档（槽位不变时
+     * syncFromSlots 幂等，安全）
+     *
+     * @param amount 充入量（FE，已由调用方校验 ≤ 剩余容量）
+     */
+    public void addEnergy(int amount) {
+        energyStored = Math.min(getEnergyCapacity(), energyStored + amount);
+        setChanged();
+    }
+
+    /**
+     * 外部抽取（能量管道 extractEnergy 执行路径）
+     * <p>
+     * 抽取后存量下降 → 引擎镜像浓度下降 → 满能量停转解除，
+     * 反应恢复（回压释放）；变更经 setChanged 标记存档
+     *
+     * @param amount 抽出量（FE，已由调用方校验 ≤ 存量）
+     */
+    public void consumeEnergy(int amount) {
+        energyStored = Math.max(0, energyStored - amount);
+        setChanged();
+    }
+
+    /**
      * 获取引擎模拟器实例
      *
      * @return 引擎模拟器
@@ -153,13 +319,13 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
-     * 获取物种注册名（GUI 槽位映射与调试用）
+     * 获取槽位对应物种注册名（槽位 → 物种映射，排除 fe）
      *
      * @param slot 槽位下标
-     * @return 物种物品注册名
+     * @return 物种物品注册名（非 fe）
      */
     public String getSpeciesId(int slot) {
-        return speciesIds[slot];
+        return speciesIds[slotToSpeciesIndex[slot]];
     }
 
     /**
@@ -213,9 +379,9 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             return;
         }
         double[] x = simulator.getState().getConcentrations();
-        for (int i = 0; i < speciesIds.length; i++) {
+        for (int i = 0; i < slotToSpeciesIndex.length; i++) {
             int count = inventory.getItem(i).getCount();
-            x[i] = KineticsCalculator.clampConcentration((count + remainder[i]) / 64.0);
+            x[slotToSpeciesIndex[i]] = KineticsCalculator.clampConcentration((count + remainder[i]) / 64.0);
         }
     }
 
@@ -253,6 +419,14 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
 
         double[] x = simulator.getState().getConcentrations();
 
+        // fe 能量镜像：step 前把 fe 浓度写为"存量镜像"（满能量 = 满浓度），
+        // 引擎结算的 fe 导数被下一 tick 的镜像覆盖丢弃，不影响其他物种
+        // （fe 固定活性不进速率方程）；满能量时镜像 = 上限，RK4 越界触发
+        // boundaryScale 全局停转——"满能量停转、抽走恢复"的回压
+        if (feSpeciesIndex >= 0) {
+            x[feSpeciesIndex] = EnergyKinetics.mirrorConcentration(energyStored, getEnergyCapacity());
+        }
+
         boolean asleep = true;
         for (double value : x) {
             if (value > 1e-9) {
@@ -265,16 +439,43 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         } else {
             var result = simulator.step(KineticConstants.TICK_SECONDS);
             cachedFluxX1000 = (int) Math.round(result.fluxNet() * 1000.0);
+            settleEnergy(result.fluxNet());
             projectToSlots();
+        }
+        // 能量存档脏标记：settleEnergy 只更新存量，标记放在投影之后——
+        // 此时槽位浓度与引擎一致，setChanged → syncFromSlots 幂等，
+        // 不会抹掉 step 结果（若放在 step 后投影前调用会覆盖浓度）
+        if (energyStored != energyStoredSnapshot) {
+            energyStoredSnapshot = energyStored;
+            setChanged();
         }
         updateCachedData();
         fluxHistory[historyIndex] = cachedFluxX1000;
         historyIndex = (historyIndex + 1) % HISTORY_LENGTH;
 
         if (level.getGameTime() % 20 == 0) {
-            BioCraft.LOGGER.debug("enzyme factory [{}] slots: {}, concentrations: {}, fluxX1000: {}",
-                    enzymeData.id(), slotSummary(), concentrationSummary(), cachedFluxX1000);
+            BioCraft.LOGGER.debug("enzyme factory [{}] slots: {}, concentrations: {}, fluxX1000: {}, FE: {}/{}",
+                    enzymeData.id(), slotSummary(), concentrationSummary(), cachedFluxX1000,
+                    energyStored, getEnergyCapacity());
         }
+    }
+
+    /**
+     * 能量结算：FE 流量 = 引擎有效净通量 × fe 净化学计量 × 64 × 0.05 × 1000
+     * <p>
+     * 正 = 充能（fe 产物侧，发电机）、负 = 消耗（fe 反应物侧，合成器）；
+     * 存量钳制 [0, 容量]——满存量时通量已被引擎边界缩放压到 0（镜像回压），
+     * 钳制是最后防线；存量不足时引擎 hasSupply 门已冻结反应（不欠账）。
+     * 本方法只更新存量与产率缓存，存档脏标记由 tickServer 在投影后统一处理
+     */
+    private void settleEnergy(double fluxNet) {
+        if (feSpeciesIndex < 0) {
+            return;
+        }
+        double delta = EnergyKinetics.fePerTick(fluxNet, simulator.getDefinition().getStoich(feSpeciesIndex));
+        cachedEnergyRate = delta;
+        int capacity = getEnergyCapacity();
+        energyStored = (int) Math.max(0, Math.min(capacity, energyStored + delta));
     }
 
     /**
@@ -291,8 +492,9 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         try {
             double[] x = simulator.getState().getConcentrations();
             int slotLimit = slotStackLimit();
-            for (int i = 0; i < speciesIds.length; i++) {
-                double total = x[i] * 64.0;
+            for (int i = 0; i < slotToSpeciesIndex.length; i++) {
+                int speciesIndex = slotToSpeciesIndex[i];
+                double total = x[speciesIndex] * 64.0;
                 int count = Math.min((int) Math.floor(total), slotLimit);
                 remainder[i] = total - count;
                 ItemStack stack = inventory.getItem(i);
@@ -302,7 +504,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
                 if (count <= 0) {
                     inventory.setItem(i, ItemStack.EMPTY);
                 } else if (stack.isEmpty()) {
-                    inventory.setItem(i, new ItemStack(ModItems.byId(speciesIds[i]).get(), count));
+                    inventory.setItem(i, new ItemStack(ModItems.byId(speciesIds[speciesIndex]).get(), count));
                 } else {
                     stack.setCount(count);
                 }
@@ -319,9 +521,9 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      * 漏斗直接操作容器 API，只能在此处防御
      */
     private void ejectIllegalItems() {
-        for (int i = 0; i < speciesIds.length; i++) {
+        for (int i = 0; i < slotToSpeciesIndex.length; i++) {
             ItemStack stack = inventory.getItem(i);
-            if (stack.isEmpty() || stack.is(ModItems.byId(speciesIds[i]).get())) {
+            if (stack.isEmpty() || stack.is(ModItems.byId(speciesIds[slotToSpeciesIndex[i]]).get())) {
                 continue;
             }
             Containers.dropItemStack(level, worldPosition.getX() + 0.5, worldPosition.getY() + 0.5,
@@ -353,8 +555,9 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
 
     private String slotSummary() {
         StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < speciesIds.length; i++) {
-            sb.append(speciesIds[i]).append('=').append(inventory.getItem(i).getCount()).append(' ');
+        for (int i = 0; i < slotToSpeciesIndex.length; i++) {
+            sb.append(speciesIds[slotToSpeciesIndex[i]]).append('=')
+                    .append(inventory.getItem(i).getCount()).append(' ');
         }
         return sb.append(']').toString();
     }
@@ -384,7 +587,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     @Override
     protected net.minecraft.nbt.Tag saveContainerData(net.minecraft.core.HolderLookup.Provider registries) {
         net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
-        for (int i = 0; i < speciesIds.length; i++) {
+        for (int i = 0; i < slotToSpeciesIndex.length; i++) {
             ItemStack stack = inventory.getItem(i);
             if (stack.isEmpty()) {
                 continue;
@@ -413,7 +616,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         for (net.minecraft.nbt.Tag element : list) {
             net.minecraft.nbt.CompoundTag entry = (net.minecraft.nbt.CompoundTag) element;
             int slot = entry.getInt("slot");
-            if (slot < 0 || slot >= speciesIds.length) {
+            if (slot < 0 || slot >= slotToSpeciesIndex.length) {
                 continue;
             }
             net.minecraft.resources.ResourceLocation id =
@@ -447,6 +650,9 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             fixed[i] = (int) Math.round(x[i] * 1_000_000.0);
         }
         tag.putIntArray("concentrations", fixed);
+        if (feSpeciesIndex >= 0) {
+            tag.putInt("energyStored", energyStored);
+        }
     }
 
     /**
@@ -464,6 +670,10 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             for (int i = 0; i < Math.min(saved.length, x.length); i++) {
                 x[i] = saved[i] / 1_000_000.0;
             }
+        }
+        if (feSpeciesIndex >= 0) {
+            energyStored = Math.min(tag.getInt("energyStored"), getEnergyCapacity());
+            energyStoredSnapshot = energyStored;
         }
         projectToSlots();
     }

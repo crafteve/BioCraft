@@ -75,8 +75,11 @@ public class MachineMenu extends AbstractContainerMenu {
     public static final int DATA_FLUX = 1;
     /** 容器数据下标：主产物浓度×1000 */
     public static final int DATA_PROGRESS = 2;
-    /** 余量数据起始下标（每物种一个 int，×1000 定点；3 之后按反应物顺序排列） */
+    /** 余量数据起始下标（每槽一个 int，×1000 定点；3 之后按槽位顺序排列，fe 物种无槽位） */
     public static final int DATA_REMAINDER_BASE = 3;
+
+    /** 本机槽位数（非 fe 物种数，Menu 构造时固化） */
+    private final int slotCount;
 
     /** 方块实体引用，菜单生命周期内保持存活（stillValid 与物种槽用） */
     private final EnzymeFactoryBlockEntity blockEntity;
@@ -84,7 +87,7 @@ public class MachineMenu extends AbstractContainerMenu {
     /** 酶数据档案（客户端与服务端同源查表，Screen 渲染用） */
     private final EnzymeFactoryData enzymeData;
 
-    /** 容器数据（服务端权威，每 tick 同步：温度/通量/主产物浓度 + 每物种余量×1000） */
+    /** 容器数据（服务端权威，每 tick 同步：温度/通量/主产物浓度 + 每槽余量×1000 + 能量） */
     private final ContainerData data;
 
     /** v-t 通量历史（服务端打开时下发，Screen 构造时初始化折线图；服务端不使用） */
@@ -104,8 +107,8 @@ public class MachineMenu extends AbstractContainerMenu {
         this.blockEntity = blockEntity;
         this.enzymeData = blockEntity.getEnzymeData();
         this.fluxHistory = fluxHistory == null ? new int[0] : fluxHistory;
-        this.data = new SimpleContainerData(DATA_REMAINDER_BASE + enzymeData.reactants().size()
-                + enzymeData.products().size());
+        this.slotCount = blockEntity.getContainer().getContainerSize();
+        this.data = new SimpleContainerData(DATA_REMAINDER_BASE + slotCount + 2);
         refreshData();
         addDataSlots(data);
         addSpeciesSlots(blockEntity);
@@ -179,11 +182,12 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 添加物种槽（反应物 + 产物，槽位数 = JSON 条目数之和）
+     * 添加物种槽（反应物 + 产物，槽位数 = JSON 条目数之和 − fe 能量物种数）
      * <p>
-     * 每张滚动卡片一个槽位，mayPlace 锁死对应物品（玩家放置与
-     * Shift 转移都经 mayPlace 拦截）；输入卡 = 反应物（容器索引 0 起），
-     * 输出卡 = 产物（容器索引 = 反应物数 + i，与 BE 容器槽位顺序一致）
+     * fe（能量物种）不建槽位：其"存量"由能量存储承载，GUI 由能量卡片显示；
+     * 容器槽位序号是"非 fe 物种连续序号"（与 BE 的 slotToSpeciesIndex 一致），
+     * 输入卡 = 非 fe 反应物（容器索引 0 起），输出卡 = 非 fe 产物（容器索引
+     * = 非 fe 反应物数 + i）
      * <p>
      * 位置约定：Slot.x/y 是 final 静态字段（vanilla 渲染与命中直接读字段），
      * 滚动卡片槽位位置由 Screen 全接管——槽位 isActive() 恒 false 使 vanilla
@@ -194,16 +198,20 @@ public class MachineMenu extends AbstractContainerMenu {
      */
     private void addSpeciesSlots(EnzymeFactoryBlockEntity blockEntity) {
         Container container = blockEntity.getContainer();
-        List<EnzymeFactoryData.SpeciesSpec> reactants = enzymeData.reactants();
-        for (int i = 0; i < reactants.size(); i++) {
-            Item item = ModItems.byId(reactants.get(i).item()).get();
-            // x/y 传 0 占位（final 字段无实义，实际位置由 Screen 计算）
-            addSlot(new RestrictedSlot(container, i, 0, 0, item));
+        int containerSlot = 0;
+        for (EnzymeFactoryData.SpeciesSpec spec : enzymeData.reactants()) {
+            if (com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item())) {
+                continue;
+            }
+            Item item = ModItems.byId(spec.item()).get();
+            addSlot(new RestrictedSlot(container, containerSlot++, 0, 0, item));
         }
-        List<EnzymeFactoryData.SpeciesSpec> products = enzymeData.products();
-        for (int i = 0; i < products.size(); i++) {
-            Item item = ModItems.byId(products.get(i).item()).get();
-            addSlot(new RestrictedSlot(container, reactants.size() + i, 0, 0, item));
+        for (EnzymeFactoryData.SpeciesSpec spec : enzymeData.products()) {
+            if (com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item())) {
+                continue;
+            }
+            Item item = ModItems.byId(spec.item()).get();
+            addSlot(new RestrictedSlot(container, containerSlot++, 0, 0, item));
         }
     }
 
@@ -229,20 +237,50 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 从方块实体刷新全部容器数据（温度/通量/主产物浓度/每物种余量）
+     * 从方块实体刷新全部容器数据（温度/通量/主产物浓度/每槽余量 + 能量）
      * <p>
      * 余量 = 引擎连续浓度的尾数（浓度×64 − 槽位整数），经 ContainerData
      * 同步到客户端后，客户端浓度 = (槽位数量 + 余量)/64 即可重建引擎
-     * 连续浓度——解决客户端 BE 引擎浓度恒 0 导致的进度条/读数不显示
+     * 连续浓度——解决客户端 BE 引擎浓度恒 0 导致的进度条/读数不显示；
+     * 能量数据：存量（FE）+ 产率（FE/tick ×10 定点，无能量酶恒 0）
      */
     private void refreshData() {
         data.set(DATA_TEMP, blockEntity.getCachedTempX100());
         data.set(DATA_FLUX, blockEntity.getCachedFluxX1000());
         data.set(DATA_PROGRESS, blockEntity.getCachedProgressX1000());
-        int total = enzymeData.reactants().size() + enzymeData.products().size();
-        for (int i = 0; i < total; i++) {
+        for (int i = 0; i < slotCount; i++) {
             data.set(DATA_REMAINDER_BASE + i, (int) Math.round(blockEntity.getRemainder(i) * 1000.0));
         }
+        data.set(energyIndex(0), blockEntity.getEnergyStored());
+        data.set(energyIndex(1), (int) Math.round(blockEntity.getCachedEnergyRate() * 10.0));
+    }
+
+    /**
+     * 能量数据下标：余量段之后（DATA_REMAINDER_BASE + 槽位数 + 0/1）
+     *
+     * @param offset 能量偏移（0 = 存量、1 = 产率）
+     * @return 容器数据下标
+     */
+    private int energyIndex(int offset) {
+        return DATA_REMAINDER_BASE + slotCount + offset;
+    }
+
+    /**
+     * 读取能量存量（ContainerData 同步值）
+     *
+     * @return FE 存量（无能量酶恒 0）
+     */
+    public int getEnergyStored() {
+        return data.get(energyIndex(0));
+    }
+
+    /**
+     * 读取能量产率（ContainerData 同步值）
+     *
+     * @return FE/tick（×10 定点还原，正 = 充能、负 = 消耗）
+     */
+    public double getEnergyRate() {
+        return data.get(energyIndex(1)) / 10.0;
     }
 
     /**
@@ -305,16 +343,15 @@ public class MachineMenu extends AbstractContainerMenu {
     public ItemStack quickMoveStack(Player player, int index) {
         ItemStack moved = ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
-        int speciesCount = enzymeData.reactants().size() + enzymeData.products().size();
         if (slot != null && slot.hasItem()) {
             ItemStack original = slot.getItem();
             moved = original.copy();
-            if (index < speciesCount) {
-                if (!this.moveItemStackTo(original, speciesCount, speciesCount + 36, true)) {
+            if (index < slotCount) {
+                if (!this.moveItemStackTo(original, slotCount, slotCount + 36, true)) {
                     return ItemStack.EMPTY;
                 }
             } else {
-                if (!this.moveItemStackTo(original, 0, speciesCount, false)) {
+                if (!this.moveItemStackTo(original, 0, slotCount, false)) {
                     return ItemStack.EMPTY;
                 }
             }

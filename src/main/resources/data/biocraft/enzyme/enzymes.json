@@ -349,6 +349,173 @@
             "deltaH":  null,
             "kcat":  1182.0,
             "tempOptimum":  298.15
+        },
+        {
+            "id":  "lactate_dehydrogenase",
+            "name_zn":  "乳酸脱氢酶",
+            "name_en":  "Lactate Dehydrogenase",
+            "abbreviation":  "LDH",
+            "category":  "EC1",
+            "reaction":  {
+                "reversible":  true,
+                "reactants":  [
+                    {
+                        "item":  "pyruvate",
+                        "count":  1,
+                        "km":  0.14
+                    },
+                    {
+                        "item":  "nadh",
+                        "count":  1,
+                        "km":  0.03
+                    },
+                    {
+                        "item":  "hydrogen_ion",
+                        "count":  1,
+                        "km":  0
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "lactate",
+                        "count":  1,
+                        "km":  10.0
+                    },
+                    {
+                        "item":  "nad_plus",
+                        "count":  1,
+                        "km":  0.3
+                    }
+                ]
+            },
+            "keq":  22000.0,
+            "deltaH":  null,
+            "kcat":  150.0,
+            "tempOptimum":  298.15
+        },
+        {
+            "id":  "pyruvate_decarboxylase",
+            "name_zn":  "丙酮酸脱羧酶",
+            "name_en":  "Pyruvate Decarboxylase",
+            "abbreviation":  "PDC",
+            "category":  "EC4",
+            "reaction":  {
+                "reversible":  false,
+                "reactants":  [
+                    {
+                        "item":  "pyruvate",
+                        "count":  1,
+                        "km":  1.0
+                    },
+                    {
+                        "item":  "hydrogen_ion",
+                        "count":  1,
+                        "km":  0
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "acetaldehyde",
+                        "count":  1,
+                        "km":  0
+                    },
+                    {
+                        "item":  "carbon_dioxide",
+                        "count":  1,
+                        "km":  0
+                    }
+                ]
+            },
+            "keq":  3200.0,
+            "deltaH":  null,
+            "kcat":  60.0,
+            "tempOptimum":  298.15
+        },
+        {
+            "id":  "alcohol_dehydrogenase",
+            "name_zn":  "乙醇脱氢酶",
+            "name_en":  "Alcohol Dehydrogenase",
+            "abbreviation":  "ADH",
+            "category":  "EC1",
+            "reaction":  {
+                "reversible":  true,
+                "reactants":  [
+                    {
+                        "item":  "acetaldehyde",
+                        "count":  1,
+                        "km":  0.05
+                    },
+                    {
+                        "item":  "nadh",
+                        "count":  1,
+                        "km":  0.02
+                    },
+                    {
+                        "item":  "hydrogen_ion",
+                        "count":  1,
+                        "km":  0
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "ethanol",
+                        "count":  1,
+                        "km":  10.0
+                    },
+                    {
+                        "item":  "nad_plus",
+                        "count":  1,
+                        "km":  0.3
+                    }
+                ]
+            },
+            "keq":  11000.0,
+            "deltaH":  null,
+            "kcat":  200.0,
+            "tempOptimum":  298.15
+        },
+        {
+            "id":  "atp_hydrolase",
+            "name_zn":  "ATP 水解酶",
+            "name_en":  "ATP Hydrolase",
+            "abbreviation":  "ATPase",
+            "category":  "EC3",
+            "reaction":  {
+                "reversible":  false,
+                "reactants":  [
+                    {
+                        "item":  "atp",
+                        "count":  1,
+                        "km":  0.5
+                    },
+                    {
+                        "item":  "water",
+                        "count":  1,
+                        "km":  0
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "adp",
+                        "count":  1,
+                        "km":  0
+                    },
+                    {
+                        "item":  "phosphate_ion",
+                        "count":  1,
+                        "km":  0
+                    },
+                    {
+                        "item":  "fe",
+                        "count":  100,
+                        "km":  0
+                    }
+                ]
+            },
+            "keq":  190000.0,
+            "deltaH":  null,
+            "kcat":  100.0,
+            "tempOptimum":  298.15
         }
     ]
 }

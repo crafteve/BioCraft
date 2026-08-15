@@ -147,6 +147,8 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "正向速率最大值 %s/tick" : "Fwd Max Rate %s/tick");
         translations.put("jei.biocraft.vmax_b",
                 zh ? "逆向速率最大值 %s/tick" : "Rev Max Rate %s/tick");
+        translations.put("jei.biocraft.energy",
+                zh ? "能量 %s kFE/分子 · 容量 %s kFE" : "Energy %s kFE/mol · Capacity %s kFE");
     }
 
     /**
@@ -169,6 +171,8 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "逆向速率最大值 %s/tick" : "Rev Max Rate %s/tick");
         translations.put("tooltip.biocraft.enzyme.temp",
                 zh ? "最适温度 %s K" : "Optimum Temp %s K");
+        translations.put("tooltip.biocraft.enzyme.energy",
+                zh ? "能量 %s kFE/分子 · 容量 %s kFE" : "Energy %s kFE/mol · Capacity %s kFE");
         translations.put("machine.category.EC1",
                 zh ? "氧化还原酶" : "Oxidoreductase");
         translations.put("machine.category.EC2",

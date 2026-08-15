@@ -29,6 +29,9 @@ public final class EnzymeEquation {
     public record Segment(String text, int color) {
     }
 
+    /** fe 能量物种段颜色（深绿，浅底/深底两套口径统一） */
+    private static final int ENERGY_SEGMENT_COLOR = 0xFF2E7D32;
+
     private EnzymeEquation() {
     }
 
@@ -92,12 +95,22 @@ public final class EnzymeEquation {
                 segments.add(new Segment("+", symbolColor));
             }
             first = false;
-            MoleculeItem item = ModItems.byId(spec.item()).get();
-            int color = speciesColor.applyAsInt(item.getTintColor());
+            int color;
+            String abbreviation;
+            if (com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item())) {
+                // fe 能量物种无 MoleculeItem（不能查 ModItems，会 NPE），
+                // 直接显示绿色 "FE" 段（浅底/深底两套口径统一同色）
+                color = ENERGY_SEGMENT_COLOR;
+                abbreviation = "FE";
+            } else {
+                MoleculeItem item = ModItems.byId(spec.item()).get();
+                color = speciesColor.applyAsInt(item.getTintColor());
+                abbreviation = item.getAbbreviation();
+            }
             if (spec.count() > 1) {
                 segments.add(new Segment(String.valueOf(spec.count()), color));
             }
-            segments.add(new Segment(item.getAbbreviation(), color));
+            segments.add(new Segment(abbreviation, color));
         }
     }
 }

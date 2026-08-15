@@ -35,6 +35,8 @@ public class EnzymeBlockItem extends BlockItem {
     private static final int COLOR_WHITE = 0xFFFFFF;
     /** 深色 tooltip 底上的次要信息文字色（灰：Keq/速率/温度统一灰色） */
     private static final int COLOR_DIM = 0x9E9E9E;
+    /** 深色 tooltip 底上的能量行颜色（深绿，深底可读） */
+    private static final int COLOR_ENERGY = 0x4CAF50;
 
     private final EnzymeFactoryData enzymeData;
 
@@ -100,6 +102,16 @@ public class EnzymeBlockItem extends BlockItem {
         tooltip.add(Component.translatable("tooltip.biocraft.enzyme.vmax_b",
                         CompatRenderUtil.formatRate(display.vmaxBPerTick()))
                 .withStyle(style -> style.withColor(COLOR_DIM)));
+
+        // 能量行（绿色，仅含 fe 物种的酶显示：产出/消耗 + 容量）
+        if (display.energyStoich() != 0) {
+            int kfePerMolecule = Math.abs(display.energyStoich());
+            String direction = display.energyStoich() > 0 ? "+" : "-";
+            tooltip.add(Component.translatable("tooltip.biocraft.enzyme.energy",
+                            direction + kfePerMolecule,
+                            String.format(Locale.ROOT, "%,d", display.energyCapacityFE() / 1000))
+                    .withStyle(style -> style.withColor(COLOR_ENERGY)));
+        }
 
         // 行 6：最适温度（灰）
         tooltip.add(Component.translatable("tooltip.biocraft.enzyme.temp",

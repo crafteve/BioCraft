@@ -51,8 +51,8 @@
 - 已完成 图标缩写标注：`IItemDecorator` 在物品图标左上角绘制缩写（白字黑阴影双写、缩放 0.55、z 提升 200 层）；缩写数据使用 Unicode 上下标（H⁺/Ca²⁺/NH₄⁺/H₂O/NAD⁺，糖酵解编号如 G6P 保持原样）
 - 已完成 tooltip 布局：手持物品时创意标签页标题（蓝色）自动移至 tooltip 末尾（`MoleculeTooltipLayout`）
 - 已完成 视觉校验闭环：`.opencode/agents/vision.md` 视觉审查子代理（opencode-go/qwen3.7-plus 多模态）+ `tools/texturegen/` 程序化贴图工具链（PixelCanvas DSL，生成 PNG 后派 vision 子代理读图审查）
-- 已完成 化学引擎内核（纯 Java 零 MC 依赖，`tools/engineTest/` 独立单测 18 用例全绿）：多底物可逆米氏乘积速率方程（共享分母，平衡精确 = Keq 绝不缩放 + 饱和有界 + 产物回压 + 全底物平等，ATP/NAD⁺ 参与速率）、RK4 积分（Δt=0.05）、温度修正（van't Hoff/Q10 + 0.1K 缓存）、固定活性物种（H₂O/H⁺ 只结算不进速率）、三断言数据防火墙（配平/数值健康/Keq 红线）；PGI 平衡收敛误差 <1%、黄金值快照防回归、可达通量收敛进引擎（显示层禁复制速率公式，见 2.6 欠账 23）
-- 已完成 酶工厂数据驱动注册体系：`enzymes.json` 已有糖酵解全部 10 步酶数据（HK/PGI/PFK/ALDO/TPI/GAPDH/PGK/PGM/ENO/PK，Km/kcat/Keq/ΔH 数值溯源见根目录《糖酵解热力学数据库》md 文档；无激活剂/抑制剂/stallMessage/kinetic 字段——该项目无此设计），`EnzymeFactoryRegistry` 注册期解析 + 引擎断言防火墙校验；数据表新增酶即自动注册方块/物品/配方，代码零改动
+- 已完成 化学引擎内核（纯 Java 零 MC 依赖，`tools/engineTest/` 独立单测 22 用例全绿）：多底物可逆米氏乘积速率方程（共享分母，平衡精确 = Keq 绝不缩放 + 饱和有界 + 产物回压 + 全底物平等，ATP/NAD⁺ 参与速率）、RK4 积分（Δt=0.05）、温度修正（van't Hoff/Q10 + 0.1K 缓存）、固定活性物种（H₂O/H⁺/fe 只结算不进速率）、三断言数据防火墙（配平/数值健康/Keq 红线）；PGI 平衡收敛误差 <1%、黄金值快照防回归、可达通量收敛进引擎（显示层禁复制速率公式，见 2.6 欠账 23）
+- 已完成 酶工厂数据驱动注册体系：`enzymes.json` 已有糖酵解 10 步 + 乳酸发酵线 4 酶共 14 条酶数据（HK/PGI/PFK/ALDO/TPI/GAPDH/PGK/PGM/ENO/PK + LDH/PDC/ADH/ATPase，Km/kcat/Keq/ΔH 数值溯源见根目录《糖酵解热力学数据库》md 文档与《新增分子与酶数据汇总（乳酸发酵线）》；无激活剂/抑制剂/stallMessage/kinetic 字段——该项目无此设计），`EnzymeFactoryRegistry` 注册期解析 + 引擎断言防火墙校验；数据表新增酶即自动注册方块/物品/配方，代码零改动
 - 已完成 BE 桥接：`EnzymeFactoryBlockEntity` 浓度-槽位双向投影（引擎连续浓度是权威，槽位 = floor(浓度×64)，余量驱动 GUI 进度条）、每 tick RK4 步进 + 睡眠机制、NBT 定点存档浓度、漏斗防呆弹出非法物品
 - 已完成 槽位容量参数化（n 组）：`KineticConstants.SLOT_GROUPS=2` 每槽可容纳 2 组（128 个物品），浓度钳制上限放宽为 `MAX_CONCENTRATION = n + 1/64`（"槽满仍攒余量"合法，修复投入物品被吞 bug），可达通量/边界缩放满堆浓度随容量放大（修复 ALDO 类强偏向反应物酶平衡产物 <1 个抽不出的卡死）
 - 已完成 DNA 编码器（第一台原始机器）：缓冲池模型（碱基吸收进池、上限 4096、事件驱动）、序列经数据组件存储于 DNA 模板物品、事务式合成、方块破坏缓冲池折算掉落（onRemove 而非 setRemoved）
@@ -60,9 +60,11 @@
 - 已完成 JEI 酶工厂配方显示：每酶一个专属配方类别（查看用途互不混淆），`EnzymeRecipeDisplay` 为 JEI/EMI 共享只读 DTO（零 JEI 依赖，新增酶自动生效）
 - 已完成 酶方块物品 tooltip：`EnzymeBlockItem` 展示缩写 + EC 类别名 + 可逆性 + 反应方程式（与 GUI 共用 `EnzymeEquation` 分段构建，浅底/深底两套配色）+ Keq + 正逆向饱和可达速率（引擎通量 ×64×0.05）+ 最适温度
 - 已完成 酶工厂工业 IO：`ModCapabilities` 注册 ItemHandler.BLOCK capability，`EnzymeFactoryItemHandler` 物种过滤/全槽位可进可出/O(1) 索引，复用 setChanged 浓度回写链，懒加载单例；原版漏斗继续走 Container 接口不受影响；运行时 Pipez（run/mods，gitignore 不入库）实测管道物流
+- 已完成 乳酸发酵线数据 + 能量（FE）物种体系：substances.json +3 分子（乳酸 LAC/乙醛 AcH/乙醇 EtOH），enzymes.json +4 酶（LDH 可逆 Keq 22000 / PDC 不可逆 Keq 3200 / ADH 可逆 Keq 11000 / ATP 水解发电机不可逆 Keq 190000，fe 产物 count=100）；`EnergyKinetics` 纯函数（容量 = count×1000×64×MAX_CONCENTRATION，满存量=满浓度镜像，FE/tick 结算，引擎测试 22 用例含 FE 契约）；`FIXED_ACTIVITY_SPECIES` 加 "fe"（与 H₂O/H⁺ 同构：不进速率方程、计量结算、反应物侧耗尽停供）
+- 已完成 FE 能量卡片 GUI：滚动卡片区泛化（`CardSpec` 物种卡/能量卡，能量卡按 JSON 原顺序与 input/output 卡片同滚动区），绿色进度条（存量/容量 kFE）+ 产率读数；BE 槽位↔物种映射（fe 无槽位，`slotToSpeciesIndex`），`MachineEnergyStorage` capability（产物侧只可抽/反应物侧只可充），能量存量 NBT 存档，满能量引擎边界缩放停转回压；JEI/tooltip 绿色能量行（每分子 kFE + 容量）
 - 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
 - 待开发 转录仪 / 翻译仪（后两台原始机器）
-- 待开发 糖酵解流水线搭建（纪元二：10 步酶数据已齐，机器布局与产线衔接待做）
+- 待开发 糖酵解流水线搭建（纪元二：14 步酶数据已齐含乳酸发酵线，机器布局与产线衔接待做；LDH/PDC/ADH 需供 H⁺、ATPase 需供水，产 H⁺ 机制待电解水纪元补）
 - 待开发 策略层三种动力学变体生效（1.3 的 3 种 GUI 变体机制；kinetic 字段已随无消费方移除，实现时需在 enzymes.json 重新引入）
 - 待开发 温度机制（M5）、酶插件升级、细胞器纪元（纪元三/四）
 
@@ -166,17 +168,19 @@ com.github.crafteve.biocraft
 │   ├── MachineCategory.java      # 机器类别枚举（EC1~EC6 + SPECIAL：主题色 tint 与 GUI 强调色，形色分离）
 │   ├── SynthesisStatus.java      # DNA 编码器合成结果状态码（成功/序列非法/碱基不足/输出满）
 │   ├── DNAEncoderBlockEntity.java # 缓冲池模型：碱基吸收（事件驱动）/事务式合成/缓冲池折算掉落
-│   ├── EnzymeFactoryBlockEntity.java # 酶工厂：浓度-槽位双向投影（槽位容量 n 组）+ 每 tick 引擎步进 + 睡眠机制 + v-t 历史环形缓冲 + 定点存档 + 懒加载 IO 适配器单例
-│   └── EnzymeFactoryItemHandler.java # 工业 IO 适配器（IItemHandlerModifiable）：物种过滤/全槽位可进可出/O(1) 索引，复用 setChanged 浓度回写链
-├── reaction/                     # 化学引擎内核（纯 Java 零 MC 依赖，已完成 + 16 用例单测）
+│   ├── EnzymeFactoryBlockEntity.java # 酶工厂：浓度-槽位双向投影（槽位容量 n 组）+ 每 tick 引擎步进 + 睡眠机制 + v-t 历史环形缓冲 + 定点存档 + 懒加载 IO 适配器单例 + fe 槽位映射/能量镜像结算
+│   ├── EnzymeFactoryItemHandler.java # 工业 IO 适配器（IItemHandlerModifiable）：物种过滤/全槽位可进可出/O(1) 索引，复用 setChanged 浓度回写链
+│   └── MachineEnergyStorage.java  # 能量存储适配器（IEnergyStorage）：产物侧 fe 只可抽/反应物侧只可充，懒加载单例
+├── reaction/                     # 化学引擎内核（纯 Java 零 MC 依赖，已完成 + 22 用例单测）
 │   ├── EnzymeFactoryData.java    # 酶数据档案 record（物品 id 直填/每物种自带 Km/直存 Keq）
 │   ├── EnzymeSimulator.java      # 每机一实例：RK4 积分 + 温度缓存 + 边界缩放
 │   ├── ReactionDefinition.java   # 不可变网络档案（物种表/化学计量/Haldane Vmax_b(T)/可达通量）
 │   ├── KineticsCalculator.java   # 共享分母乘积速率方程 + 缩放换算
+│   ├── EnergyKinetics.java       # 能量（FE）物种纯函数：容量/存量镜像/FE 结算/isEnergySpecies 拦截（显示层禁复制）
 │   ├── ReactionState.java        # 浓度/温度/活性容器（BE 与引擎共享）
 │   ├── StepResult.java           # 通量报告（fwd/rev/net）
 │   ├── ThermoUtil.java           # Keq 换算/van't Hoff+Q10/Arrhenius
-│   └── KineticConstants.java     # 缩放常量（TIME_SCALE=1000 唯一节奏旋钮，待 M6 调参；SLOT_GROUPS=2 槽位容量组数 + MAX_CONCENTRATION 浓度上限）
+│   └── KineticConstants.java     # 缩放常量（TIME_SCALE=1000 唯一节奏旋钮，待 M6 调参；SLOT_GROUPS=2 槽位容量组数 + MAX_CONCENTRATION 浓度上限；FIXED_ACTIVITY_SPECIES 含 fe）
 ├── gui/
 │   ├── MachineMenu.java          # 酶工厂菜单：滚动卡片物种槽（RestrictedSlot isActive=false 全接管）+ ContainerData 同步 + 打开数据包解析
 │   ├── MachineScreen.java        # 酶工厂屏幕：gui_v1.png 手绘基底 + 滚动卡片 + v-t 折线图 + 平衡区 + 速率区

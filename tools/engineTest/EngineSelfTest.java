@@ -2,6 +2,7 @@ package engineTest;
 
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.github.crafteve.biocraft.reaction.EnzymeSimulator;
+import com.github.crafteve.biocraft.reaction.EnergyKinetics;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
 import com.github.crafteve.biocraft.reaction.KineticsCalculator;
 import com.github.crafteve.biocraft.reaction.ReactionDefinition;
@@ -49,6 +50,10 @@ public final class EngineSelfTest {
         run("16 可达通量契约：引擎给出满堆=槽位组数的可达上限（手算对照）", EngineSelfTest::test16ReachableFlux);
         run("17 浓度钳制上限：余量+满槽共存不被吞（64.77/64 保留）", EngineSelfTest::test17ConcentrationClamp);
         run("18 ALDO 容量翻倍：平衡产物 ≥1 个可抽出（旧容量 0.77 卡死回归）", EngineSelfTest::test18AlodoProductExtractable);
+        run("19 能量纯函数：容量/镜像/FE 结算公式手算对照", EngineSelfTest::test19EnergyKinetics);
+        run("20 ATPase 含 fe 物种构建通过 + H₂O 耗尽停供", EngineSelfTest::test20AtpaseSupply);
+        run("21 ATPase 满能量镜像停转（边界缩放回压）", EngineSelfTest::test21AtpaseFullEnergyStall);
+        run("22 LDH 平衡收敛至 Keq 判决点（乳酸线可逆酶）", EngineSelfTest::test22LdhConvergence);
 
         if (failures > 0) {
             System.err.println("引擎单测失败: " + failures + "/" + total);
@@ -117,6 +122,10 @@ public final class EngineSelfTest {
         TestEnzymes.tpi().buildSimulator();
         TestEnzymes.eno().buildSimulator();
         TestEnzymes.aldo().buildSimulator();
+        TestEnzymes.ldh().buildSimulator();
+        TestEnzymes.pdc().buildSimulator();
+        TestEnzymes.adh().buildSimulator();
+        TestEnzymes.atpase().buildSimulator();
     }
 
     /** kcat 非正、速率项 Km 非正等坏数据必须在构建期快速失败 */
@@ -494,6 +503,101 @@ public final class EngineSelfTest {
         check(dhap >= 1.0 / 64.0,
                 String.format("ALDO 满堆平衡后 DHAP 浓度 %.5f 应 ≥ 1/64（可抽出）", dhap));
         check(dhap < 0.05, String.format("ALDO 平衡 DHAP 浓度 %.5f 应远小于 1（Keq 极小）", dhap));
+    }
+
+    /**
+     * 能量（FE）纯函数契约：容量/镜像/FE 结算三公式手算对照
+     * <p>
+     * ATPase（count=100）：容量 = 100×1000×64×MAX_CONCENTRATION ≈ 1290 万 FE；
+     * 镜像：满存量 = MAX_CONCENTRATION、空 = 0、半 = 一半；
+     * 每 tick 结算：fluxNet×stoich×64×0.05×1000，正负方向与产物/反应物侧对应
+     */
+    private static void test19EnergyKinetics() {
+        double max = KineticConstants.MAX_CONCENTRATION;
+        int capacity = EnergyKinetics.capacity(100);
+        checkNear(capacity, 100 * EnergyKinetics.KFE_SCALE * 64.0 * max, 1e-9, "容量公式与手算不符");
+
+        checkNear(EnergyKinetics.mirrorConcentration(0, capacity), 0.0, 1e-12, "空存量镜像应为 0");
+        checkNear(EnergyKinetics.mirrorConcentration(capacity, capacity), max, 1e-12,
+                "满存量镜像应为 MAX_CONCENTRATION");
+        checkNear(EnergyKinetics.mirrorConcentration(capacity / 2, capacity), max / 2.0, 1e-12,
+                "半存量镜像应为 MAX/2");
+
+        // 产物侧（stoich=+100）：正向通量充能
+        double charge = EnergyKinetics.fePerTick(0.1, 100.0);
+        checkNear(charge, 0.1 * 100.0 * 64.0 * KineticConstants.TICK_SECONDS * EnergyKinetics.KFE_SCALE,
+                1e-9, "产物侧 FE 结算与手算不符");
+        check(charge > 0.0, "产物侧正向通量应充能（正值）");
+        // 反应物侧（stoich=-50）：正向通量消耗
+        double drain = EnergyKinetics.fePerTick(0.1, -50.0);
+        check(drain < 0.0, "反应物侧正向通量应消耗（负值）");
+        checkNear(drain, -0.5 * charge, 1e-9, "反应物侧结算应为产物侧一半（系数比 100:50）");
+
+        check(EnergyKinetics.isEnergySpecies("fe"), "fe 应被识别为能量物种");
+        check(!EnergyKinetics.isEnergySpecies("atp"), "atp 不应被识别为能量物种");
+    }
+
+    /**
+     * ATPase（含 fe 物种）构建通过；H₂O 耗尽（固定活性反应物）→ 停供门
+     * <p>
+     * fe 在产物侧：不触发 hasSupply；water 在反应物侧：耗尽即停供。
+     * 镜像语义由 BE 维护，引擎层只需保证 fe 物种浓度合法存在且结算不越界
+     */
+    private static void test20AtpaseSupply() {
+        EnzymeSimulator sim = TestEnzymes.atpase().buildSimulator();
+        ReactionDefinition def = sim.getDefinition();
+        check(def.getSpeciesIndex("fe") >= 0, "fe 应进入物种表");
+        check(def.isFixedActivity(def.getSpeciesIndex("fe")), "fe 应为固定活性");
+        check(def.getStoich(def.getSpeciesIndex("fe")) == 100.0, "fe 净化学计量应为 +100");
+
+        // 无水：停供门立即冻结
+        double[] x = sim.getState().getConcentrations();
+        x[idx(sim, "atp")] = 1.0;
+        StepResult r0 = sim.step(KineticConstants.TICK_SECONDS);
+        checkNear(r0.fluxNet(), 0.0, 1e-12, "H₂O 耗尽时 ATPase 应停供");
+
+        // 供水后恢复
+        x[idx(sim, "water")] = 1.0;
+        check(sim.step(KineticConstants.TICK_SECONDS).fluxNet() > 0.0, "供水后 ATPase 应恢复运行");
+    }
+
+    /**
+     * 满能量镜像停转（边界缩放回压）：fe 浓度被 BE 写为 MAX 后，
+     * RK4 终值越界触发全局缩放 → 净通量归零（满能量停转、抽走恢复）
+     */
+    private static void test21AtpaseFullEnergyStall() {
+        EnzymeSimulator sim = TestEnzymes.atpase().buildSimulator();
+        double[] x = sim.getState().getConcentrations();
+        x[idx(sim, "atp")] = 1.0;
+        x[idx(sim, "water")] = 1.0;
+        // 满能量镜像（BE 每 tick 覆写 fe 浓度；此处模拟 BE 行为直接写上限）
+        x[idx(sim, "fe")] = KineticConstants.MAX_CONCENTRATION;
+        StepResult r = sim.step(KineticConstants.TICK_SECONDS);
+        checkNear(r.fluxNet(), 0.0, 1e-9, "满能量镜像下 ATPase 应停转（边界缩放回压）");
+        check(x[idx(sim, "fe")] <= KineticConstants.MAX_CONCENTRATION,
+                "满能量镜像 step 后 fe 浓度不得越界");
+    }
+
+    /**
+     * 乳酸线可逆酶平衡契约：LDH 从反应物侧收敛到 Keq 判决点
+     * <p>
+     * Keq=22000 强偏乳酸：平衡时 [LAC][NAD⁺]/([PYR][NADH]) = 22000。
+     * 从 PYR/NADH 满堆起步，LAC/NAD⁺ 应收敛到接近满堆（大部分转化）；
+     * H⁺ 固定活性（km 0）不影响平衡式，但它在反应物侧参与计量结算——
+     * 必须给足初值（平衡净耗 1 质子/分子），否则耗尽触发停供门冻结
+     */
+    private static void test22LdhConvergence() {
+        EnzymeSimulator sim = TestEnzymes.ldh().buildSimulator();
+        double[] x = sim.getState().getConcentrations();
+        x[idx(sim, "pyruvate")] = 1.0;
+        x[idx(sim, "nadh")] = 1.0;
+        x[idx(sim, "hydrogen_ion")] = 1.0;
+        runTicks(sim, 20000);
+        double q = x[idx(sim, "lactate")] * x[idx(sim, "nad_plus")]
+                / (x[idx(sim, "pyruvate")] * x[idx(sim, "nadh")]);
+        checkNear(q, 22000.0, 0.02 * 22000.0, "LDH 平衡商 Q 未收敛到 Keq（2% 容差）");
+        check(x[idx(sim, "lactate")] > 0.9, "LDH 强偏产物，乳酸应接近满堆");
+        check(x[idx(sim, "hydrogen_ion")] > 0.0, "H⁺ 不应耗尽（停供门不得误触发）");
     }
 
     private EngineSelfTest() {

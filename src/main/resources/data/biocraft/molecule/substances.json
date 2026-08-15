@@ -696,6 +696,36 @@
             "smiles":  "CC(=O)C(=O)O",
             "abbreviation":  "PYRU",
             "category":  "glycolysis"
+        },
+        {
+            "id":  "lactate",
+            "name_zn":  "乳酸",
+            "name_en":  "Lactate",
+            "container":  "flask",
+            "color":  4293572958,
+            "smiles":  "CC(C(=O)[O-])O",
+            "abbreviation":  "LAC",
+            "category":  "glycolysis"
+        },
+        {
+            "id":  "acetaldehyde",
+            "name_zn":  "乙醛",
+            "name_en":  "Acetaldehyde",
+            "container":  "flask",
+            "color":  4294270985,
+            "smiles":  "CC=O",
+            "abbreviation":  "AcH",
+            "category":  "glycolysis"
+        },
+        {
+            "id":  "ethanol",
+            "name_zn":  "乙醇",
+            "name_en":  "Ethanol",
+            "container":  "flask",
+            "color":  4294373125,
+            "smiles":  "CCO",
+            "abbreviation":  "EtOH",
+            "category":  "glycolysis"
         }
     ]
 }

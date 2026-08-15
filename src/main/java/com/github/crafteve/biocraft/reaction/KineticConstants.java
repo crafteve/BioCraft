@@ -76,8 +76,14 @@ public final class KineticConstants {
      * 依据策划 2.5 热力学约定：eQuilibrator 变换值已隐含"H₂O 活度 1、pH 7"，
      * 这些物种不乘进速率方程（活性恒 1），但照常参与化学计量结算（如 ENO 产出水物品），
      * 若出现在反应物侧则浓度耗尽时反应停供（未来水解类反应需要玩家供水）
+     * <p>
+     * "fe"（能量物种）：与 H₂O/H⁺ 同构的固定活性物种，由 ATP 水解酶等
+     * 发电机在产物侧产出、未来电化学合成器在反应物侧消耗。FE 不进速率
+     * 方程（km 填 0），化学计量系数即每分子 FE 数（count=100 → 每分子
+     * 100 kFE）；浓度由方块实体以"存量镜像"方式维护——满能量 = 满浓度，
+     * 引擎边界缩放天然实现满能量停转回压
      */
-    public static final Set<String> FIXED_ACTIVITY_SPECIES = Set.of("water", "hydrogen_ion");
+    public static final Set<String> FIXED_ACTIVITY_SPECIES = Set.of("water", "hydrogen_ion", "fe");
 
     /**
      * 各类别酶的默认活化能（kJ/mol），用于温度活性因子（Arrhenius）

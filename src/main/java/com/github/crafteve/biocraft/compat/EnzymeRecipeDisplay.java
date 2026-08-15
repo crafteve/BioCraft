@@ -35,6 +35,8 @@ import java.util.Map;
  * @param machineStack 本酶工厂方块物品（信息卡酶槽图标）
  * @param vmaxFPerTick 正向饱和可达最大速率（/tick，与 GUI 速率条同口径）
  * @param vmaxBPerTick 逆向饱和可达最大速率（/tick，不可逆为 0）
+ * @param energyStoich fe 能量物种净化学计量（0 = 无能量；产物侧 +count / 反应物侧 −count）
+ * @param energyCapacityFE 能量容量（FE，引擎 EnergyKinetics 计算，0 = 无能量）
  * @param inputs       反应物条目（左侧槽位，按酶数据表顺序）
  * @param outputs      产物条目（右侧槽位，按酶数据表顺序）
  */
@@ -51,6 +53,8 @@ public record EnzymeRecipeDisplay(
         ItemStack machineStack,
         double vmaxFPerTick,
         double vmaxBPerTick,
+        int energyStoich,
+        int energyCapacityFE,
         List<Entry> inputs,
         List<Entry> outputs) {
 
@@ -91,10 +95,18 @@ public record EnzymeRecipeDisplay(
      * @return 新展示模型
      */
     private static EnzymeRecipeDisplay build(EnzymeFactoryData data) {
-        List<Entry> inputs = data.reactants().stream().map(EnzymeRecipeDisplay::toEntry).toList();
-        List<Entry> outputs = data.products().stream().map(EnzymeRecipeDisplay::toEntry).toList();
+        List<Entry> inputs = data.reactants().stream()
+                .filter(spec -> !com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item()))
+                .map(EnzymeRecipeDisplay::toEntry).toList();
+        List<Entry> outputs = data.products().stream()
+                .filter(spec -> !com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item()))
+                .map(EnzymeRecipeDisplay::toEntry).toList();
 
         ReactionDefinition definition = data.buildSimulator().getDefinition();
+        int energyIndex = definition.getSpeciesIndex(com.github.crafteve.biocraft.reaction.EnergyKinetics.FE_SPECIES_ID);
+        int energyStoich = energyIndex >= 0 ? (int) Math.round(definition.getStoich(energyIndex)) : 0;
+        int energyCapacityFE = energyStoich != 0
+                ? com.github.crafteve.biocraft.reaction.EnergyKinetics.capacity(Math.abs(energyStoich)) : 0;
 
         double deltaG = CompatRenderUtil.deltaGFromKeq(data.keq());
         return new EnzymeRecipeDisplay(data.id(), data.nameZn(), data.abbreviation(),
@@ -103,6 +115,7 @@ public record EnzymeRecipeDisplay(
                 machineStack(data.id()),
                 definition.forwardReachableFlux() * CompatRenderUtil.ITEMS_PER_TICK,
                 definition.reverseReachableFlux() * CompatRenderUtil.ITEMS_PER_TICK,
+                energyStoich, energyCapacityFE,
                 inputs, outputs);
     }
 

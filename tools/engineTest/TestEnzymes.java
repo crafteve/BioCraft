@@ -140,6 +140,70 @@ public final class TestEnzymes {
         return new EnzymeFactoryData.SpeciesSpec(item, count, km);
     }
 
+    /**
+     * 乳酸脱氢酶（LDH，EC 1.1.1.27）：PYR + NADH + H⁺ ⇌ LAC + NAD⁺，可逆
+     * <p>
+     * 数据：Km PYR 0.14 / NADH 0.03（BRENDA 人源范围内）、LAC 10 / NAD⁺ 0.3；
+     * kcat 150（BRENDA 人源无实测，待补，用户建议值）；
+     * H⁺ 固定活性（km 0）且在反应物侧 → 消耗质子，耗尽停供
+     */
+    public static EnzymeFactoryData ldh() {
+        return new EnzymeFactoryData(
+                "lactate_dehydrogenase", "乳酸脱氢酶", "Lactate Dehydrogenase", "LDH", "EC1",
+                List.of(s("pyruvate", 1, 0.14), s("nadh", 1, 0.03), s("hydrogen_ion", 1, 0.0)),
+                List.of(s("lactate", 1, 10.0), s("nad_plus", 1, 0.3)),
+                true, 22000.0, null, 150.0, 298.15,
+                3, 2);
+    }
+
+    /**
+     * 丙酮酸脱羧酶（PDC，EC 4.1.1.1，酵母）：PYR + H⁺ → AcH + CO₂，不可逆
+     * <p>
+     * Km PYR 1.0（WT 0.5~2.3 取中）；kcat 60（WT 60~73 下界）；
+     * Keq 取 CO₂ 气体约定 3.2e3（CO₂ 逸出游戏语义）；
+     * H⁺ 固定活性且在反应物侧 → 消耗质子，耗尽停供
+     */
+    public static EnzymeFactoryData pdc() {
+        return new EnzymeFactoryData(
+                "pyruvate_decarboxylase", "丙酮酸脱羧酶", "Pyruvate Decarboxylase", "PDC", "EC4",
+                List.of(s("pyruvate", 1, 1.0), s("hydrogen_ion", 1, 0.0)),
+                List.of(s("acetaldehyde", 1, 0.0), s("carbon_dioxide", 1, 0.0)),
+                false, 3200.0, null, 60.0, 298.15,
+                2, 2);
+    }
+
+    /**
+     * 乙醇脱氢酶（ADH，EC 1.1.1.1）：AcH + NADH + H⁺ ⇌ EtOH + NAD⁺，可逆
+     * <p>
+     * Km AcH 0.05 / NADH 0.02 / EtOH 10（酵母范围）/ NAD⁺ 0.3（实测 0.06 量级，
+     * 建议值偏高可用）；kcat 200（酵母 ADH1 范围内）；
+     * H⁺ 固定活性且在反应物侧 → 消耗质子，耗尽停供
+     */
+    public static EnzymeFactoryData adh() {
+        return new EnzymeFactoryData(
+                "alcohol_dehydrogenase", "乙醇脱氢酶", "Alcohol Dehydrogenase", "ADH", "EC1",
+                List.of(s("acetaldehyde", 1, 0.05), s("nadh", 1, 0.02), s("hydrogen_ion", 1, 0.0)),
+                List.of(s("ethanol", 1, 10.0), s("nad_plus", 1, 0.3)),
+                true, 11000.0, null, 200.0, 298.15,
+                3, 2);
+    }
+
+    /**
+     * ATP 水解发电机（ATPase，EC 3.6.1.15）：ATP + H₂O → ADP + Pi + 100FE，不可逆
+     * <p>
+     * Km ATP 0.5（跨物种范围 0.005~2.5 取中）；kcat 100（真核实测 0.01~10 量级，
+     * 100 为游戏平衡值）；fe 固定活性产物（km 0），count=100 即每分子 100 kFE；
+     * H₂O 固定活性且在反应物侧 → 必须供水，耗尽停供
+     */
+    public static EnzymeFactoryData atpase() {
+        return new EnzymeFactoryData(
+                "atp_hydrolase", "ATP 水解酶", "ATP Hydrolase", "ATPase", "EC3",
+                List.of(s("atp", 1, 0.5), s("water", 1, 0.0)),
+                List.of(s("adp", 1, 0.0), s("phosphate_ion", 1, 0.0), s("fe", 100, 0.0)),
+                false, 190000.0, null, 100.0, 298.15,
+                2, 3);
+    }
+
     private TestEnzymes() {
     }
 }

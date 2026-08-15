@@ -61,6 +61,9 @@ public final class SmilesCheck {
         EXPECTED.put("3_phosphoglycerate", "C(C(C(=O)O)O)OP(=O)(O)O");
         EXPECTED.put("2_phosphoglycerate", "C(C(C(=O)O)OP(=O)(O)O)O");
         EXPECTED.put("phosphoenolpyruvate", "C=C(C(=O)O)OP(=O)(O)O");
+        EXPECTED.put("lactate", "CC(C(=O)[O-])O");
+        EXPECTED.put("acetaldehyde", "CC=O");
+        EXPECTED.put("ethanol", "CCO");
         EXPECTED.put("pyruvate", "CC(=O)C(=O)[O-]");
         // 表 A2 20 种氨基酸（PubChem canonical）
         EXPECTED.put("glycine", "C(C(=O)O)N");

@@ -31,7 +31,11 @@ public final class ModCapabilities {
     }
 
     /**
-     * 注册酶工厂方块实体的物品能力（mod 事件总线）
+     * 注册酶工厂方块实体的物品与能量能力（mod 事件总线）
+     * <p>
+     * 能量能力仅对含 fe 物种的酶注册（getEnergyStorage 内部判空返回 null，
+     * 注册表对无能量酶返回 null 即无该能力）；方向由 fe 净化学计量自动
+     * 判定（产物侧发电机只可抽、反应物侧合成器只可充）
      *
      * @param event 能力注册事件
      */
@@ -40,5 +44,8 @@ public final class ModCapabilities {
         event.registerBlockEntity(Capabilities.ItemHandler.BLOCK,
                 ModBlocks.ENZYME_FACTORY_BE.get(),
                 (EnzymeFactoryBlockEntity be, net.minecraft.core.Direction side) -> be.getItemHandler());
+        event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK,
+                ModBlocks.ENZYME_FACTORY_BE.get(),
+                (EnzymeFactoryBlockEntity be, net.minecraft.core.Direction side) -> be.getEnergyStorage());
     }
 }

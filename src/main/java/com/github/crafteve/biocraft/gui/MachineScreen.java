@@ -173,6 +173,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 进度条轨道颜色（浅灰，物品色为填充） */
     private static final int BAR_TRACK = 0xFFE0E0E0;
 
+    /** 能量卡主题色（深绿 #2E7D32，浅灰卡片底上可读） */
+    private static final int ENERGY_COLOR = 0xFF2E7D32;
+
     /** 每个滚轮刻度移动的像素量（连续像素滚动，非逐张步进） */
     private static final double SCROLL_PIXELS_PER_NOTCH = 20.0;
 
@@ -181,6 +184,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     private final EnzymeFactoryBlockEntity blockEntity;
     private final EnzymeFactoryData enzymeData;
+
+    /**
+     * 引擎物种下标 → 菜单槽位映射（fe 能量物种为 -1）
+     * <p>
+     * fe 加入后引擎物种表与菜单槽位不再 1:1（fe 无槽位），
+     * computeQ 等按引擎下标取浓度的地方必须经本映射换算
+     */
+    private final int[] speciesToMenuSlot;
 
     /** 输入滚动卡片区（反应物，容器 x=7） */
     private final CardScrollArea inputArea;
@@ -214,10 +225,76 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         this.imageHeight = GUI_H;
         this.blockEntity = menu.getBlockEntity();
         this.enzymeData = menu.getEnzymeData();
-        this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, 0, enzymeData.reactants());
+        this.speciesToMenuSlot = buildSpeciesToMenuSlot(enzymeData);
+        int inputSlots = nonEnergyCount(enzymeData.reactants());
+        this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, buildCards(enzymeData.reactants(), 0));
         this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X,
-                enzymeData.reactants().size(), enzymeData.products());
+                buildCards(enzymeData.products(), inputSlots));
         initVtHistory(menu.getFluxHistory());
+    }
+
+    /**
+     * 引擎物种下标 → 菜单槽位映射（fe 能量物种为 -1）
+     * <p>
+     * 规则与 Menu 槽位注册一致：反应物先产物后、跳过 fe 依次编号；
+     * 引擎物种表顺序 = 反应物 + 产物（含 fe），故映射按同一遍历顺序建立
+     *
+     * @param data 酶数据档案
+     * @return 映射表（长度 = 引擎物种数）
+     */
+    private static int[] buildSpeciesToMenuSlot(EnzymeFactoryData data) {
+        int total = data.reactants().size() + data.products().size();
+        int[] mapping = new int[total];
+        int speciesIndex = 0;
+        int slot = 0;
+        for (EnzymeFactoryData.SpeciesSpec spec : data.reactants()) {
+            mapping[speciesIndex++] =
+                    com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item()) ? -1 : slot++;
+        }
+        for (EnzymeFactoryData.SpeciesSpec spec : data.products()) {
+            mapping[speciesIndex++] =
+                    com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item()) ? -1 : slot++;
+        }
+        return mapping;
+    }
+
+    /**
+     * 物种条目中的非 fe 数（容器槽位分配游标用，规则与 Menu 一致）
+     *
+     * @param specs 物种条目列表
+     * @return 非 fe 条目数
+     */
+    private static int nonEnergyCount(List<EnzymeFactoryData.SpeciesSpec> specs) {
+        int count = 0;
+        for (EnzymeFactoryData.SpeciesSpec spec : specs) {
+            if (!com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 构建滚动卡片描述列表（fe 物种 → 能量卡，其余 → 物种卡）
+     * <p>
+     * 卡片顺序 = JSON 条目顺序，能量卡与其他卡片同滚动区同顺序；
+     * 容器槽位游标从 baseSlot 起连续分配（跳过 fe）
+     *
+     * @param specs   物种条目列表（反应物或产物）
+     * @param baseSlot 容器槽位起点
+     * @return 卡片描述列表
+     */
+    private static List<CardSpec> buildCards(List<EnzymeFactoryData.SpeciesSpec> specs, int baseSlot) {
+        List<CardSpec> cards = new ArrayList<>();
+        int containerSlot = baseSlot;
+        for (EnzymeFactoryData.SpeciesSpec spec : specs) {
+            if (com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item())) {
+                cards.add(new EnergyCard(spec.count()));
+            } else {
+                cards.add(new SpeciesCard(spec, containerSlot++));
+            }
+        }
+        return cards;
     }
 
     /**
@@ -429,13 +506,21 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 物种槽位浓度（客户端重建：槽位数量 + 同步余量）/64，
+     * 物种浓度（客户端重建：槽位数量 + 同步余量）/64，
      * 钳制 [0, MAX_CONCENTRATION]（与引擎/进度条同源上限）
+     * <p>
+     * 入参为引擎物种下标（computeQ 的速率项条目下标），经
+     * speciesToMenuSlot 映射到菜单槽位；fe 能量物种返回 0
+     * （fe 不在速率项中，防御性兜底）
      *
-     * @param slot 物种槽位下标
+     * @param speciesIndex 引擎物种下标
      * @return 浓度 0~MAX_CONCENTRATION
      */
-    private double concentrationOf(int slot) {
+    private double concentrationOf(int speciesIndex) {
+        int slot = speciesIndex < speciesToMenuSlot.length ? speciesToMenuSlot[speciesIndex] : -1;
+        if (slot < 0) {
+            return 0.0;
+        }
         return Math.max(0.0, Math.min(
                 (menu.getSlot(slot).getItem().getCount() + menu.getRemainder(slot)) / 64.0,
                 com.github.crafteve.biocraft.reaction.KineticConstants.MAX_CONCENTRATION));
@@ -883,11 +968,37 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
+     * 滚动卡片描述：物种卡（物品槽位）或能量卡（FE 显示）
+     * <p>
+     * 卡片顺序 = 酶数据表 JSON 条目顺序（fe 条目在原位生成能量卡，
+     * 与其他 input/output 卡片同滚动区同顺序）；容器槽位只分配给
+     * 物种卡（fe 无物品槽），槽位序号与 Menu/BE 的映射规则一致
+     */
+    private sealed interface CardSpec permits SpeciesCard, EnergyCard {
+    }
+
+    /**
+     * 物种卡：一个物品槽位（非 fe 物种）
+     *
+     * @param spec         物种条目（物品 id/系数/Km）
+     * @param containerSlot 容器槽位序号（非 fe 连续编号）
+     */
+    private record SpeciesCard(EnzymeFactoryData.SpeciesSpec spec, int containerSlot) implements CardSpec {
+    }
+
+    /**
+     * 能量卡：FE 显示（fe 物种，无槽位不可交互）
+     *
+     * @param count 化学计量系数（每分子 FE 数，容量公式入参）
+     */
+    private record EnergyCard(int count) implements CardSpec {
+    }
+
+    /**
      * 滚动卡片区域抽象：输入区与输出区共用一套布局/滚动/绘制/命中逻辑
      * <p>
-     * 与 Menu 槽位的关系：本区域持有一段连续物种槽（baseSlot 起、
-     * species 列表长度），槽位容器索引 = baseSlot + 卡片下标；
-     * 输入区 = 反应物（槽 0 起），输出区 = 产物（槽 = 反应物数起）
+     * 与 Menu 槽位的关系：本区域持有一段卡片描述列表（物种卡携带容器
+     * 槽位序号，能量卡无槽位），卡片顺序 = JSON 条目顺序
      * <p>
      * 滚动机制（与用户给定的约束一一对应）：
      * <ul>
@@ -904,11 +1015,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         /** 滚动容器 x（GUI 相对，输入 7 / 输出 193） */
         private final int areaX;
 
-        /** 本区域物种槽起点索引（输入 0 / 输出 = 反应物数） */
-        private final int baseSlot;
-
-        /** 本区域物种条目列表（反应物或产物，JSON 解析顺序） */
-        private final List<EnzymeFactoryData.SpeciesSpec> species;
+        /** 本区域卡片描述列表（物种卡 + 能量卡，JSON 顺序） */
+        private final List<CardSpec> cards;
 
         /** 当前滚动像素偏移（渲染用，平滑插值后的显示值） */
         private double scrollOffset;
@@ -917,19 +1025,17 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         private double scrollTarget;
 
         /**
-         * @param areaX    滚动容器 x（GUI 相对）
-         * @param baseSlot 本区域物种槽起点索引
-         * @param species  本区域物种条目列表
+         * @param areaX 滚动容器 x（GUI 相对）
+         * @param cards 本区域卡片描述列表
          */
-        CardScrollArea(int areaX, int baseSlot, List<EnzymeFactoryData.SpeciesSpec> species) {
+        CardScrollArea(int areaX, List<CardSpec> cards) {
             this.areaX = areaX;
-            this.baseSlot = baseSlot;
-            this.species = species;
+            this.cards = cards;
         }
 
-        /** 本区域卡片数（= 物种条目数） */
+        /** 本区域卡片数（物种卡 + 能量卡） */
         int getCount() {
-            return species.size();
+            return cards.size();
         }
 
         /**
@@ -971,7 +1077,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
          * 命中检测：鼠标 GUI 相对坐标命中的本区域槽位（无命中返回 null）
          * <p>
          * 槽位位置 = 卡片位置 + 卡片内相对 (2,3)，命中区域 16×16，
-         * 与 draw 的绘制位置严格一致（同一公式）
+         * 与 draw 的绘制位置严格一致（同一公式）；能量卡无槽位跳过
          *
          * @param localX 鼠标 x（GUI 相对）
          * @param localY 鼠标 y（GUI 相对）
@@ -980,10 +1086,13 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         Slot findSlot(int localX, int localY) {
             int offset = (int) Math.round(scrollOffset);
             for (int i = 0; i < getCount(); i++) {
+                if (!(cards.get(i) instanceof SpeciesCard speciesCard)) {
+                    continue;
+                }
                 int sx = areaX + MachineMenu.SLOT_X;
                 int sy = MachineMenu.SCROLL_Y + i * MachineMenu.CARD_STEP - offset + MachineMenu.SLOT_Y;
                 if (localX >= sx && localX < sx + 16 && localY >= sy && localY < sy + 16) {
-                    return menu.getSlot(baseSlot + i);
+                    return menu.getSlot(speciesCard.containerSlot());
                 }
             }
             return null;
@@ -991,10 +1100,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
         /**
          * 绘制本区域全部卡片（视口 scissor 裁剪内）：
-         * 卡片底色 + 槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中）
-         * + 物品图标/数量 + hover 高亮 + 缩写（与槽位上顶面平齐、物品色加深
-         * 1/5）+ 浓度进度条（槽位下方与卡片底端间居中，3px 高 54px 长）
-         * + 浓度读数（槽位底面右侧 4px、向下 1px 为文字左下角，浅灰黑）
+         * 物种卡 = 槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中）
+         * + 物品图标/数量 + hover 高亮 + 缩写 + 浓度进度条 + 浓度读数；
+         * 能量卡 = 绿色 "FE" 标签 + 存量/容量 + 绿色进度条 + 产率读数
          *
          * @param graphics 渲染器
          */
@@ -1006,10 +1114,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             for (int i = 0; i < getCount(); i++) {
                 int cardY = y + i * MachineMenu.CARD_STEP - offset;
                 graphics.fill(x, cardY, x + MachineMenu.CARD_W, cardY + MachineMenu.CARD_H, CARD_COLOR);
+                if (cards.get(i) instanceof EnergyCard energyCard) {
+                    drawEnergyCard(graphics, x, cardY, energyCard.count());
+                    continue;
+                }
+                SpeciesCard speciesCard = (SpeciesCard) cards.get(i);
                 // 槽位元素：slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中于 (2,3)
                 int pngX = x + MachineMenu.SLOT_PNG_X;
                 int pngY = cardY + MachineMenu.SLOT_PNG_Y;
-                Slot slot = menu.getSlot(baseSlot + i);
+                Slot slot = menu.getSlot(speciesCard.containerSlot());
                 graphics.blit(SLOT, pngX, pngY, 0, 0, 18, 18, 18, 18);
                 ItemStack stack = slot.getItem();
                 if (!stack.isEmpty()) {
@@ -1026,7 +1139,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 }
 
                 // 物品数据：颜色取 substances.json 解析出的物品染色（24 位 RGB 补 alpha）
-                String itemId = species.get(i).item();
+                String itemId = speciesCard.spec().item();
                 MoleculeItem item = ModItems.byId(itemId).get();
                 // 缩写颜色：物品色加深 1/5；与卡片底色（#C6C6C6）亮度相近时
                 // 改黑色保证可读（实测 H⁺ 为纯白，灰卡上几乎不可见）
@@ -1042,7 +1155,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 // （客户端 BE 引擎浓度恒 0，直接读引擎会导致进度条/读数不显示）；
                 // 上限 = MAX_CONCENTRATION（槽位 n 组 + 余量），允许"槽满仍攒余量"
                 double concentration = Math.max(0.0, Math.min(
-                        (stack.getCount() + menu.getRemainder(baseSlot + i)) / 64.0,
+                        (stack.getCount() + menu.getRemainder(speciesCard.containerSlot())) / 64.0,
                         com.github.crafteve.biocraft.reaction.KineticConstants.MAX_CONCENTRATION));
 
                 // 进度条：槽位下方与卡片底端之间（20..28）垂直居中，
@@ -1060,6 +1173,53 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                         numX, numBottomY - 8, CONC_TEXT_COLOR, false);
             }
             graphics.disableScissor();
+        }
+
+        /**
+         * 绘制能量卡（56×28）：绿色 FE 主题，与物种卡同尺寸同滚动
+         * <p>
+         * 布局（自上而下）：
+         * <ol>
+         *   <li>"FE" 标签 + 存量/容量（kFE 整数，容量来自引擎 EnergyKinetics）</li>
+         *   <li>绿色进度条（54×3，存量/容量比例，与物种卡进度条同位置口径）</li>
+         *   <li>产率读数（+充能 / −消耗，kFE/tick）</li>
+         * </ol>
+         * 颜色：#2E7D32 深绿（浅灰卡片底上可读）；数据全部来自 ContainerData
+         * （存量）与引擎 API（容量/换算），不复制任何公式
+         *
+         * @param graphics 渲染器
+         * @param cardX    卡片左上 x（已含 leftPos）
+         * @param cardY    卡片左上 y（已含 topPos 与滚动偏移）
+         * @param count    fe 化学计量系数（每分子 FE 数）
+         */
+        private void drawEnergyCard(GuiGraphics graphics, int cardX, int cardY, int count) {
+            int stored = menu.getEnergyStored();
+            int capacity = com.github.crafteve.biocraft.reaction.EnergyKinetics.capacity(count);
+            // 顶部行：FE 标签 + 存量/容量（kFE，保留整数）
+            graphics.drawString(font, "FE", cardX + 3, cardY + 2, ENERGY_COLOR, false);
+            graphics.drawString(font,
+                    formatKfe(stored) + "/" + formatKfe(capacity),
+                    cardX + 18, cardY + 2, ENERGY_COLOR, false);
+            // 中部：绿色进度条（与物种卡进度条同位置口径：卡片内 y 20..28 居中）
+            int barY = cardY + MachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
+            int fill = capacity > 0 ? (int) (54L * stored / capacity) : 0;
+            graphics.fill(cardX + 1, barY, cardX + 1 + 54, barY + 3, BAR_TRACK);
+            graphics.fill(cardX + 1, barY, cardX + 1 + Math.min(fill, 54), barY + 3, ENERGY_COLOR);
+            // 底部：产率读数（FE/tick → kFE/tick，正 = 充能、负 = 消耗）
+            double rate = menu.getEnergyRate() / 1000.0;
+            graphics.drawString(font, String.format("%+.1f kFE/tick", rate),
+                    cardX + 3, cardY + 18, ENERGY_COLOR, false);
+        }
+
+        /**
+         * FE 数值 → kFE 简洁格式（千位逗号，如 12900 → "12,900k"）
+         *
+         * @param fe FE 数值
+         * @return kFE 字符串
+         */
+        private static String formatKfe(int fe) {
+            int kfe = fe / 1000;
+            return String.format("%,dk", kfe);
         }
     }
 

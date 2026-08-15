@@ -29,6 +29,7 @@ import net.minecraft.network.chat.Component;
  *   y=56   Keq = 4.8×10³                             行 2：Keq（左对齐 x=2，白字+阴影，
  *   y=65   正向速率最大值 0.18 /tick                     位于酶槽下方、速率上方）
  *   y=74   逆向速率最大值 0.026 /tick                行 3/4：饱和可达速率（左对齐 x=2）
+ *   y=83   能量产出 +100 kFE/分子（容量 12900 kFE）  行 5：能量（绿色，仅含 fe 酶显示）
  * </pre>
  * 输入槽从 x=2 起排布，箭头区固定在输入末槽右侧（arrowX = 2 + nIn*20 + 8），
  * 输出槽在箭头右侧（outputX = arrowX + 30）；卡宽固定 160（容纳最多 3 输入 + 3 输出）
@@ -51,15 +52,19 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
     private static final int KEQ_Y = 56;
     private static final int VMAX_F_Y = 65;
     private static final int VMAX_B_Y = 74;
+    /** 能量行 y（绿色，仅含 fe 酶显示） */
+    private static final int ENERGY_Y = 83;
     /** 文本区统一左对齐起点 */
     private static final int TEXT_X = 2;
     /** 配方卡尺寸（background 为 null 时必须覆写 getWidth/getHeight） */
     private static final int WIDTH = 160;
-    private static final int HEIGHT = 83;
+    private static final int HEIGHT = 92;
 
     /** 文本颜色：主信息全白带阴影；tooltip 说明灰色 */
     private static final int COLOR_WHITE = 0xFFFFFF;
     private static final int COLOR_DIM = 0x9E9E9E;
+    /** 能量行颜色（深绿，深色 JEI 卡底可读） */
+    private static final int COLOR_ENERGY = 0x4CAF50;
 
     /** 本类别对应的配方类型（每酶专属） */
     private final RecipeType<EnzymeRecipeDisplay> recipeType;
@@ -248,6 +253,18 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
                 Component.translatable("jei.biocraft.vmax_b", CompatRenderUtil.formatRate(recipe.vmaxBPerTick()))
                         .withStyle(style -> style.withColor(COLOR_WHITE)),
                 TEXT_X, VMAX_B_Y, COLOR_WHITE, true);
+
+        // 行 5：能量（绿色，仅含 fe 物种的酶显示：产出/消耗 + 容量）
+        // 每分子 kFE = |stoich|，容量 = 引擎 EnergyKinetics（显示层不复制公式）
+        if (recipe.energyStoich() != 0) {
+            int kfePerMolecule = Math.abs(recipe.energyStoich());
+            String direction = recipe.energyStoich() > 0 ? "+" : "-";
+            Component energyLine = Component.translatable("jei.biocraft.energy",
+                            direction + kfePerMolecule,
+                            String.format("%,d", recipe.energyCapacityFE() / 1000))
+                    .withStyle(style -> style.withColor(COLOR_ENERGY));
+            graphics.drawString(font, energyLine, TEXT_X, ENERGY_Y, COLOR_ENERGY, true);
+        }
     }
 
     /**
