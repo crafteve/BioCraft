@@ -59,6 +59,9 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     private int cachedTempX100;
     private int cachedProgressX1000;
 
+    /** 工业 IO 适配器（懒加载单例：管道查询 capability 时复用同一实例，避免每 tick 分配） */
+    private EnzymeFactoryItemHandler itemHandler;
+
     /** v-t 通量历史环形缓冲（200 tick = 10 秒，打开 GUI 时一次性下发，不存档） */
     private static final int HISTORY_LENGTH = 200;
     private final int[] fluxHistory = new int[HISTORY_LENGTH];
@@ -122,6 +125,22 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      */
     public EnzymeFactoryData getEnzymeData() {
         return enzymeData;
+    }
+
+    /**
+     * 获取工业 IO 适配器（懒加载单例）
+     * <p>
+     * 供 ModCapabilities 的 capability 查询返回；管道每 tick 查询多次，
+     * 复用同一实例避免对象分配。适配器直接操作本实体容器，
+     * 物种过滤/浓度回写全部内聚在适配器内
+     *
+     * @return 本实体的 IItemHandler 适配器
+     */
+    public EnzymeFactoryItemHandler getItemHandler() {
+        if (itemHandler == null) {
+            itemHandler = new EnzymeFactoryItemHandler(this);
+        }
+        return itemHandler;
     }
 
     /**

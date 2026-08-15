@@ -58,6 +58,7 @@
 - 已完成 酶工厂 GUI：256×256 手绘基底 `gui_v1.png`、滚动卡片物种槽（`isActive=false` 全接管绘制与命中）、反应方程式彩色分段渲染、v-t 通量折线图（4x 超采样、1s 一点 10 点）、平衡区（log(Q/Keq) 缩放滑块 + Keq/Q 读数）、速率实时读数；ContainerData 每 tick 同步，打开数据包一次性下发 v-t 历史
 - 已完成 JEI 酶工厂配方显示：每酶一个专属配方类别（查看用途互不混淆），`EnzymeRecipeDisplay` 为 JEI/EMI 共享只读 DTO（零 JEI 依赖，新增酶自动生效）
 - 已完成 酶方块物品 tooltip：`EnzymeBlockItem` 展示缩写 + EC 类别名 + 可逆性 + 反应方程式（与 GUI 共用 `EnzymeEquation` 分段构建，浅底/深底两套配色）+ Keq + 正逆向饱和可达速率（引擎通量 ×64×0.05）+ 最适温度
+- 已完成 酶工厂工业 IO：`ModCapabilities` 注册 ItemHandler.BLOCK capability，`EnzymeFactoryItemHandler` 物种过滤/全槽位可进可出/O(1) 索引，复用 setChanged 浓度回写链，懒加载单例；原版漏斗继续走 Container 接口不受影响；运行时 Pipez（run/mods，gitignore 不入库）实测管道物流
 - 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
 - 待开发 转录仪 / 翻译仪（后两台原始机器）
 - 待开发 糖酵解流水线搭建（纪元二：10 步酶数据已齐，机器布局与产线衔接待做）
@@ -131,7 +132,8 @@ com.github.crafteve.biocraft
 │   ├── ModBlocks.java            # 方块/BE 类型/MenuType/方块物品四件套：DNA 编码器手动注册 + 酶工厂数据驱动循环注册（全酶共享一个 BE 类型与一个 MenuType）
 │   ├── ModCreativeTabs.java      # 多标签页架构：现有"生物工艺 · 分子"页 + "生物工艺 · 机器"页
 │   ├── ModDataComponents.java    # 物品数据组件注册（DNA 序列字符串组件，persistent + networkSynchronized）
-│   └── EnzymeFactoryRegistry.java # 读 enzymes.json → 构建酶数据档案（构建期跑引擎断言防火墙，失败快速失败）
+│   ├── EnzymeFactoryRegistry.java # 读 enzymes.json → 构建酶数据档案（构建期跑引擎断言防火墙，失败快速失败）
+│   └── ModCapabilities.java      # 机器 capability 注册（酶工厂 ItemHandler.BLOCK → BE 懒加载 IO 适配器单例）
 ├── data/
 │   └── SubstanceData.java        # 物质表读取工具（classpath，GsonHelper 解析）
 ├── item/
@@ -158,7 +160,8 @@ com.github.crafteve.biocraft
 │   ├── MachineCategory.java      # 机器类别枚举（EC1~EC6 + SPECIAL：主题色 tint 与 GUI 强调色，形色分离）
 │   ├── SynthesisStatus.java      # DNA 编码器合成结果状态码（成功/序列非法/碱基不足/输出满）
 │   ├── DNAEncoderBlockEntity.java # 缓冲池模型：碱基吸收（事件驱动）/事务式合成/缓冲池折算掉落
-│   └── EnzymeFactoryBlockEntity.java # 酶工厂：浓度-槽位双向投影 + 每 tick 引擎步进 + 睡眠机制 + v-t 历史环形缓冲 + 定点存档
+│   ├── EnzymeFactoryBlockEntity.java # 酶工厂：浓度-槽位双向投影 + 每 tick 引擎步进 + 睡眠机制 + v-t 历史环形缓冲 + 定点存档 + 懒加载 IO 适配器单例
+│   └── EnzymeFactoryItemHandler.java # 工业 IO 适配器（IItemHandlerModifiable）：物种过滤/全槽位可进可出/O(1) 索引，复用 setChanged 浓度回写链
 ├── reaction/                     # 化学引擎内核（纯 Java 零 MC 依赖，已完成 + 16 用例单测）
 │   ├── EnzymeFactoryData.java    # 酶数据档案 record（物品 id 直填/每物种自带 Km/直存 Keq）
 │   ├── EnzymeSimulator.java      # 每机一实例：RK4 积分 + 温度缓存 + 边界缩放
@@ -236,6 +239,7 @@ com.github.crafteve.biocraft
 22. **dev 环境依赖 mod 放置约定**：runClient 需要的可选依赖 mod（JEI/EMI）只放 `run/mods/` 目录（FML 直接扫描加载，日志可证实），**不要再加 localRuntime 冗余**——双份 jar 会被 mod 发现扫描两次（UniqueModListBuilder 虽会按版本去重，但 classpath 冗余属配置错误）
 23. **可达通量收敛进引擎（显示层禁复制速率公式）**：引擎 Vmax_f/Vmax_b 是速率方程的数学参数（浓度趋无穷的极限），而"游戏内可达上限"是方程在浓度=1（满堆）处的函数值——**两者都只能由引擎给出**：`ReactionDefinition.forwardReachableFlux()/reverseReachableFlux()`（构造满堆浓度向量直接调 forwardFlux/reverseFlux）。GUI 速率条刻度与 JEI/EMI 信息卡一律调引擎方法，只做 ×64×0.05 单位换算（个/tick）；曾在显示层复制 saturationReachable 公式（已删）导致职责错位，违反本约定会造成公式漂移。engineTest 第 16 用例手算对照守护此契约
 24. **JEI 兼容层设计**：每酶一个专属配方类型与类别（配方 id 形如 `biocraft:enzyme_factory/<酶id>`，注册顺序 = 酶数据表顺序），查看某酶方块用途时只显示该酶配方而非全部混类；`EnzymeRecipeDisplay` 是 JEI/EMI 共享的只读展示 DTO，**零 JEI/EMI 依赖**（只 import Minecraft 与 reaction 包，两套显示层插件在各自框架存在时才加载）——新增酶（改 enzymes.json）自动生效，勿在 DTO 中引入框架类，否则另一侧框架缺失时类加载崩溃
+25. **机器工业 IO 设计（IItemHandler capability）**：酶工厂已注册 `Capabilities.ItemHandler.BLOCK`（`ModCapabilities`），适配器 `EnzymeFactoryItemHandler` 直接操作 BE 容器——**不要改用 IItemHandler 当内部存储**：vanilla GUI Slot/漏斗/掉落/NBT 全部硬绑定 `Container` 接口（`InvWrapper.setStackInSlot` 不过滤、`IItemHandler` 无 setChanged 通知、无序列化），替代即断原版兼容；正确模式是"SimpleContainer 内部权威 + capability 暴露"（Mekanism/AE2 同款）。适配器约定：物种过滤（`isItemValid` 与 GUI `RestrictedSlot.mayPlace` 同规则）、全槽位可进可出（不做方向区分）、O(1) 索引、每 BE 懒加载单例（`getItemHandler`）；浓度回写零额外代码（容器 setChanged 链自动触发 `syncFromSlots`）。运行时管道测试用 Pipez（`run/mods/`，gitignore 不入库，dev 无依赖）
 
 ## 第三章 编码与开发规范
 
