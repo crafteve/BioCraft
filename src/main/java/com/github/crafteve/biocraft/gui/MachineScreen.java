@@ -176,6 +176,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 能量卡主题色（浅绿 #4CAF50，浅灰卡片底上可读） */
     private static final int ENERGY_COLOR = 0xFF4CAF50;
 
+    /** 能量卡槽位贴图 tint（#4CAF50 的 RGB 分量 0~1，setColor 用） */
+    private static final float ENERGY_TINT_R = 76 / 255.0f;
+    private static final float ENERGY_TINT_G = 175 / 255.0f;
+    private static final float ENERGY_TINT_B = 80 / 255.0f;
+
     /** 每个滚轮刻度移动的像素量（连续像素滚动，非逐张步进） */
     private static final double SCROLL_PIXELS_PER_NOTCH = 20.0;
 
@@ -1159,17 +1164,26 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                         com.github.crafteve.biocraft.reaction.KineticConstants.MAX_CONCENTRATION));
 
                 // 进度条：槽位下方与卡片底端之间（20..28）垂直居中，
-                // 3px 高、54px 长（卡片宽 56 居中 → x+1），浅灰轨道 + 物品色填充
+                // 3px 高、54px 长（卡片宽 56 居中 → x+1），浅灰轨道 + 物品色填充。
+                // 填充比例按 MAX_CONCENTRATION 归一化：槽位容量参数化后满堆
+                // 浓度可达 n 组（2.0），若直接 54×浓度会超出 54px 轨道（过满 bug），
+                // 归一化后"满堆 = 满格"（上限含余量，略高于 2.0 时满格）
                 int barY = cardY + MachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
+                double barFill = 54.0 * concentration / com.github.crafteve.biocraft.reaction.KineticConstants.MAX_CONCENTRATION;
                 graphics.fill(x + 1, barY, x + 1 + 54, barY + 3, BAR_TRACK);
-                graphics.fill(x + 1, barY, x + 1 + (int) (54 * concentration), barY + 3, itemColor);
+                graphics.fill(x + 1, barY, x + 1 + (int) Math.min(barFill, 54), barY + 3, itemColor);
 
                 // 浓度数据：槽位底面右侧 4px、向下偏移 1px 为文字左下角；
-                // 浅灰黑文字，数值 = 浓度 × 堆叠数（连续值，允许小数）
+                // 浅灰黑文字，数值 = 浓度 × 堆叠数（连续值，允许小数）；
+                // 格式防过长：整数部分 ≥3 位（满堆 128 个）时只保留 1 位小数，
+                // 否则保留 2 位（"x128.00" 超卡片宽被遮挡的修复）
                 int numX = pngX + MachineMenu.NAME_DX;
                 int numBottomY = pngY + 18 + 1;
-                graphics.drawString(font,
-                        "x" + String.format("%.2f", concentration * 64.0),
+                double itemCount = concentration * 64.0;
+                String countText = itemCount >= 100.0
+                        ? String.format("%.1f", itemCount)
+                        : String.format("%.2f", itemCount);
+                graphics.drawString(font, "x" + countText,
                         numX, numBottomY - 8, CONC_TEXT_COLOR, false);
             }
             graphics.disableScissor();
@@ -1178,13 +1192,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         /**
          * 绘制能量卡（56×28）：绿色 FE 主题，与物种卡同尺寸同滚动
          * <p>
-         * 布局与物种卡文字完全对齐（y 坐标同口径，x 前移一个槽位宽 18px——
-         * 能量卡无槽位贴图，文字从槽位贴图左侧开始）：
+         * 布局与物种卡完全对齐（贴图 + 右侧文字同位置口径）：
          * <ol>
-         *   <li>第一行 "FE"：y = 槽位贴图顶（cardY+2，同物种卡缩写 y），
-         *       x = 物种卡文字 x − 18（pngX + NAME_DX − 18）</li>
-         *   <li>第二行 "xNk"（存量 kFE）：y = 槽位底面下方（cardY+13，
-         *       同物种卡浓度读数 y），x 同上</li>
+         *   <li>槽位贴图（slot.png 18×18 @卡片内 (1,2)）：仅装饰不可交互，
+         *       经 setColor 调制为绿色 tint（#4CAF50）——本卡无 Slot，纯粹为
+         *       与物品卡视觉统一</li>
+         *   <li>第一行 "FE"：y = 贴图顶，绿色主题色</li>
+         *   <li>第二行 "xN"（存量，M/k 紧凑单位，如 5.66M）：y = 贴图底面
+         *       下方 1px − 8px 字高，灰色与物品卡浓度读数同色（CONC_TEXT_COLOR）</li>
          *   <li>绿色进度条（54×3，存量/容量比例，与物种卡进度条同位置口径）</li>
          * </ol>
          * 颜色：#4CAF50 浅绿（浅灰卡片底上可读）；数据全部来自 ContainerData
@@ -1198,13 +1213,18 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         private void drawEnergyCard(GuiGraphics graphics, int cardX, int cardY, int count) {
             int stored = menu.getEnergyStored();
             int capacity = com.github.crafteve.biocraft.reaction.EnergyKinetics.capacity(count);
-            // 文字 x：物种卡文字（pngX + NAME_DX）前移一个槽位宽（18px）
-            int textX = cardX + MachineMenu.SLOT_PNG_X + MachineMenu.NAME_DX - 18;
-            // 第一行 "FE"：y 与物种卡缩写平齐（槽位贴图顶）
-            graphics.drawString(font, "FE", textX, cardY + MachineMenu.SLOT_PNG_Y, ENERGY_COLOR, false);
-            // 第二行 "xNk"：y 与物种卡浓度读数平齐（槽位底面下方 1px − 8px 字高）
-            int numY = cardY + MachineMenu.SLOT_PNG_Y + 18 + 1 - 8;
-            graphics.drawString(font, "x" + formatKfe(stored), textX, numY, ENERGY_COLOR, false);
+            // 槽位贴图（装饰性）：与物种卡贴图同位置，绿色 tint（#4CAF50）
+            int pngX = cardX + MachineMenu.SLOT_PNG_X;
+            int pngY = cardY + MachineMenu.SLOT_PNG_Y;
+            graphics.setColor(ENERGY_TINT_R, ENERGY_TINT_G, ENERGY_TINT_B, 1.0f);
+            graphics.blit(SLOT, pngX, pngY, 0, 0, 18, 18, 18, 18);
+            graphics.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+            // 第一行 "FE"：y 与物种卡缩写平齐（贴图顶），绿色主题色
+            int textX = pngX + MachineMenu.NAME_DX;
+            graphics.drawString(font, "FE", textX, pngY, ENERGY_COLOR, false);
+            // 第二行 "xN"（紧凑单位）：y 与物种卡浓度读数平齐，灰色与物品卡同步
+            int numY = pngY + 18 + 1 - 8;
+            graphics.drawString(font, "x" + formatCompact(stored), textX, numY, CONC_TEXT_COLOR, false);
             // 中部：绿色进度条（与物种卡进度条同位置口径：卡片内 y 20..28 居中）
             int barY = cardY + MachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
             int fill = capacity > 0 ? (int) (54L * stored / capacity) : 0;
@@ -1213,14 +1233,19 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         }
 
         /**
-         * FE 数值 → kFE 简洁格式（千位逗号，如 12900 → "12,900k"）
+         * FE 数值 → 紧凑单位格式（百万 M / 千 k，两位小数，如 5664000 → "5.66M"）
          *
          * @param fe FE 数值
-         * @return kFE 字符串
+         * @return 紧凑字符串（<1k 原样输出）
          */
-        private static String formatKfe(int fe) {
-            int kfe = fe / 1000;
-            return String.format("%,dk", kfe);
+        private static String formatCompact(int fe) {
+            if (fe >= 1_000_000) {
+                return String.format("%.2fM", fe / 1_000_000.0);
+            }
+            if (fe >= 1_000) {
+                return String.format("%.2fk", fe / 1_000.0);
+            }
+            return String.valueOf(fe);
         }
     }
 
