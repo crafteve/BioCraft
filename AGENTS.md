@@ -101,7 +101,7 @@
 - `TEMPLATE_LICENSE.txt` — 模板许可
 - `tools/texturegen/` — 程序化贴图工具链（`PixelCanvas.java` 像素画 DSL + `TextureScript.java` 示例脚本），纯 JDK 21 AWT 零依赖，与 Gradle 构建完全隔离。编译 `javac -encoding UTF-8 -d tools/texturegen/out tools/texturegen/*.java`，运行 `java -cp tools/texturegen/out TextureScript [输出目录]`；输出目录 `tools/texturegen/output/` 已 gitignore，正式贴图确定后拷入 `src/main/resources`
 - `tools/engineTest/` — 化学引擎独立单测（16 用例），纯 JDK 零依赖扮演"伪方块实体"验证引擎纯函数契约。运行前需先 `gradlew build`（生成主代码 class），再 `javac -encoding UTF-8 -cp build/classes/java/main -d tools/engineTest/out tools/engineTest/*.java` + `java -cp "build/classes/java/main;tools/engineTest/out" engineTest.EngineSelfTest`；退出码 0=全绿、1=有失败。输出目录 `tools/engineTest/out/` 已 gitignore
-- `tools/smilesCheck/` — 物质表 SMILES 批量校验程序（`SmilesCheck.java`，独立工具不进 mod 源码源集）。先 `javac -encoding UTF-8 -cp build/cdk/cdk-all.jar -d tools/smilesCheck/out tools/smilesCheck/SmilesCheck.java`，再从 substances.json 提取 id+SMILES 生成 actual.tsv，运行 `java -cp "build/cdk/cdk-all.jar;tools/smilesCheck/out" smilesCheck.SmilesCheck`（0=全过、1=有失败）。三连校验：CDK 可解析性、重原子组成一致、键序归一化后 Pattern 双向子图同构（连通性口径，芳香/电荷/立体差异算记法差异，与《全部SMILES结构式清单_2026-08-13.md》对照）。升级 CDK 或新增分子后重跑；out/ 与 actual.tsv 已 gitignore
+- `tools/smilesCheck/` — 物质表 SMILES 批量校验程序（`SmilesCheck.java`，独立工具不进 mod 源码源集）。先 `javac -encoding UTF-8 -cp build/cdk/cdk-all.jar -d tools/smilesCheck/out tools/smilesCheck/SmilesCheck.java`，再从 substances.json 提取 id+SMILES 生成 actual.tsv，运行 `java -cp "build/cdk/cdk-all.jar;tools/smilesCheck/out" smilesCheck.SmilesCheck`（0=全过、1=有失败）。三连校验：CDK 可解析性、重原子组成一致、键序归一化后 Pattern 双向子图同构（连通性口径，芳香/电荷差异算记法差异，与《全部SMILES结构式清单_2026-08-13.md》对照）；清单无对照条目（thymine/OH⁻/Fe³⁺/H⁺/5 原子）也做可解析性检查。期望表注意事项：立体标记（[C@H]）会让 VF2 双向判定不对称，F16P 期望须用中性无立体写法。升级 CDK 或新增分子后重跑；out/ 与 actual.tsv 已 gitignore
 
 ### 2.2 构建与运行目录
 
@@ -211,7 +211,7 @@ com.github.crafteve.biocraft
 **已知注意事项（欠账清单）**：
 1. **CDK 版本锁定 2.9**：2.12 全家桶（cdk-bundle）带 JPMS module-info 与 JDK 冲突；分拆模块 + 2.9 验证通过。升级 CDK 必须重跑全量 SMILES 校验（63 个全部能解析 + SDG 布局），校验方法：临时独立 Java 程序 + `build/cdk/cdk-all.jar`（详见 git 历史中 SmokeSmiles 类）
 2. **依赖排除规则**：CDK 的依赖声明会传播版本约束，与 NeoForge 严格锁定冲突，必须排除 log4j/commons-io/commons-lang3/guava（MC 环境自带），且 `resolutionStrategy.force commons-lang3:3.14.0` 不能删
-3. **SMILES 数据坑**：芳香环写法必须 CDK 兼容（小写芳香 + 显式 `[nH]`），曾修 4 个（adenine/cytosine/uracil/gtp）。新增分子后建议跑一遍批量解析校验
+3. **SMILES 数据坑**：芳香环写法必须 CDK 兼容（小写芳香 + 显式 `[nH]`）。2026-08-15 批量校验（tools/smilesCheck 对照《全部SMILES结构式清单》连通性同构）修正 4 处：histidine（`c1cnc[nH]1` 写法 CDK Kekulé 解析失败，改用 PubChem canonical `C1=C(NC=N1)`）、cytosine（`NC1=CC(=O)NC=N1` 与 canonical 不同构）、atp/adp（`c1nc2c(nc1N)` 芳香式与 canonical 不同构，嘌呤环连接有误）。此前曾修 adenine/uracil/gtp 等。新增分子后必须跑一遍 `tools/smilesCheck` 批量校验（含无对照条目的可解析性检查）
 4. **防御性降级**：`MoleculeDataCalculator` 解析失败返回 valid=false（tooltip 显示灰色提示），不抛异常——新增分子若写错 SMILES 不会崩游戏，但会显示"结构数据解析失败"
 5. **tooltip 组件注册**：自定义 TooltipComponent 必须经 `RegisterClientTooltipComponentFactoriesEvent` 注册（NeoForge 查表转换，非 instanceof 机制），遗漏会抛 Unknown TooltipComponent
 6. **进程残留**：runData/runClient 报错后可能残留 java 进程导致终端"卡住"，用 `--no-daemon` 运行可避免；残留进程任务管理器杀 java.exe

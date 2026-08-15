@@ -54,7 +54,7 @@ public final class SmilesCheck {
         EXPECTED.put("glucose", "C(C1C(C(C(C(O1)O)O)O)O)O");
         EXPECTED.put("glucose_6_phosphate", "C(C1C(C(C(C(O1)O)O)O)O)OP(=O)(O)O");
         EXPECTED.put("fructose_6_phosphate", "C(C(C(C(C(=O)CO)O)O)O)OP(=O)(O)O");
-        EXPECTED.put("fructose_1_6_bisphosphate", "O[C@H]1[C@H](O)C(O)(COP([O-])([O-])=O)O[C@@H]1COP([O-])([O-])=O");
+        EXPECTED.put("fructose_1_6_bisphosphate", "OC1C(O)C(O)(COP(=O)(O)O)OC1COP(=O)(O)O");
         EXPECTED.put("dihydroxyacetone_phosphate", "C(C(=O)COP(=O)(O)O)O");
         EXPECTED.put("glyceraldehyde_3_phosphate", "C(C(C=O)O)OP(=O)(O)O");
         EXPECTED.put("1_3_bisphosphoglycerate", "C(C(C(=O)OP(=O)(O)O)O)OP(=O)(O)O");
@@ -141,7 +141,14 @@ public final class SmilesCheck {
                 total++;
                 String expected = EXPECTED.get(id);
                 if (expected == null) {
-                    System.out.println("SKIP " + id + "（清单无对照，仅解析）");
+                    // 无对照条目（thymine/OH⁻/Fe³⁺/H⁺/5 原子等）也做可解析性检查
+                    try {
+                        parser.parseSmiles(actual);
+                        System.out.println("PASS " + id + "（清单无对照，仅解析）");
+                    } catch (Exception ex) {
+                        failures.add("FAIL " + id + "：解析失败 " + ex.getMessage());
+                        System.out.println("FAIL " + id + "：解析失败 " + ex.getMessage());
+                    }
                     continue;
                 }
                 compared++;
