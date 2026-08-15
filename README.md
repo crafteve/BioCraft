@@ -64,17 +64,23 @@
 - 信息行：黄色分子式（Hill 排序 Unicode 下标）+ 类别徽章 + 摩尔质量；结构式按住 Shift 展示
 - 手持物品时创意标签页标题自动移至 tooltip 末尾
 
-**化学引擎（纯 Java 零 MC 依赖，16 用例单测全绿）**
+**化学引擎（纯 Java 零 MC 依赖，18 用例单测全绿）**
 - 多底物可逆米氏乘积速率方程：平衡精确（Keq 绝不缩放）、饱和有界、产物回压、ATP/NAD⁺ 参与速率
 - RK4 积分 + 温度修正（van't Hoff/Q10）+ 固定活性物种（H₂O/H⁺）+ 注册期数据防火墙断言
 - 可达通量收敛进引擎，GUI 与 JEI 显示层只做单位换算，不复制速率公式
 
-**酶工厂（数据驱动原型）**
-- `enzymes.json` 已有 3 条真实酶数据：PGI（磷酸葡萄糖异构酶）、HK（己糖激酶）、GAPDH（甘油醛-3-磷酸脱氢酶），Km/kcat/Keq/ΔH 数值溯源见仓库《糖酵解热力学数据库》文档
+**酶工厂（数据驱动，糖酵解 10 步酶数据已齐）**
+- `enzymes.json` 已有糖酵解全部 10 步酶数据（HK/PGI/PFK/ALDO/TPI/GAPDH/PGK/PGM/ENO/PK），Km/kcat/Keq/ΔH 数值溯源见仓库《糖酵解热力学数据库》文档；新增酶仅改数据表，方块/物品/配方/JEI 自动注册
 - 唯一 `MachineBlock` + `MachineSpec` 密封接口：原始机器与酶工厂共用方块类
 - 方块实体桥接：引擎连续浓度与槽位整数双向投影，进度条由浓度余量驱动，"槽满停转"是动力学结果而非停机判定
+- 槽位容量参数化（n 组，默认 2 组 = 128 个）：浓度钳制上限放宽，"槽满仍攒余量"合法；强偏向反应物的酶（如 ALDO）满堆下平衡产物突破 1 个物品粒度，可正常抽出产物
 - 全新 GUI：手绘基底 + 滚动卡片物种槽 + 实时 v-t 通量折线图 + 平衡区（log(Q/Keq)）+ 速率读数
 - JEI 配方显示：每酶一个专属类别，EMI 经共享 DTO 同源展示
+- 工业 IO：IItemHandler capability 暴露（管道类模组可接入），物种过滤、全槽位可进可出；原版漏斗继续走 Container 接口
+
+**酶方块物品 tooltip**
+- 缩写 + EC 类别 + 可逆性 + 反应方程式（与 GUI 同一份分段构建）+ 平衡常数 + 正逆向最大速率 + 最适温度
+- 科学计数 Unicode 上标、单位统一纯 ASCII（/tick）
 
 **DNA 编码器（第一台原始机器）**
 - 缓冲池模型：碱基（A/T/C/G）吸收进池（上限 4096），事件驱动
@@ -85,12 +91,33 @@
 
 - 转录仪 / 翻译仪（后两台原始机器，进度条机制）
 - TNT 爆炸转化、熔炉燃烧产 ATP
-- 剩余 7 步糖酵解酶数据与流水线（纪元二）
-- 策略层三种动力学变体生效（限速酶/异构酶/氧化裂解酶）
+- 糖酵解流水线搭建（纪元二：10 步酶数据已齐，机器布局与产线衔接待做）
+- 策略层三种动力学变体生效（限速酶/异构酶/氧化裂解酶；kinetic 字段已随无消费方移除，实现时需在数据表重新引入）
 - 温度机制、酶插件升级、TCA/ETC 与合成生物纪元（纪元三/四）
 
 ## 技术信息
 
 - **环境**：Minecraft 1.21.1 / NeoForge 21.1.248 / Java 21 / Gradle 9.2.1 / ModDevGradle 2.0.143 / Parchment 2024.11.17
-- **构建**：`gradlew build`（产物 `build/libs/biocraft-1.0.0.jar`）；进游戏 `gradlew runClient`；datagen `gradlew runData`；引擎单测见 `tools/engineTest/`（16 用例，先 `gradlew build` 再 javac 编译运行）
+- **构建**：`gradlew build`（产物 `build/libs/biocraft-1.0.0.jar`）；进游戏 `gradlew runClient`；datagen `gradlew runData`；引擎单测见 `tools/engineTest/`（18 用例，先 `gradlew build` 再 javac 编译运行）
 - **架构**：唯一 `MachineBlock`；`enzymes.json` 数据驱动配方；事件驱动 + 睡眠性能模型；CDK 化学库（合并单 jar 嵌入）；细胞器相邻检测（规划中）
+
+## 更新日志
+
+### 2026-08-15
+
+- **feat** 酶工厂工业 IO：注册 `IItemHandler` capability，管道类模组（AE2/Mekanism/Pipez 等）可接入；物种过滤、全槽位可进可出、O(1) 索引；原版漏斗继续走 Container 接口不受影响；运行时 Pipez 实测物流
+- **fix** 槽位容量参数化：`SLOT_GROUPS=2` 每槽可容纳 2 组（128 个物品），浓度钳制上限放宽为 `n + 1/64`（钳制线 = 129 个物品）；修复"槽位满 64 时余量 + 投入物品被钳制吞掉"与"ALDO 类强偏向反应物酶平衡产物 <1 个永远抽不出导致卡死"
+- **fix** Keq 标签统一格式：中文"平衡常数"、英文"Equilibrium Constant"，去等号对齐速率行；速率单位统一纯 ASCII `/tick`
+- **fix** Keq 科学计数指数改 Unicode 上标（4.8×10³）；移除 JEI 酶槽重复名称 tooltip；Keq 移至酶槽下方速率上方三行排布
+- **fix** tooltip 颜色统一灰色；取消 JEI 槽位 Km 显示（含清理死代码）
+- **feat** 酶方块物品 tooltip：缩写/EC 类别/可逆性/反应方程式（与 GUI 共用分段构建）/Keq/Vmax/最适温度
+- **fix** 修正 4 处 SMILES（histidine/cytosine/atp/adp）并统一 substances.json 缩进，新增批量校验工具闭环
+
+### 更早
+
+- **feat** 糖酵解 10 步酶数据表补全（Km/kcat/Keq/ΔH 全量溯源）
+- **feat** 酶工厂 GUI：手绘基底 + 滚动卡片物种槽 + v-t 通量折线图 + 平衡区 + 速率读数
+- **feat** JEI 酶工厂配方显示（每酶专属类别，EMI 共享 DTO 同源）
+- **feat** DNA 编码器：碱基缓冲池 + 序列输入 + 事务式合成 + 完整 GUI/网络
+- **feat** 化学引擎内核：可逆米氏速率方程 + RK4 + 温度修正 + 数据防火墙（18 用例）
+- **feat** 物品地基：63 个分子物品 + 数据驱动注册 + 分子图 tooltip + 视觉三件套
