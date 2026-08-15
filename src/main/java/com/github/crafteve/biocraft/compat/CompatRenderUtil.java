@@ -8,7 +8,7 @@ import java.util.Locale;
 /**
  * 配方显示层的共享格式化工具（JEI/EMI 两侧复用）
  * <p>
- * 数值格式化统一走本类，保证 JEI 与 EMI 显示的 Km/Keq/ΔG°′/Vmax 文本完全一致；
+ * 数值格式化统一走本类，保证 JEI 与 EMI 显示的 Keq/ΔG°′/Vmax 文本完全一致；
  * 化学常量（R/T₀/固定活性名单）复用引擎的 KineticConstants，不重复定义
  */
 public final class CompatRenderUtil {
@@ -97,24 +97,6 @@ public final class CompatRenderUtil {
             sb.append(superscriptDigits[digit - '0']);
         }
         return sb.toString();
-    }
-
-    /**
-     * Km 文本格式化：按量级取 1~3 位小数
-     * <p>
-     * 例：1.12 → "1.12"，0.046 → "0.046"，4.0 → "4.00"
-     *
-     * @param km 米氏常数（mM）
-     * @return 显示文本
-     */
-    public static String formatKm(double km) {
-        if (km >= 10.0) {
-            return String.format(Locale.ROOT, "%.1f", km);
-        }
-        if (km >= 1.0) {
-            return String.format(Locale.ROOT, "%.2f", km);
-        }
-        return String.format(Locale.ROOT, "%.3f", km);
     }
 
     /**

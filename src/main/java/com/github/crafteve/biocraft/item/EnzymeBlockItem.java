@@ -33,12 +33,8 @@ import java.util.Locale;
 public class EnzymeBlockItem extends BlockItem {
     /** 深色 tooltip 底上的主信息文字色（白） */
     private static final int COLOR_WHITE = 0xFFFFFF;
-    /** 深色 tooltip 底上的次要信息文字色（灰） */
+    /** 深色 tooltip 底上的次要信息文字色（灰：Keq/速率/温度统一灰色） */
     private static final int COLOR_DIM = 0x9E9E9E;
-    /** 平衡常数文字色（黄，与分子式同款） */
-    private static final int COLOR_KEQ = 0xFFD700;
-    /** 速率文字色（紫，与摩尔质量同款） */
-    private static final int COLOR_RATE = 0xB57EDC;
 
     private final EnzymeFactoryData enzymeData;
 
@@ -59,9 +55,7 @@ public class EnzymeBlockItem extends BlockItem {
      * <ol>
      *   <li>缩写（主题色）+ EC 类别名（主题色）+ 可逆性（灰）</li>
      *   <li>反应方程式（分段彩色，与 GUI 同构；符号浅灰，深底可读）</li>
-     *   <li>平衡常数（黄，formatKeq 同款科学计数）</li>
-     *   <li>正向/逆向饱和可达最大速率（紫，个/tick）</li>
-     *   <li>最适温度（灰）</li>
+     *   <li>平衡常数、正逆向饱和可达最大速率、最适温度（全部灰）</li>
      * </ol>
      *
      * @param stack       当前物品堆
@@ -93,19 +87,19 @@ public class EnzymeBlockItem extends BlockItem {
         }
         tooltip.add(equation);
 
-        // 行 3：平衡常数（黄，formatKeq 同款）
+        // 行 3：平衡常数（灰，formatKeq 同款）
         tooltip.add(Component.translatable("tooltip.biocraft.enzyme.keq",
                         CompatRenderUtil.formatKeq(enzymeData.keq()))
-                .withStyle(style -> style.withColor(COLOR_KEQ)));
+                .withStyle(style -> style.withColor(COLOR_DIM)));
 
         // 行 4/5：正逆向饱和可达最大速率（引擎通量 ×64×0.05，与 JEI/GUI 同口径）
         EnzymeRecipeDisplay display = EnzymeRecipeDisplay.from(enzymeData);
         tooltip.add(Component.translatable("tooltip.biocraft.enzyme.vmax_f",
                         CompatRenderUtil.formatRate(display.vmaxFPerTick()))
-                .withStyle(style -> style.withColor(COLOR_RATE)));
+                .withStyle(style -> style.withColor(COLOR_DIM)));
         tooltip.add(Component.translatable("tooltip.biocraft.enzyme.vmax_b",
                         CompatRenderUtil.formatRate(display.vmaxBPerTick()))
-                .withStyle(style -> style.withColor(COLOR_RATE)));
+                .withStyle(style -> style.withColor(COLOR_DIM)));
 
         // 行 6：最适温度（灰）
         tooltip.add(Component.translatable("tooltip.biocraft.enzyme.temp",

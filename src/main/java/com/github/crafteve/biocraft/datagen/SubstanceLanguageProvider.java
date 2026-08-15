@@ -133,10 +133,8 @@ public class SubstanceLanguageProvider implements DataProvider {
         translations.put("jei.biocraft.fixed_activity",
                 zh ? "固定活性物种（不参与速率计算，仅化学计量结算）"
                         : "Fixed-activity species (not in rate law, stoichiometry only)");
-        translations.put("jei.biocraft.km",
-                zh ? "Km = %s mM" : "Km = %s mM");
         translations.put("jei.biocraft.keq",
-                zh ? "Keq = %s" : "Keq = %s");
+                zh ? "平衡常数 = %s" : "Kₑq = %s");
         translations.put("jei.biocraft.delta_g",
                 zh ? "ΔG°′ = %s kJ/mol" : "ΔG°′ = %s kJ/mol");
         translations.put("jei.biocraft.kcat",
@@ -164,7 +162,7 @@ public class SubstanceLanguageProvider implements DataProvider {
         translations.put("tooltip.biocraft.enzyme.irreversible",
                 zh ? "不可逆" : "Irreversible");
         translations.put("tooltip.biocraft.enzyme.keq",
-                zh ? "Keq = %s" : "Keq = %s");
+                zh ? "平衡常数 = %s" : "Kₑq = %s");
         translations.put("tooltip.biocraft.enzyme.vmax_f",
                 zh ? "正向速率最大值 %s 个/tick" : "Fwd Max Rate %s/tick");
         translations.put("tooltip.biocraft.enzyme.vmax_b",

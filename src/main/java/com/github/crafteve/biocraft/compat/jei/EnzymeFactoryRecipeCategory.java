@@ -184,7 +184,10 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
     }
 
     /**
-     * 单槽配置：统一 JEI 标准槽纹理 + Km/固定活性/系数 tooltip
+     * 单槽配置：统一 JEI 标准槽纹理 + 固定活性/系数 tooltip
+     * <p>
+     * 不再显示 Km（策划决定取消）：物种槽 tooltip 只保留固定活性说明
+     * 与化学计量系数，避免信息噪音
      *
      * @param slot  待配置的槽构建器
      * @param entry 展示条目
@@ -194,9 +197,6 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
         slot.addTooltipCallback((view, tooltip) -> {
             if (entry.fixedActivity()) {
                 tooltip.add(Component.translatable("jei.biocraft.fixed_activity")
-                        .withStyle(style -> style.withColor(COLOR_DIM)));
-            } else {
-                tooltip.add(Component.translatable("jei.biocraft.km", CompatRenderUtil.formatKm(entry.km()))
                         .withStyle(style -> style.withColor(COLOR_DIM)));
             }
             if (entry.count() > 1) {

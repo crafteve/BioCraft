@@ -59,10 +59,9 @@ public record EnzymeRecipeDisplay(
      *
      * @param stack         物品堆（数量 1，实际系数在 count 字段，槽内堆叠数不表示化学计量）
      * @param count         化学计量系数（tooltip 显示 ×N，系数 1 不显示）
-     * @param km            米氏常数（mM，Km 文本；固定活性物种为 0）
      * @param fixedActivity 固定活性标记（H₂O/H⁺ 不参与速率计算，tooltip 说明）
      */
-    public record Entry(ItemStack stack, int count, double km, boolean fixedActivity) {
+    public record Entry(ItemStack stack, int count, boolean fixedActivity) {
     }
 
     /** 酶 id -> 展示模型缓存（注册期构建一次，运行期只读） */
@@ -128,6 +127,8 @@ public record EnzymeRecipeDisplay(
 
     /**
      * 物种条目转展示条目：物品 id 解析 + 固定活性标记
+     * <p>
+     * Km 不进入展示层（JEI/tooltip 均不显示，Km 数据保留在引擎侧 SpeciesSpec）
      *
      * @param spec 酶数据表中的物种条目
      * @return 展示条目
@@ -135,6 +136,6 @@ public record EnzymeRecipeDisplay(
     private static Entry toEntry(EnzymeFactoryData.SpeciesSpec spec) {
         ItemStack stack = new ItemStack(ModItems.byId(spec.item()).get());
         boolean fixed = CompatRenderUtil.isFixedActivity(spec.item());
-        return new Entry(stack, spec.count(), spec.kmMillimolar(), fixed);
+        return new Entry(stack, spec.count(), fixed);
     }
 }
