@@ -29,7 +29,7 @@
 ### 1.4 技术架构
 
 - 只写一个通用 `MachineBlock` 类，用 BlockEntity 中的 `MachineType` 枚举区分功能，**不要为每种机器单独建方块类**
-- 配方通过**解析反应方程式字符串**实现（如 `GLC + 2ATP -> F6P + 2ADP`），由配置文件驱动，**绝不硬编码**
+- 配方由 **enzymes.json 结构化数据表**驱动（反应物/产物直接写物品注册名 + 化学计量系数 + Km，Keq/ΔH/kcat 等热力学与动力学参数随表直填），**绝不硬编码**；引擎在注册期对每条数据执行断言校验，失败即快速失败
 - 性能："事件驱动 + 睡眠"机制（输入槽变动时唤醒计算），进度用 `startTick` / `requiredTicks` 差值计算，仅在状态变更时发送同步数据包
 - 细胞器：相邻机器检测 + 控制核心方块（线粒体 = 基质控制器 + 十字排列的 4 个 ETC 模块；内质网 = 腔体机器紧邻堆叠实现速度线性叠加；膜 = 装饰性透明无碰撞方块，提供区室化增益）
 
@@ -42,17 +42,26 @@
 3. **真核纪元**：TCA 循环 + ETC 机器群 → 工业级 ATP/FE 输出
 4. **合成生物纪元**：自定义酶"编程" + 合成细胞核，实现近乎创造模式的合成，且完全依赖生化产线供能
 
-纪元一的开发分批顺序：物品地基（原子/分子注册 + 视觉）→ 反应引擎（已完成：多底物可逆米氏乘积速率 + RK4，JSON 结构化反应无字符串解析）→ TNT 爆炸转化 + 熔炉产 ATP → 三台原始机器
+纪元一的开发分批顺序（括号内为完成状态）：物品地基（已完成：原子/分子注册 + 视觉）→ 反应引擎（已完成：多底物可逆米氏乘积速率 + RK4，enzymes.json JSON 结构化数据驱动）→ TNT 爆炸转化 + 熔炉产 ATP（未开发）→ 三台原始机器（DNA 编码器已完成，转录仪/翻译仪待开发）
 
-**当前进度**（2026-08-12）：
-- ✅ 物品地基第一阶段完成：62 个分子物品（20 氨基酸/13 离子/5 原子/2 无机物/4 碱基/4 NTP/3 辅酶/11 糖酵解）由 `substances.json` 数据表驱动注册，datagen 自动生成模型/语言/贴图
-- ✅ Tooltip 分子图渲染完成（自绘管线）：CDK 负责解析/2D 坐标/Kekulize（`Kekulization`），渲染层自绘——4x 超采样抗锯齿细键线（0.8px）、Kekulé 单双交替、环内双键朝环心偏移、杂原子符号绘制进纹理（深色底块截断键线、随分子等比缩放、显式 H 如 OH/NH₂）、竖长分子自动旋转 90° 横放、标签碰撞推开
-- ✅ Tooltip 信息行：黄色分子式（Hill 排序 Unicode 下标）+ 类别徽章 + 摩尔质量；结构式改为**按住 Shift 展示**，未按时显示提示行；离子/原子/无机物不展示结构式
-- ✅ 图标缩写标注：`IItemDecorator` 在物品图标左上角绘制缩写（白字黑阴影双写、缩放 0.55、z 提升 200 层）；缩写数据使用 Unicode 上下标（H⁺/Ca²⁺/NH₄⁺/H₂O/NAD⁺，糖酵解编号如 G6P 保持原样）
-- ✅ tooltip 布局：手持物品时创意标签页标题（蓝色）自动移至 tooltip 末尾（`MoleculeTooltipLayout`）
-- ✅ 视觉校验闭环：`.opencode/agents/vision.md` 视觉审查子代理（opencode-go/qwen3.7-plus 多模态）+ `tools/texturegen/` 程序化贴图工具链（PixelCanvas DSL，生成 PNG 后派 vision 子代理读图审查）
-- ✅ 化学引擎内核完成（纯 Java 零 MC 依赖，`tools/engineTest/` 独立单测 14 用例全绿）：多底物可逆米氏乘积速率方程（共享分母，平衡精确 = Keq 绝不缩放 + 饱和有界 + 产物回压 + 全底物平等，ATP/NAD⁺ 参与速率）、RK4 积分（Δt=0.05）、温度修正（van't Hoff/Q10 + 0.1K 缓存）、固定活性物种（H₂O/H⁺ 只结算不进速率）、三断言数据防火墙（配平/数值健康/Keq 红线）；PGI 平衡收敛误差 <1%、黄金值快照防回归
-- ⏳ 待开发：糖酵解热力学数据 JSON 化（enzymes.json）、酶工厂注册体系、BE 桥接、TNT 爆炸转化、熔炉产 ATP、三台原始机器
+**当前进度**（2026-08-15）：
+- 已完成 物品地基：63 个分子物品（20 氨基酸/13 离子/5 原子/2 无机物/5 碱基含 U/4 NTP/3 辅酶/11 糖酵解）由 `substances.json` 数据表驱动注册，datagen 自动生成模型/语言/贴图
+- 已完成 Tooltip 分子图渲染（自绘管线）：CDK 负责解析/2D 坐标/Kekulize（`Kekulization`），渲染层自绘——4x 超采样抗锯齿细键线（0.8px）、Kekulé 单双交替、环内双键朝环心偏移、杂原子符号绘制进纹理（深色底块截断键线、随分子等比缩放、显式 H 如 OH/NH₂）、竖长分子自动旋转 90° 横放、标签碰撞推开
+- 已完成 Tooltip 信息行：黄色分子式（Hill 排序 Unicode 下标）+ 类别徽章 + 摩尔质量；结构式改为**按住 Shift 展示**，未按时显示提示行；离子/原子/无机物不展示结构式
+- 已完成 图标缩写标注：`IItemDecorator` 在物品图标左上角绘制缩写（白字黑阴影双写、缩放 0.55、z 提升 200 层）；缩写数据使用 Unicode 上下标（H⁺/Ca²⁺/NH₄⁺/H₂O/NAD⁺，糖酵解编号如 G6P 保持原样）
+- 已完成 tooltip 布局：手持物品时创意标签页标题（蓝色）自动移至 tooltip 末尾（`MoleculeTooltipLayout`）
+- 已完成 视觉校验闭环：`.opencode/agents/vision.md` 视觉审查子代理（opencode-go/qwen3.7-plus 多模态）+ `tools/texturegen/` 程序化贴图工具链（PixelCanvas DSL，生成 PNG 后派 vision 子代理读图审查）
+- 已完成 化学引擎内核（纯 Java 零 MC 依赖，`tools/engineTest/` 独立单测 16 用例全绿）：多底物可逆米氏乘积速率方程（共享分母，平衡精确 = Keq 绝不缩放 + 饱和有界 + 产物回压 + 全底物平等，ATP/NAD⁺ 参与速率）、RK4 积分（Δt=0.05）、温度修正（van't Hoff/Q10 + 0.1K 缓存）、固定活性物种（H₂O/H⁺ 只结算不进速率）、三断言数据防火墙（配平/数值健康/Keq 红线）；PGI 平衡收敛误差 <1%、黄金值快照防回归、可达通量收敛进引擎（显示层禁复制速率公式，见 2.6 欠账 23）
+- 已完成 酶工厂数据驱动注册体系：`enzymes.json` 已有 3 条酶数据（PGI 异构酶 / HK 限速酶 / GAPDH 氧化裂解，Km/kcat/Keq/ΔH/stallMessage 数值溯源见根目录《糖酵解热力学数据库》md 文档），`EnzymeFactoryRegistry` 注册期解析 + 引擎断言防火墙校验；数据表新增酶即自动注册方块/物品/配方，代码零改动
+- 已完成 BE 桥接：`EnzymeFactoryBlockEntity` 浓度-槽位双向投影（引擎连续浓度是权威，槽位 = floor(浓度×64)，余量驱动 GUI 进度条）、每 tick RK4 步进 + 睡眠机制、NBT 定点存档浓度、漏斗防呆弹出非法物品
+- 已完成 DNA 编码器（第一台原始机器）：缓冲池模型（碱基吸收进池、上限 4096、事件驱动）、序列经数据组件存储于 DNA 模板物品、事务式合成、方块破坏缓冲池折算掉落（onRemove 而非 setRemoved）
+- 已完成 酶工厂 GUI：256×256 手绘基底 `gui_v1.png`、滚动卡片物种槽（`isActive=false` 全接管绘制与命中）、反应方程式彩色分段渲染、v-t 通量折线图（4x 超采样、1s 一点 10 点）、平衡区（log(Q/Keq) 缩放滑块 + Keq/Q 读数）、速率实时读数；ContainerData 每 tick 同步，打开数据包一次性下发 v-t 历史
+- 已完成 JEI 酶工厂配方显示：每酶一个专属配方类别（查看用途互不混淆），`EnzymeRecipeDisplay` 为 JEI/EMI 共享只读 DTO（零 JEI 依赖，新增酶自动生效）
+- 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
+- 待开发 转录仪 / 翻译仪（后两台原始机器）
+- 待开发 剩余 7 步糖酵解酶数据与流水线（纪元二）
+- 待开发 策略层三种动力学变体生效（LIMITING/ISOMERASE/OXIDO_LYASE 目前仅数据存储，活性恒 1）
+- 待开发 温度机制（M5）、酶插件升级、细胞器纪元（纪元三/四）
 
 ### 1.6 开发流程
 
@@ -86,10 +95,11 @@
 - `gradlew` / `gradlew.bat` — Gradle wrapper 启动脚本（Windows 上 gradlew.bat 依赖 JAVA_HOME 定位 JDK）
 - `.gitignore` — 忽略 `build/`、`run/`、`.gradle/`、**`.vscode/`**、`src/generated/.cache/` 等。注意 `.vscode/` 被忽略，工作区配置不提交
 - `.gitattributes` — 行尾/文本属性
-- `README.md` — 仍是模板默认内容，待改写
+- `README.md` — 项目介绍（中文，含 B 站视频嵌入与当前进度章节，与本文档 1.5 进度同步维护；无图片/emoji）
+- `糖酵解热力学数据库_2026-08-13.md` — 酶数据数值溯源文档（eQuilibrator ΔG°′/BRENDA Km/kcat 出处与换算过程，enzymes.json 的权威数据源）
 - `TEMPLATE_LICENSE.txt` — 模板许可
 - `tools/texturegen/` — 程序化贴图工具链（`PixelCanvas.java` 像素画 DSL + `TextureScript.java` 示例脚本），纯 JDK 21 AWT 零依赖，与 Gradle 构建完全隔离。编译 `javac -encoding UTF-8 -d tools/texturegen/out tools/texturegen/*.java`，运行 `java -cp tools/texturegen/out TextureScript [输出目录]`；输出目录 `tools/texturegen/output/` 已 gitignore，正式贴图确定后拷入 `src/main/resources`
-- `tools/engineTest/` — 化学引擎独立单测（14 用例），纯 JDK 零依赖扮演"伪方块实体"验证引擎纯函数契约。运行前需先 `gradlew build`（生成主代码 class），再 `javac -encoding UTF-8 -cp build/classes/java/main -d tools/engineTest/out tools/engineTest/*.java` + `java -cp "build/classes/java/main;tools/engineTest/out" engineTest.EngineSelfTest`；退出码 0=全绿、1=有失败。输出目录 `tools/engineTest/out/` 已 gitignore
+- `tools/engineTest/` — 化学引擎独立单测（16 用例），纯 JDK 零依赖扮演"伪方块实体"验证引擎纯函数契约。运行前需先 `gradlew build`（生成主代码 class），再 `javac -encoding UTF-8 -cp build/classes/java/main -d tools/engineTest/out tools/engineTest/*.java` + `java -cp "build/classes/java/main;tools/engineTest/out" engineTest.EngineSelfTest`；退出码 0=全绿、1=有失败。输出目录 `tools/engineTest/out/` 已 gitignore
 
 ### 2.2 构建与运行目录
 
@@ -111,43 +121,69 @@
 
 ```
 com.github.crafteve.biocraft
-├── BioCraft.java                 # 瘦身为纯装配：注册各 init 类 + 事件总线
-├── BioCraftClient.java
-├── Config.java
+├── BioCraft.java                 # 瘦身为纯装配：注册各 init 注册中心（无功能实现）
+├── BioCraftClient.java           # 客户端装配：菜单屏幕绑定 + 方块/物品染色（MachineCategory 主题色 tint）
 ├── init/
-│   ├── ModItems.java             # 读 substances.json → 动态注册 62 个 MoleculeItem
-│   └── ModCreativeTabs.java      # 多标签页架构，现有"生物工艺 · 分子"页
+│   ├── ModItems.java             # 读 substances.json → 动态注册 63 个 MoleculeItem + DNA模板序列物品
+│   ├── ModBlocks.java            # 方块/BE 类型/MenuType/方块物品四件套：DNA 编码器手动注册 + 酶工厂数据驱动循环注册（全酶共享一个 BE 类型与一个 MenuType）
+│   ├── ModCreativeTabs.java      # 多标签页架构：现有"生物工艺 · 分子"页 + "生物工艺 · 机器"页
+│   ├── ModDataComponents.java    # 物品数据组件注册（DNA 序列字符串组件，persistent + networkSynchronized）
+│   └── EnzymeFactoryRegistry.java # 读 enzymes.json → 构建酶数据档案（构建期跑引擎断言防火墙，失败快速失败）
+├── data/
+│   └── SubstanceData.java        # 物质表读取工具（classpath，GsonHelper 解析）
 ├── item/
 │   ├── MoleculeItem.java         # 分子基类：SMILES/缩写/染色/类别 + tooltip 布局（Shift 展示结构式）
 │   ├── MoleculeCategory.java     # 8 类分子类别枚举（主题色）
 │   ├── MoleculeDataCalculator.java # CDK 计算分子式（Hill 排序）与摩尔质量，缓存+防御降级
-│   └── MoleculeColors.java       # ItemColor 染色 + TooltipComponent 工厂 + 装饰器注册（Dist.CLIENT）
-├── client/
-│   ├── MoleculeTextureCache.java # CDK 解析+2D 坐标+Kekulize → 自绘键线骨架（4x 超采样/环内双键/旋转/碰撞）→ DynamicTexture 缓存
+│   ├── MoleculeColors.java       # ItemColor 染色 + TooltipComponent 工厂 + 装饰器注册（Dist.CLIENT）
+│   └── SequenceItem.java         # 序列载体物品（DNA模板/mRNA/新生肽链共用）：序列存数据组件，tooltip 换行展示
+├── client/                       # 分子结构图自绘渲染管线（9 类，4x 超采样）
+│   ├── MoleculeTextureCache.java # CDK 解析+2D 坐标+Kekulize → 自绘键线骨架 → DynamicTexture 缓存
+│   ├── MoleculeBondRenderer.java # 键线绘制（0.8px 细线、Kekulé 单双交替、环内双键朝环心偏移）
+│   ├── MoleculeGeometry.java     # 2D 几何：竖长分子旋转横放、标签碰撞推开
+│   ├── MoleculeRingSearch.java   # 环键判定（CDK RingSearch 封装，勿改回自研 BFS）
+│   ├── MoleculeRenderConstants.java # 渲染常量（线宽/间距/缩放，统一调参点）
+│   ├── MoleculeSymbolRenderer.java # 杂原子符号绘制进纹理（深色底块截断键线、等比缩放、显式 H）
 │   ├── MoleculeTooltipComponent.java # TooltipComponent+ClientTooltipComponent：blit 结构图
 │   ├── MoleculeTooltipLayout.java # 标签页标题移置 tooltip 末尾（GatherComponents 事件）
 │   └── MoleculeItemDecorator.java # 图标左上角缩写标注（IItemDecorator，白字黑阴影、z=200）
-├── datagen/
-│   ├── ModDataGen.java           # GatherDataEvent 装配
-│   ├── SubstanceData.java        # 物质表读取工具（classpath）
-│   ├── SubstanceModelProvider.java # 每物质两层模型 JSON
-│   └── SubstanceLanguageProvider.java # en_us/zh_cn 语言生成（含类别/摩尔质量 key）
-├── block/MachineBlock.java       # 唯一机器方块类（DNA编码器在用，酶工厂改造待 M2）
-├── blockentity/                  # MachineType + MachineBlockEntity（DNA编码器在用，酶工厂 BE 待 M3）
-├── reaction/                     # 化学引擎内核（纯 Java 零 MC 依赖，已完成 + 14 用例单测）
+├── block/MachineBlock.java       # 唯一机器方块类：MachineSpec 密封接口二选一（Primitive=MachineType 原始机器 / Enzyme=EnzymeFactoryData 酶工厂）
+├── blockentity/
+│   ├── MachineBlockEntity.java   # 机器 BE 基类：SimpleContainer（setChanged 转发）+ NBT 存档 + MenuProvider + dropExtraContents 钩子
+│   ├── MachineType.java          # 原始机器类型枚举（DNA_ENCODER：容器规格/地图色）
+│   ├── MachineCategory.java      # 机器类别枚举（EC1~EC6 + SPECIAL：主题色 tint 与 GUI 强调色，形色分离）
+│   ├── SynthesisStatus.java      # DNA 编码器合成结果状态码（成功/序列非法/碱基不足/输出满）
+│   ├── DNAEncoderBlockEntity.java # 缓冲池模型：碱基吸收（事件驱动）/事务式合成/缓冲池折算掉落
+│   └── EnzymeFactoryBlockEntity.java # 酶工厂：浓度-槽位双向投影 + 每 tick 引擎步进 + 睡眠机制 + v-t 历史环形缓冲 + 定点存档
+├── reaction/                     # 化学引擎内核（纯 Java 零 MC 依赖，已完成 + 16 用例单测）
 │   ├── EnzymeFactoryData.java    # 酶数据档案 record（物品 id 直填/每物种自带 Km/直存 Keq）
 │   ├── EnzymeSimulator.java      # 每机一实例：RK4 积分 + 温度缓存 + 边界缩放
-│   ├── ReactionDefinition.java   # 不可变网络档案（物种表/化学计量/Haldane Vmax_b(T)）
+│   ├── ReactionDefinition.java   # 不可变网络档案（物种表/化学计量/Haldane Vmax_b(T)/可达通量）
 │   ├── KineticsCalculator.java   # 共享分母乘积速率方程 + 缩放换算
 │   ├── ReactionState.java        # 浓度/温度/活性容器（BE 与引擎共享）
 │   ├── StepResult.java           # 通量报告（fwd/rev/net）
 │   ├── ThermoUtil.java           # Keq 换算/van't Hoff+Q10/Arrhenius
 │   └── KineticConstants.java     # 缩放常量（TIME_SCALE=1000 唯一节奏旋钮，待 M6 调参）
-├── machine/                      # 已废弃删除：原策略层停机判定（activity 恒 1，机器运转完全由引擎计算决定）
-├── gui/                          # MachineMenu + MachineScreen（已完成）
-├── network/                      # 同步数据包（DNA编码器序列包在用）
-├── event/                        # TNT 爆炸转化、熔炉燃烧产 ATP（未开发）
-└── organelle/                    # 纪元三：相邻检测 + 控制核心（未开发）
+├── gui/
+│   ├── MachineMenu.java          # 酶工厂菜单：滚动卡片物种槽（RestrictedSlot isActive=false 全接管）+ ContainerData 同步 + 打开数据包解析
+│   ├── MachineScreen.java        # 酶工厂屏幕：gui_v1.png 手绘基底 + 滚动卡片 + v-t 折线图 + 平衡区 + 速率区
+│   ├── DNAEncoderMenu.java       # DNA 编码器菜单（缓冲池 ContainerData 同步）
+│   └── DNAEncoderScreen.java     # DNA 编码器屏幕（序列输入框 + 缓冲进度条）
+├── network/
+│   ├── ModNetwork.java           # payload 注册中心（版本化协议）
+│   └── ServerboundDnaSequencePacket.java # DNA 序列提交包（客户端→服务端）
+├── compat/                       # 配方显示 mod 兼容层（JEI/EMI 均为可选依赖，compileOnly + run/mods）
+│   ├── EnzymeRecipeDisplay.java  # 配方展示只读 DTO（零 JEI/EMI 依赖，两套显示层共享，新增酶自动生效）
+│   ├── CompatRenderUtil.java     # 兼容层渲染工具（信息卡文字/槽位纹理绘制）
+│   └── jei/
+│       ├── BioCraftJeiPlugin.java # JEI 插件入口（@JeiPlugin 自动发现，每酶一个专属配方类型/类别/催化剂）
+│       └── EnzymeFactoryRecipeCategory.java # 酶工厂配方类别（信息卡三行布局 + 自带槽位纹理）
+└── datagen/
+    ├── ModDataGen.java           # GatherDataEvent 装配
+    ├── SubstanceModelProvider.java # 每物质两层模型 JSON（容器层 + 内容物层）
+    ├── SubstanceLanguageProvider.java # en_us/zh_cn 语言生成（含类别/摩尔质量 key）
+    ├── MachineModelProvider.java # 机器模型生成：原始机器 cube_bottom_top 三面贴图 + 酶工厂白底 cube tintindex 0 + 序列物品单层
+    └── MachineRecipeProvider.java # 原始机器工作台配方（DNA 编码器=玻璃+铁锭+红石；酶工厂无配方，中心法则获得）
 ```
 
 ### 2.5 其他环境
@@ -171,7 +207,7 @@ com.github.crafteve.biocraft
 **为什么必须合并成单 jar**：NeoForge 1.21.1 会把 classpath 上的库 jar 自动模块化（JPMS 自动模块），而 CDK 各模块存在分包（如 `org.openscience.cdk.tools.manipulator` 同时存在于 cdk-standard 与 cdk-formula），模块间分包非法，导致部分类运行期 CNFE。合并为单 jar（单一模块 `cdk.all`）后包内分包不受限。这是排查最久的问题，**不要改回分模块引用方式**。
 
 **已知注意事项（欠账清单）**：
-1. **CDK 版本锁定 2.9**：2.12 全家桶（cdk-bundle）带 JPMS module-info 与 JDK 冲突；分拆模块 + 2.9 验证通过。升级 CDK 必须重跑全量 SMILES 校验（62 个全部能解析 + SDG 布局），校验方法：临时独立 Java 程序 + `build/cdk/cdk-all.jar`（详见 git 历史中 SmokeSmiles 类）
+1. **CDK 版本锁定 2.9**：2.12 全家桶（cdk-bundle）带 JPMS module-info 与 JDK 冲突；分拆模块 + 2.9 验证通过。升级 CDK 必须重跑全量 SMILES 校验（63 个全部能解析 + SDG 布局），校验方法：临时独立 Java 程序 + `build/cdk/cdk-all.jar`（详见 git 历史中 SmokeSmiles 类）
 2. **依赖排除规则**：CDK 的依赖声明会传播版本约束，与 NeoForge 严格锁定冲突，必须排除 log4j/commons-io/commons-lang3/guava（MC 环境自带），且 `resolutionStrategy.force commons-lang3:3.14.0` 不能删
 3. **SMILES 数据坑**：芳香环写法必须 CDK 兼容（小写芳香 + 显式 `[nH]`），曾修 4 个（adenine/cytosine/uracil/gtp）。新增分子后建议跑一遍批量解析校验
 4. **防御性降级**：`MoleculeDataCalculator` 解析失败返回 valid=false（tooltip 显示灰色提示），不抛异常——新增分子若写错 SMILES 不会崩游戏，但会显示"结构数据解析失败"
@@ -194,6 +230,7 @@ com.github.crafteve.biocraft
 21. **JEI/EMI 双装的 EMI 配方 id 重复噪音（已定位根因 + 已解）**：EMI 的 JemiPlugin 兼容桥（`dev/emi/emi/jemi/JemiPlugin`，同时实现 JEI 的 IModPlugin 与 EMI 的 EmiPlugin）会把 JEI 内置的 tag 分组配方（`jei:/minecraft/planks`、`jei:/c/dyed/*` 等共 344 条）导入 EMI，与自身机制产生同 id 重复；EMI 的 `EmiRecipes$Manager` 在 **devMode** 下检测重复并输出 `[EMI] 2 recipes loaded with the same id: jei:/...` ERROR + warning 计数。dev 环境（runClient）被 EMI 自动识别为开发环境，`run/config/emi.css` 生成 `dev-mode: true`（默认值 = `isDevelopmentEnvironment()`）。**解法：手动把 `run/config/emi.css` 的 `dev-mode` 改为 `false`**（EMI 官方注释"Not recommended for general play"，实测改后 ERROR 归零且配置不被回写；run/ 目录 gitignore，新环境需手动改）。玩家正式环境 dev-mode 天然为 false，从来看不到这些噪音，与 BioCraft 代码无关
 22. **dev 环境依赖 mod 放置约定**：runClient 需要的可选依赖 mod（JEI/EMI）只放 `run/mods/` 目录（FML 直接扫描加载，日志可证实），**不要再加 localRuntime 冗余**——双份 jar 会被 mod 发现扫描两次（UniqueModListBuilder 虽会按版本去重，但 classpath 冗余属配置错误）
 23. **可达通量收敛进引擎（显示层禁复制速率公式）**：引擎 Vmax_f/Vmax_b 是速率方程的数学参数（浓度趋无穷的极限），而"游戏内可达上限"是方程在浓度=1（满堆）处的函数值——**两者都只能由引擎给出**：`ReactionDefinition.forwardReachableFlux()/reverseReachableFlux()`（构造满堆浓度向量直接调 forwardFlux/reverseFlux）。GUI 速率条刻度与 JEI/EMI 信息卡一律调引擎方法，只做 ×64×0.05 单位换算（个/tick）；曾在显示层复制 saturationReachable 公式（已删）导致职责错位，违反本约定会造成公式漂移。engineTest 第 16 用例手算对照守护此契约
+24. **JEI 兼容层设计**：每酶一个专属配方类型与类别（配方 id 形如 `biocraft:enzyme_factory/<酶id>`，注册顺序 = 酶数据表顺序），查看某酶方块用途时只显示该酶配方而非全部混类；`EnzymeRecipeDisplay` 是 JEI/EMI 共享的只读展示 DTO，**零 JEI/EMI 依赖**（只 import Minecraft 与 reaction 包，两套显示层插件在各自框架存在时才加载）——新增酶（改 enzymes.json）自动生效，勿在 DTO 中引入框架类，否则另一侧框架缺失时类加载崩溃
 
 ## 第三章 编码与开发规范
 
@@ -275,3 +312,4 @@ com.github.crafteve.biocraft
 
 - 每轮对话结束时有文件修改必须 commit 并 push（见 1.7），push 必须携带 2.5 所述网络参数
 - commit 前自查：无遗留调试代码、无未注释的关键逻辑、git status 无意外文件
+- **文档同步纪律**：涉及包结构/进度变更的提交（新增/删除/移动类、完成或调整里程碑）必须同步更新本文档 1.5 进度节与 2.4 包结构，并核对 README 的进度章节——文档滞后于代码即视为变更未完成
