@@ -121,7 +121,8 @@ public final class ModBlocks {
      * 循环注册全部酶工厂方块（数据驱动，无需逐个手写）
      * <p>
      * 注册名 = 酶 id（lower_snake_case），方块持有酶数据档案；
-     * 方块物品注册进物品注册表（BlockItem 需显式注册，缺失会 air 报错）
+     * 方块物品用 EnzymeBlockItem（tooltip 展示酶数据摘要），
+     * BlockItem 需显式注册，缺失会 air 报错
      */
     private static void registerEnzymeFactories() {
         for (EnzymeFactoryData data : EnzymeFactoryRegistry.ordered()) {
@@ -129,7 +130,8 @@ public final class ModBlocks {
                     data.id(), () -> new MachineBlock(data));
             ENZYME_BLOCKS.add(block);
             ENZYME_ITEMS.add(ModItems.ITEMS.register(data.id(),
-                    () -> new BlockItem(block.get(), new Item.Properties())));
+                    () -> new com.github.crafteve.biocraft.item.EnzymeBlockItem(
+                            block.get(), new Item.Properties(), data)));
         }
     }
 

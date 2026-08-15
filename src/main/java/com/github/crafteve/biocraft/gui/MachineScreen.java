@@ -3,6 +3,8 @@ package com.github.crafteve.biocraft.gui;
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
 import com.github.crafteve.biocraft.blockentity.MachineCategory;
+import com.github.crafteve.biocraft.compat.CompatRenderUtil;
+import com.github.crafteve.biocraft.compat.EnzymeEquation;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
@@ -686,15 +688,12 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 this.leftPos + EQ_X1 - this.font.width(revTag),
                 this.topPos + TAG_Y, darken(theme), false);
 
-        // 分段构建方程式（段 = 系数/缩写/符号 + 各自颜色）
-        List<EqSegment> segments = new ArrayList<>();
-        appendEqSide(segments, enzymeData.reactants());
-        // 可逆符号 MC 无字形（⇌ 回退难看），统一改用 "="（可逆）/ "→"（不可逆）
-        segments.add(new EqSegment(enzymeData.reversible() ? "=" : "→", NAME_COLOR));
-        appendEqSide(segments, enzymeData.products());
+        // 分段构建方程式（段 = 系数/缩写/符号 + 各自颜色），
+        // 与物品 tooltip 共用 EnzymeEquation 同一份构建逻辑（样式一致）
+        List<EnzymeEquation.Segment> segments = EnzymeEquation.guiSegments(enzymeData);
 
         // 贪心换行（断点只在 + / 箭头附近），行数驱动框高与 v-t 定位
-        List<List<EqSegment>> rows = wrapEquation(segments);
+        List<List<EnzymeEquation.Segment>> rows = wrapEquation(segments);
         this.equationRowCount = rows.size();
 
         // 美化背景：无边框，只填浅色主题色（与 v-t 图背景同色系）
@@ -707,15 +706,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
         // 每行 8px 分段绘制，各自居中于 67~188（中心 127.5）
         for (int r = 0; r < rows.size(); r++) {
-            List<EqSegment> row = rows.get(r);
+            List<EnzymeEquation.Segment> row = rows.get(r);
             int rowW = 0;
-            for (EqSegment segment : row) {
+            for (EnzymeEquation.Segment segment : row) {
                 rowW += this.font.width(segment.text());
             }
             int rowX0 = (EQ_X0 + EQ_X1) / 2 - rowW / 2;
             int cursor = 0;
             int rowY = EQ_Y + r * EQ_ROW_STEP;
-            for (EqSegment segment : row) {
+            for (EnzymeEquation.Segment segment : row) {
                 graphics.drawString(this.font, segment.text(),
                         this.leftPos + rowX0 + cursor, this.topPos + rowY,
                         segment.color(), false);
@@ -734,15 +733,16 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      *       续行以 + 开头），物质随其后</li>
      *   <li>超宽段是物质且行尾非 "+"（理论不发生，因符号总在物质间）：直接换行</li>
      * </ul>
+     * 段文本来自 EnzymeEquation（GUI 与物品 tooltip 同一份构建逻辑）
      *
      * @param segments 方程式全段序列（系数/物质/符号交替）
      * @return 行列表（每行一段段序列，保持原顺序）
      */
-    private List<List<EqSegment>> wrapEquation(List<EqSegment> segments) {
-        List<List<EqSegment>> rows = new ArrayList<>();
-        List<EqSegment> row = new ArrayList<>();
+    private List<List<EnzymeEquation.Segment>> wrapEquation(List<EnzymeEquation.Segment> segments) {
+        List<List<EnzymeEquation.Segment>> rows = new ArrayList<>();
+        List<EnzymeEquation.Segment> row = new ArrayList<>();
         int rowW = 0;
-        for (EqSegment seg : segments) {
+        for (EnzymeEquation.Segment seg : segments) {
             int w = this.font.width(seg.text());
             boolean plus = seg.text().equals("+");
             boolean arrow = seg.text().equals("=") || seg.text().equals("→");
@@ -754,7 +754,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                     rowW = 0;
                 } else if (row.get(row.size() - 1).text().equals("+")) {
                     // 行尾 "+" 移到新行首，物质随其后
-                    EqSegment lastPlus = row.remove(row.size() - 1);
+                    EnzymeEquation.Segment lastPlus = row.remove(row.size() - 1);
                     rowW -= this.font.width("+");
                     rows.add(row);
                     row = new ArrayList<>();
@@ -782,38 +782,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      */
     private int vtY() {
         return VT_Y_BASE + (equationRowCount - 1) * EQ_ROW_STEP;
-    }
-
-    /**
-     * 追加一侧物种段：系数（>1 时前缀）+ 缩写，同物品色，段间以 "+" 分隔
-     *
-     * @param segments 段列表（追加目标）
-     * @param specs    反应物或产物条目列表（JSON 解析顺序）
-     */
-    private void appendEqSide(List<EqSegment> segments, List<EnzymeFactoryData.SpeciesSpec> specs) {
-        boolean first = true;
-        for (EnzymeFactoryData.SpeciesSpec spec : specs) {
-            if (!first) {
-                segments.add(new EqSegment("+", NAME_COLOR));
-            }
-            first = false;
-            MoleculeItem item = ModItems.byId(spec.item()).get();
-            // 物品色与卡片缩写同步加深 1/5
-            int color = darkenOneFifth(item.getTintColor());
-            if (spec.count() > 1) {
-                segments.add(new EqSegment(String.valueOf(spec.count()), color));
-            }
-            segments.add(new EqSegment(item.getAbbreviation(), color));
-        }
-    }
-
-    /**
-     * 方程式段：文字 + 颜色（物质/系数段 = 物品色，符号段 = 黑色）
-     *
-     * @param text  段文字（系数、缩写或符号）
-     * @param color 段颜色（ARGB）
-     */
-    private record EqSegment(String text, int color) {
     }
 
     /**
@@ -1171,7 +1139,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         if (luminance > 240 || (saturation < 40 && Math.abs(luminance - 198) < 10)) {
             return 0xFF000000;
         }
-        return darkenOneFifth(tintColor);
+        return CompatRenderUtil.darkenOneFifth(tintColor);
     }
 
     /**
@@ -1185,19 +1153,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int g = (color >> 8) & 0xFF;
         int b = color & 0xFF;
         return 0xFF000000 | (r * 3 / 5 << 16) | (g * 3 / 5 << 8) | (b * 3 / 5);
-    }
-
-    /**
-     * 颜色加深 1/5（乘以 4/5 线性系数，比 darken 的 3/5 更浅）
-     *
-     * @param color ARGB 颜色
-     * @return 加深后的 ARGB 颜色（alpha 保留）
-     */
-    private static int darkenOneFifth(int color) {
-        int r = (color >> 16) & 0xFF;
-        int g = (color >> 8) & 0xFF;
-        int b = color & 0xFF;
-        return 0xFF000000 | (r * 4 / 5 << 16) | (g * 4 / 5 << 8) | (b * 4 / 5);
     }
 
     /**

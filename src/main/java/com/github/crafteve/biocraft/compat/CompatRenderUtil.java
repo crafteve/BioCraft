@@ -130,16 +130,17 @@ public final class CompatRenderUtil {
     }
 
     /**
-     * 动力学变体文案的 lang key
+     * 颜色加深 1/5（乘以 4/5 线性系数，比 darken 的 3/5 更浅）
+     * <p>
+     * 浅底上的物质段文字统一走本方法（GUI 方程式与卡片缩写同款处理）
      *
-     * @param kinetic 动力学变体字符串（酶数据表 kinetic 字段）
-     * @return 对应翻译键；未知变体回退限速酶文案
+     * @param color ARGB 颜色
+     * @return 加深后的 ARGB 颜色（alpha 保留）
      */
-    public static String kineticLangKey(String kinetic) {
-        return switch (kinetic) {
-            case "ISOMERASE" -> "jei.biocraft.kinetic.isomerase";
-            case "OXIDO_LYASE" -> "jei.biocraft.kinetic.oxido_lyase";
-            default -> "jei.biocraft.kinetic.limiting";
-        };
+    public static int darkenOneFifth(int color) {
+        int r = (color >> 16) & 0xFF;
+        int g = (color >> 8) & 0xFF;
+        int b = color & 0xFF;
+        return 0xFF000000 | (r * 4 / 5 << 16) | (g * 4 / 5 << 8) | (b * 4 / 5);
     }
 }

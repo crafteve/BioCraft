@@ -22,7 +22,6 @@ import java.util.List;
  * @param nameEn        英文显示名（GUI 副标题，M4 标题卡）
  * @param abbreviation  酶缩写（如 PGI/HK/GAPDH，M4 标题卡紫框）
  * @param category      EC 类别（EC1~EC6 字符串，决定方块形状与 GUI 结构，不决定颜色）
- * @param kinetic       动力学变体（LIMITING/ISOMERASE/OXIDO_LYASE，策略层分派用）
  * @param reactants     反应物条目列表（系数 + Km）
  * @param products      产物条目列表（系数 + Km，不可逆反应 km 填 0）
  * @param reversible    反应是否可逆
@@ -32,7 +31,6 @@ import java.util.List;
  * @param tempOptimum   最适温度（K，M5 温度机制使用）
  * @param inputSlots    输入槽位数（M3 方块实体布局用）
  * @param outputSlots   输出槽位数（M3 方块实体布局用）
- * @param stallMessage  停摆原因文案（策略层 stallReason 的翻译键）
  */
 public record EnzymeFactoryData(
         String id,
@@ -40,7 +38,6 @@ public record EnzymeFactoryData(
         String nameEn,
         String abbreviation,
         String category,
-        String kinetic,
         List<SpeciesSpec> reactants,
         List<SpeciesSpec> products,
         boolean reversible,
@@ -49,8 +46,7 @@ public record EnzymeFactoryData(
         double kcat,
         double tempOptimum,
         int inputSlots,
-        int outputSlots,
-        String stallMessage) {
+        int outputSlots) {
 
     /**
      * 单个物种在反应式中的条目：物品注册名 + 化学计量系数 + 米氏常数

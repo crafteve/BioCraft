@@ -84,7 +84,6 @@ public final class EnzymeFactoryRegistry {
         String nameEn = enzyme.get("name_en").getAsString();
         String abbreviation = enzyme.get("abbreviation").getAsString();
         String category = enzyme.get("category").getAsString();
-        String kinetic = enzyme.get("kinetic").getAsString();
 
         JsonObject reaction = enzyme.getAsJsonObject("reaction");
         boolean reversible = reaction.get("reversible").getAsBoolean();
@@ -96,11 +95,10 @@ public final class EnzymeFactoryRegistry {
                 ? enzyme.get("deltaH").getAsDouble() : null;
         double kcat = enzyme.get("kcat").getAsDouble();
         double tempOptimum = enzyme.get("tempOptimum").getAsDouble();
-        String stallMessage = enzyme.get("stallMessage").getAsString();
 
-        return new EnzymeFactoryData(id, nameZn, nameEn, abbreviation, category, kinetic,
+        return new EnzymeFactoryData(id, nameZn, nameEn, abbreviation, category,
                 reactants, products, reversible, keq, deltaH, kcat, tempOptimum,
-                reactants.size(), products.size(), stallMessage);
+                reactants.size(), products.size());
     }
 
     /**

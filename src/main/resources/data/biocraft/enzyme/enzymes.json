@@ -6,7 +6,6 @@
             "name_en":  "Hexokinase",
             "abbreviation":  "HK",
             "category":  "EC2",
-            "kinetic":  "LIMITING",
             "reaction":  {
                 "reversible":  false,
                 "reactants":  [
@@ -37,8 +36,7 @@
             "keq":  4800.0,
             "deltaH":  -64.0,
             "kcat":  54.1,
-            "tempOptimum":  298.15,
-            "stallMessage":  "ATP 耗尽"
+            "tempOptimum":  298.15
         },
         {
             "id":  "phosphoglucose_isomerase",
@@ -46,7 +44,6 @@
             "name_en":  "Phosphoglucose Isomerase",
             "abbreviation":  "PGI",
             "category":  "EC5",
-            "kinetic":  "ISOMERASE",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -67,8 +64,7 @@
             "keq":  0.3104,
             "deltaH":  null,
             "kcat":  79.0,
-            "tempOptimum":  298.15,
-            "stallMessage":  "底物浓度不足"
+            "tempOptimum":  298.15
         },
         {
             "id":  "phosphofructokinase",
@@ -76,7 +72,6 @@
             "name_en":  "6-Phosphofructokinase-1",
             "abbreviation":  "PFK",
             "category":  "EC2",
-            "kinetic":  "LIMITING",
             "reaction":  {
                 "reversible":  false,
                 "reactants":  [
@@ -107,8 +102,7 @@
             "keq":  1164.2,
             "deltaH":  null,
             "kcat":  357.0,
-            "tempOptimum":  298.15,
-            "stallMessage":  "ATP 耗尽"
+            "tempOptimum":  298.15
         },
         {
             "id":  "aldolase",
@@ -116,7 +110,6 @@
             "name_en":  "Fructose-bisphosphate Aldolase",
             "abbreviation":  "ALDO",
             "category":  "EC4",
-            "kinetic":  "OXIDO_LYASE",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -142,8 +135,7 @@
             "keq":  0.0001456,
             "deltaH":  null,
             "kcat":  10.7,
-            "tempOptimum":  298.15,
-            "stallMessage":  "底物浓度不足"
+            "tempOptimum":  298.15
         },
         {
             "id":  "triose_phosphate_isomerase",
@@ -151,7 +143,6 @@
             "name_en":  "Triosephosphate Isomerase",
             "abbreviation":  "TPI",
             "category":  "EC5",
-            "kinetic":  "ISOMERASE",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -172,8 +163,7 @@
             "keq":  0.10874,
             "deltaH":  null,
             "kcat":  9000.0,
-            "tempOptimum":  298.15,
-            "stallMessage":  "底物浓度不足"
+            "tempOptimum":  298.15
         },
         {
             "id":  "glyceraldehyde_3_phosphate_dehydrogenase",
@@ -181,7 +171,6 @@
             "name_en":  "Glyceraldehyde-3-phosphate Dehydrogenase",
             "abbreviation":  "GAPDH",
             "category":  "EC1",
-            "kinetic":  "OXIDO_LYASE",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -222,8 +211,7 @@
             "keq":  0.0963,
             "deltaH":  null,
             "kcat":  199.0,
-            "tempOptimum":  298.15,
-            "stallMessage":  "NAD⁺ 耗尽"
+            "tempOptimum":  298.15
         },
         {
             "id":  "phosphoglycerate_kinase",
@@ -231,7 +219,6 @@
             "name_en":  "Phosphoglycerate Kinase",
             "abbreviation":  "PGK",
             "category":  "EC2",
-            "kinetic":  "LIMITING",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -262,8 +249,7 @@
             "keq":  1262.1,
             "deltaH":  null,
             "kcat":  833.0,
-            "tempOptimum":  298.15,
-            "stallMessage":  "ADP 耗尽"
+            "tempOptimum":  298.15
         },
         {
             "id":  "phosphoglycerate_mutase",
@@ -271,7 +257,6 @@
             "name_en":  "Phosphoglycerate Mutase",
             "abbreviation":  "PGM",
             "category":  "EC5",
-            "kinetic":  "ISOMERASE",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -292,8 +277,7 @@
             "keq":  0.15016,
             "deltaH":  null,
             "kcat":  457.0,
-            "tempOptimum":  298.15,
-            "stallMessage":  "底物浓度不足"
+            "tempOptimum":  298.15
         },
         {
             "id":  "enolase",
@@ -301,7 +285,6 @@
             "name_en":  "Enolase",
             "abbreviation":  "ENO",
             "category":  "EC4",
-            "kinetic":  "OXIDO_LYASE",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -327,8 +310,7 @@
             "keq":  4.4489,
             "deltaH":  null,
             "kcat":  81.7,
-            "tempOptimum":  298.15,
-            "stallMessage":  "底物浓度不足"
+            "tempOptimum":  298.15
         },
         {
             "id":  "pyruvate_kinase",
@@ -336,7 +318,6 @@
             "name_en":  "Pyruvate Kinase",
             "abbreviation":  "PK",
             "category":  "EC2",
-            "kinetic":  "LIMITING",
             "reaction":  {
                 "reversible":  false,
                 "reactants":  [
@@ -367,8 +348,7 @@
             "keq":  21257.0,
             "deltaH":  null,
             "kcat":  1182.0,
-            "tempOptimum":  298.15,
-            "stallMessage":  "ADP 耗尽"
+            "tempOptimum":  298.15
         }
     ]
 }

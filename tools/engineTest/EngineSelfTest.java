@@ -117,19 +117,19 @@ public final class EngineSelfTest {
 
     /** kcat 非正、速率项 Km 非正等坏数据必须在构建期快速失败 */
     private static void test02BadDataRejected() {
-        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5", "ISOMERASE",
+        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5",
                         TestEnzymes.pgi().reactants(), TestEnzymes.pgi().products(),
-                        true, 0.3104, null, 0.0, 298.15, 1, 1, "x")
+                        true, 0.3104, null, 0.0, 298.15, 1, 1)
                 .buildSimulator(), "kcat=0 应被拒绝");
-        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5", "ISOMERASE",
+        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5",
                         List.of(new EnzymeFactoryData.SpeciesSpec("glucose_6_phosphate", 1, 0.0)),
                         TestEnzymes.pgi().products(),
-                        true, 0.3104, null, 79.0, 298.15, 1, 1, "x")
+                        true, 0.3104, null, 79.0, 298.15, 1, 1)
                 .buildSimulator(), "反应物 Km=0 应被拒绝");
-        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5", "ISOMERASE",
+        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5",
                         TestEnzymes.pgi().reactants(),
                         List.of(new EnzymeFactoryData.SpeciesSpec("fructose_6_phosphate", 1, 0.0)),
-                        true, 0.3104, null, 79.0, 298.15, 1, 1, "x")
+                        true, 0.3104, null, 79.0, 298.15, 1, 1)
                 .buildSimulator(), "可逆产物 Km=0 应被拒绝");
         checkThrows(() -> new EnzymeFactoryData.SpeciesSpec("x", 0, 1.0),
                 "系数 0 应被拒绝");

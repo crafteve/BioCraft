@@ -50,6 +50,7 @@ public class SubstanceLanguageProvider implements DataProvider {
         addMachineTranslations();
         addEnzymeTranslations();
         addCompatTranslations();
+        addEnzymeTooltipTranslations();
         addItemTranslations();
 
         JsonObject lang = new JsonObject();
@@ -124,17 +125,11 @@ public class SubstanceLanguageProvider implements DataProvider {
     /**
      * 添加 JEI/EMI 配方显示层文案翻译
      * <p>
-     * 配方类别标题、动力学变体、Km/Keq/ΔG°′/kcat 等展示文案；
+     * 配方类别标题、Km/Keq/ΔG°′/kcat 等展示文案；
      * 与酶数据表文案分开维护，避免与数据驱动条目耦合
      */
     private void addCompatTranslations() {
         boolean zh = "zh_cn".equals(language);
-        translations.put("jei.biocraft.kinetic.limiting",
-                zh ? "限速酶" : "Rate-limiting Enzyme");
-        translations.put("jei.biocraft.kinetic.isomerase",
-                zh ? "异构酶" : "Isomerase");
-        translations.put("jei.biocraft.kinetic.oxido_lyase",
-                zh ? "氧化裂解酶" : "Oxidoreductase/Lyase");
         translations.put("jei.biocraft.fixed_activity",
                 zh ? "固定活性物种（不参与速率计算，仅化学计量结算）"
                         : "Fixed-activity species (not in rate law, stoichiometry only)");
@@ -154,6 +149,42 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "正向速率最大值 %s 个/tick" : "Fwd Max Rate %s/tick");
         translations.put("jei.biocraft.vmax_b",
                 zh ? "逆向速率最大值 %s 个/tick" : "Rev Max Rate %s/tick");
+    }
+
+    /**
+     * 添加酶工厂方块物品 tooltip 与 EC 类别名翻译
+     * <p>
+     * tooltip.biocraft.enzyme.* 供 EnzymeBlockItem 数据摘要使用；
+     * machine.category.* 供 tooltip 缩写行与后续 GUI 图例复用
+     */
+    private void addEnzymeTooltipTranslations() {
+        boolean zh = "zh_cn".equals(language);
+        translations.put("tooltip.biocraft.enzyme.reversible",
+                zh ? "可逆" : "Reversible");
+        translations.put("tooltip.biocraft.enzyme.irreversible",
+                zh ? "不可逆" : "Irreversible");
+        translations.put("tooltip.biocraft.enzyme.keq",
+                zh ? "Keq = %s" : "Keq = %s");
+        translations.put("tooltip.biocraft.enzyme.vmax_f",
+                zh ? "正向速率最大值 %s 个/tick" : "Fwd Max Rate %s/tick");
+        translations.put("tooltip.biocraft.enzyme.vmax_b",
+                zh ? "逆向速率最大值 %s 个/tick" : "Rev Max Rate %s/tick");
+        translations.put("tooltip.biocraft.enzyme.temp",
+                zh ? "最适温度 %s K" : "Optimum Temp %s K");
+        translations.put("machine.category.EC1",
+                zh ? "氧化还原酶" : "Oxidoreductase");
+        translations.put("machine.category.EC2",
+                zh ? "转移酶" : "Transferase");
+        translations.put("machine.category.EC3",
+                zh ? "水解酶" : "Hydrolase");
+        translations.put("machine.category.EC4",
+                zh ? "裂合酶" : "Lyase");
+        translations.put("machine.category.EC5",
+                zh ? "异构酶" : "Isomerase");
+        translations.put("machine.category.EC6",
+                zh ? "连接酶" : "Ligase");
+        translations.put("machine.category.SPECIAL",
+                zh ? "中心法则机器" : "Central Dogma Machine");
     }
 
     /**

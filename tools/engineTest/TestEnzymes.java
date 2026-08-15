@@ -39,11 +39,11 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData pgi() {
         return new EnzymeFactoryData(
-                "phosphoglucose_isomerase", "磷酸葡萄糖异构酶", "Phosphoglucose Isomerase", "PGI", "EC5", "ISOMERASE",
+                "phosphoglucose_isomerase", "磷酸葡萄糖异构酶", "Phosphoglucose Isomerase", "PGI", "EC5",
                 List.of(s("glucose_6_phosphate", 1, 0.43)),
                 List.of(s("fructose_6_phosphate", 1, 0.046)),
                 true, 0.3104, null, 79.0, 298.15,
-                1, 1, "底物浓度不足");
+                1, 1);
     }
 
     /**
@@ -54,11 +54,11 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData hk() {
         return new EnzymeFactoryData(
-                "hexokinase", "己糖激酶", "Hexokinase", "HK", "EC2", "LIMITING",
+                "hexokinase", "己糖激酶", "Hexokinase", "HK", "EC2",
                 List.of(s("glucose", 1, 0.049), s("atp", 1, 1.12)),
                 List.of(s("glucose_6_phosphate", 1, 0.0), s("adp", 1, 0.0)),
                 false, 4800.0, null, 54.1, 298.15,
-                2, 2, "ATP 耗尽");
+                2, 2);
     }
 
     /**
@@ -72,7 +72,7 @@ public final class TestEnzymes {
     public static EnzymeFactoryData gapdh() {
         return new EnzymeFactoryData(
                 "glyceraldehyde_3_phosphate_dehydrogenase", "甘油醛-3-磷酸脱氢酶",
-                "Glyceraldehyde-3-phosphate Dehydrogenase", "GAPDH", "EC1", "OXIDO_LYASE",
+                "Glyceraldehyde-3-phosphate Dehydrogenase", "GAPDH", "EC1",
                 List.of(s("glyceraldehyde_3_phosphate", 1, 0.137),
                         s("nad_plus", 1, 0.045),
                         s("phosphate_ion", 1, 4.0)),
@@ -80,7 +80,7 @@ public final class TestEnzymes {
                         s("nadh", 1, 0.045),
                         s("hydrogen_ion", 1, 0.0)),
                 true, 0.0963, null, 199.0, 298.15,
-                3, 2, "NAD⁺ 耗尽");
+                3, 2);
     }
 
     /**
@@ -92,11 +92,11 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData tpi() {
         return new EnzymeFactoryData(
-                "triosephosphate_isomerase", "磷酸丙糖异构酶", "Triosephosphate Isomerase", "TPI", "EC5", "ISOMERASE",
+                "triosephosphate_isomerase", "磷酸丙糖异构酶", "Triosephosphate Isomerase", "TPI", "EC5",
                 List.of(s("dihydroxyacetone_phosphate", 1, 0.62)),
                 List.of(s("glyceraldehyde_3_phosphate", 1, 0.52)),
                 true, 0.1087, null, 2946.0, 298.15,
-                1, 1, "底物浓度不足");
+                1, 1);
     }
 
     /**
@@ -108,11 +108,11 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData eno() {
         return new EnzymeFactoryData(
-                "enolase", "烯醇化酶", "Enolase", "ENO", "EC4", "ISOMERASE",
+                "enolase", "烯醇化酶", "Enolase", "ENO", "EC4",
                 List.of(s("2_phosphoglycerate", 1, 0.244)),
                 List.of(s("phosphoenolpyruvate", 1, 0.637), s("water", 1, 0.0)),
                 true, 4.449, null, 81.7, 298.15,
-                1, 2, "底物浓度不足");
+                1, 2);
     }
 
     /**

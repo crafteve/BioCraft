@@ -52,15 +52,16 @@
 - 已完成 tooltip 布局：手持物品时创意标签页标题（蓝色）自动移至 tooltip 末尾（`MoleculeTooltipLayout`）
 - 已完成 视觉校验闭环：`.opencode/agents/vision.md` 视觉审查子代理（opencode-go/qwen3.7-plus 多模态）+ `tools/texturegen/` 程序化贴图工具链（PixelCanvas DSL，生成 PNG 后派 vision 子代理读图审查）
 - 已完成 化学引擎内核（纯 Java 零 MC 依赖，`tools/engineTest/` 独立单测 16 用例全绿）：多底物可逆米氏乘积速率方程（共享分母，平衡精确 = Keq 绝不缩放 + 饱和有界 + 产物回压 + 全底物平等，ATP/NAD⁺ 参与速率）、RK4 积分（Δt=0.05）、温度修正（van't Hoff/Q10 + 0.1K 缓存）、固定活性物种（H₂O/H⁺ 只结算不进速率）、三断言数据防火墙（配平/数值健康/Keq 红线）；PGI 平衡收敛误差 <1%、黄金值快照防回归、可达通量收敛进引擎（显示层禁复制速率公式，见 2.6 欠账 23）
-- 已完成 酶工厂数据驱动注册体系：`enzymes.json` 已有糖酵解全部 10 步酶数据（HK/PGI/PFK/ALDO/TPI/GAPDH/PGK/PGM/ENO/PK，Km/kcat/Keq/ΔH/stallMessage 数值溯源见根目录《糖酵解热力学数据库》md 文档；无激活剂/抑制剂字段——该项目无此设计），`EnzymeFactoryRegistry` 注册期解析 + 引擎断言防火墙校验；数据表新增酶即自动注册方块/物品/配方，代码零改动
+- 已完成 酶工厂数据驱动注册体系：`enzymes.json` 已有糖酵解全部 10 步酶数据（HK/PGI/PFK/ALDO/TPI/GAPDH/PGK/PGM/ENO/PK，Km/kcat/Keq/ΔH 数值溯源见根目录《糖酵解热力学数据库》md 文档；无激活剂/抑制剂/stallMessage/kinetic 字段——该项目无此设计），`EnzymeFactoryRegistry` 注册期解析 + 引擎断言防火墙校验；数据表新增酶即自动注册方块/物品/配方，代码零改动
 - 已完成 BE 桥接：`EnzymeFactoryBlockEntity` 浓度-槽位双向投影（引擎连续浓度是权威，槽位 = floor(浓度×64)，余量驱动 GUI 进度条）、每 tick RK4 步进 + 睡眠机制、NBT 定点存档浓度、漏斗防呆弹出非法物品
 - 已完成 DNA 编码器（第一台原始机器）：缓冲池模型（碱基吸收进池、上限 4096、事件驱动）、序列经数据组件存储于 DNA 模板物品、事务式合成、方块破坏缓冲池折算掉落（onRemove 而非 setRemoved）
 - 已完成 酶工厂 GUI：256×256 手绘基底 `gui_v1.png`、滚动卡片物种槽（`isActive=false` 全接管绘制与命中）、反应方程式彩色分段渲染、v-t 通量折线图（4x 超采样、1s 一点 10 点）、平衡区（log(Q/Keq) 缩放滑块 + Keq/Q 读数）、速率实时读数；ContainerData 每 tick 同步，打开数据包一次性下发 v-t 历史
 - 已完成 JEI 酶工厂配方显示：每酶一个专属配方类别（查看用途互不混淆），`EnzymeRecipeDisplay` 为 JEI/EMI 共享只读 DTO（零 JEI 依赖，新增酶自动生效）
+- 已完成 酶方块物品 tooltip：`EnzymeBlockItem` 展示缩写 + EC 类别名 + 可逆性 + 反应方程式（与 GUI 共用 `EnzymeEquation` 分段构建，浅底/深底两套配色）+ Keq + 正逆向饱和可达速率（引擎通量 ×64×0.05）+ 最适温度
 - 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
 - 待开发 转录仪 / 翻译仪（后两台原始机器）
 - 待开发 糖酵解流水线搭建（纪元二：10 步酶数据已齐，机器布局与产线衔接待做）
-- 待开发 策略层三种动力学变体生效（LIMITING/ISOMERASE/OXIDO_LYASE 目前仅数据存储，活性恒 1）
+- 待开发 策略层三种动力学变体生效（1.3 的 3 种 GUI 变体机制；kinetic 字段已随无消费方移除，实现时需在 enzymes.json 重新引入）
 - 待开发 温度机制（M5）、酶插件升级、细胞器纪元（纪元三/四）
 
 ### 1.6 开发流程
@@ -138,7 +139,8 @@ com.github.crafteve.biocraft
 │   ├── MoleculeCategory.java     # 8 类分子类别枚举（主题色）
 │   ├── MoleculeDataCalculator.java # CDK 计算分子式（Hill 排序）与摩尔质量，缓存+防御降级
 │   ├── MoleculeColors.java       # ItemColor 染色 + TooltipComponent 工厂 + 装饰器注册（Dist.CLIENT）
-│   └── SequenceItem.java         # 序列载体物品（DNA模板/mRNA/新生肽链共用）：序列存数据组件，tooltip 换行展示
+│   ├── SequenceItem.java         # 序列载体物品（DNA模板/mRNA/新生肽链共用）：序列存数据组件，tooltip 换行展示
+│   └── EnzymeBlockItem.java      # 酶工厂方块物品：缩写/EC 类别/可逆性/方程式/Keq/Vmax/最适温度 tooltip（数据源 EnzymeFactoryData + EnzymeRecipeDisplay）
 ├── client/                       # 分子结构图自绘渲染管线（9 类，4x 超采样）
 │   ├── MoleculeTextureCache.java # CDK 解析+2D 坐标+Kekulize → 自绘键线骨架 → DynamicTexture 缓存
 │   ├── MoleculeBondRenderer.java # 键线绘制（0.8px 细线、Kekulé 单双交替、环内双键朝环心偏移）
@@ -176,7 +178,8 @@ com.github.crafteve.biocraft
 │   └── ServerboundDnaSequencePacket.java # DNA 序列提交包（客户端→服务端）
 ├── compat/                       # 配方显示 mod 兼容层（JEI/EMI 均为可选依赖，compileOnly + run/mods）
 │   ├── EnzymeRecipeDisplay.java  # 配方展示只读 DTO（零 JEI/EMI 依赖，两套显示层共享，新增酶自动生效）
-│   ├── CompatRenderUtil.java     # 兼容层渲染工具（信息卡文字/槽位纹理绘制）
+│   ├── EnzymeEquation.java       # 反应方程式共享分段构建（GUI 与物品 tooltip 同一份逻辑，浅底/深底两套配色）
+│   ├── CompatRenderUtil.java     # 兼容层渲染工具（信息卡文字/槽位纹理绘制/darkenOneFifth）
 │   └── jei/
 │       ├── BioCraftJeiPlugin.java # JEI 插件入口（@JeiPlugin 自动发现，每酶一个专属配方类型/类别/催化剂）
 │       └── EnzymeFactoryRecipeCategory.java # 酶工厂配方类别（信息卡三行布局 + 自带槽位纹理）
