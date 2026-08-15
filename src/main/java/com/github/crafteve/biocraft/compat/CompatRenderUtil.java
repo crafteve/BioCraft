@@ -56,9 +56,9 @@ public final class CompatRenderUtil {
     }
 
     /**
-     * Keq 文本格式化：≥1000 或 <0.01 用科学计数（Unicode 上标），其余普通小数
+     * Keq 文本格式化：≥1000 或 <0.01 用科学计数（Unicode 上标指数），其余普通小数
      * <p>
-     * 例：4800 → "4.8×10³"，0.3104 → "0.310"
+     * 例：4800 → "4.8×10³"，0.3104 → "0.310"，0.0001456 → "1.5×10⁻⁴"
      *
      * @param keq 平衡常数
      * @return 显示文本
@@ -67,9 +67,36 @@ public final class CompatRenderUtil {
         if (keq >= 1000.0 || keq < 0.01) {
             int exp = (int) Math.floor(Math.log10(keq));
             double mantissa = keq / Math.pow(10, exp);
-            return String.format(Locale.ROOT, "%.1f×10%d", mantissa, exp);
+            return String.format(Locale.ROOT, "%.1f×10%s", mantissa, superscript(exp));
         }
         return String.format(Locale.ROOT, "%.3f", keq);
+    }
+
+    /**
+     * 整数转 Unicode 上标文本（含负号）
+     * <p>
+     * 上标映射：0-9 → ⁰¹²³⁴⁵⁶⁷⁸⁹、负号 → ⁻；
+     * 注意 Unicode 上标数字码点不连续（¹²³ 在 Latin-1 区），必须查表；
+     * MC 默认字体含全部上标字形，无需额外字体资源
+     *
+     * @param value 整数（可负）
+     * @return 上标文本
+     */
+    private static String superscript(int value) {
+        if (value == 0) {
+            return "⁰";
+        }
+        StringBuilder sb = new StringBuilder();
+        if (value < 0) {
+            sb.append('⁻');
+            value = -value;
+        }
+        char[] superscriptDigits = {'⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'};
+        char[] digits = String.valueOf(value).toCharArray();
+        for (char digit : digits) {
+            sb.append(superscriptDigits[digit - '0']);
+        }
+        return sb.toString();
     }
 
     /**
