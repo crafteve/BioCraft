@@ -153,12 +153,21 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
 
     /**
      * 建立槽位 → 物种下标映射（物种表顺序 = 反应物先产物后，与槽位一致）
+     * <p>
+     * 映射长度 = 非 fe 物种数（槽位数），fe 能量物种无槽位不占位；
+     * 必须先数非 fe 数再建数组（直接用物种数会因 fe 空位导致长度不符）
      *
      * @param speciesIds 全物种注册名（引擎权威顺序）
      * @return 映射表：槽位 i → 物种下标（长度 = 非 fe 物种数）
      */
     private static int[] buildSlotMapping(String[] speciesIds) {
-        int[] mapping = new int[speciesIds.length];
+        int nonEnergy = 0;
+        for (String id : speciesIds) {
+            if (!EnergyKinetics.isEnergySpecies(id)) {
+                nonEnergy++;
+            }
+        }
+        int[] mapping = new int[nonEnergy];
         int slot = 0;
         for (int i = 0; i < speciesIds.length; i++) {
             if (EnergyKinetics.isEnergySpecies(speciesIds[i])) {
@@ -166,8 +175,8 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             }
             mapping[slot++] = i;
         }
-        if (slot != mapping.length) {
-            throw new IllegalStateException("槽位映射长度不符: 期望 " + mapping.length + " 实际 " + slot);
+        if (slot != nonEnergy) {
+            throw new IllegalStateException("槽位映射长度不符: 期望 " + nonEnergy + " 实际 " + slot);
         }
         return mapping;
     }
