@@ -369,6 +369,19 @@ public class MachineMenu extends AbstractContainerMenu {
             return stack.is(acceptedItem);
         }
 
+        /**
+         * 槽位堆叠上限（按物品查询）：直接返回容器容量
+         * <p>
+         * vanilla 默认是 min(容器容量, 物品自身 getMaxStackSize)——分子物品
+         * 自身上限 64 会把容量参数化后的 128 钳回 64（"槽位只能放一组"根因）。
+         * safeInsert（拖拽）与 moveItemStackTo（shift）都经本方法取上限，
+         * 必须返回槽位容量才能放入多组物品
+         */
+        @Override
+        public int getMaxStackSize(ItemStack stack) {
+            return getMaxStackSize();
+        }
+
         @Override
         public boolean isActive() {
             return false;

@@ -6,6 +6,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -56,6 +57,19 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
              */
             @Override
             public int getMaxStackSize() {
+                return MachineBlockEntity.this.slotStackLimit();
+            }
+
+            /**
+             * 槽位堆叠上限（按物品查询）：返回槽位容量而非与物品上限取 min
+             * <p>
+             * vanilla 默认实现是 min(容器容量, 物品自身 getMaxStackSize)——
+             * 分子物品自身上限是 64，会把容量参数化后的 128 钳回 64
+             * （用户实测"槽位还是只能放一组"的根因）。容量放大后
+             * 必须直接返回槽位上限，否则 setItem 的 limitSize 截断堆叠
+             */
+            @Override
+            public int getMaxStackSize(ItemStack stack) {
                 return MachineBlockEntity.this.slotStackLimit();
             }
         };
