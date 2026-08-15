@@ -16,13 +16,9 @@ import java.util.Optional;
  * 承载物质的化学属性：SMILES 结构式（驱动分子图渲染与分子式计算）、
  * 内容物染色值（双层贴图 layer0 的 ItemColor 着色）、缩写与所属类别
  * <p>
- * 堆叠上限：随槽位容量参数化（64×SLOT_GROUPS，默认 2 组 = 128 个）。
- * 1.21 的堆叠上限是数据组件 MAX_STACK_SIZE 而非覆写方法，构造时直接
- * 写入 Properties；所有物流路径（GUI shift/拖拽、管道 insertItem、漏斗）
- * 都以"物品自身上限"参与 min 运算，物品 64 会把槽位容量 128 钳回 64
- * （用户实测"槽位只能放一组"根因）；分子物品"堆叠数 = 分子个数"，
- * n 组一叠语义成立。具体机器槽位容量仍由容器 slotStackLimit 控制
- * （DNA 编码器保持 64，不受影响）
+ * 堆叠上限保持 vanilla 默认 64（玩家背包/箱子与普通容器一致）；
+ * 酶工厂槽位的多组容量（128）由容器 slotStackLimit + GUI Slot 覆写 +
+ * 管道 getSlotLimit 实现，不改物品全局堆叠（精妙存储同款思路）
  * <p>
  * tooltip 布局（自下而上为视觉分区）：
  * <ol>
@@ -45,8 +41,7 @@ public class MoleculeItem extends Item {
     private final MoleculeCategory category;
 
     public MoleculeItem(Properties properties, String smiles, String abbreviation, int tintColor, MoleculeCategory category) {
-        super(properties.component(net.minecraft.core.component.DataComponents.MAX_STACK_SIZE,
-                64 * com.github.crafteve.biocraft.reaction.KineticConstants.SLOT_GROUPS));
+        super(properties);
         this.smiles = smiles;
         this.abbreviation = abbreviation;
         this.tintColor = tintColor;

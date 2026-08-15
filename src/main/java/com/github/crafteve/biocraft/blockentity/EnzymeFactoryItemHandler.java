@@ -78,7 +78,11 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
         }
         SimpleContainer container = blockEntity.getContainer();
         ItemStack inSlot = container.getItem(slot);
-        int limit = Math.min(stack.getMaxStackSize(), getSlotLimit(slot));
+        // 容量上限直接用槽位容量（64×n 组），不取 min(物品自身上限, 槽位)：
+        // 物品保持 vanilla 默认 64 堆叠（玩家背包/箱子不放大），
+        // 槽位的多组容量由本 handler 的 getSlotLimit 单独实现——
+        // 与 InvWrapper 的 min 语义不同（那会拿物品 64 把槽位 128 钳回 64）
+        int limit = getSlotLimit(slot);
         int canInsert;
         if (inSlot.isEmpty()) {
             canInsert = Math.min(limit, stack.getCount());
