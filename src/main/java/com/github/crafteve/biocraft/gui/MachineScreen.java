@@ -173,8 +173,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 进度条轨道颜色（浅灰，物品色为填充） */
     private static final int BAR_TRACK = 0xFFE0E0E0;
 
-    /** 能量卡主题色（深绿 #2E7D32，浅灰卡片底上可读） */
-    private static final int ENERGY_COLOR = 0xFF2E7D32;
+    /** 能量卡主题色（浅绿 #4CAF50，浅灰卡片底上可读） */
+    private static final int ENERGY_COLOR = 0xFF4CAF50;
 
     /** 每个滚轮刻度移动的像素量（连续像素滚动，非逐张步进） */
     private static final double SCROLL_PIXELS_PER_NOTCH = 20.0;
@@ -1178,13 +1178,16 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         /**
          * 绘制能量卡（56×28）：绿色 FE 主题，与物种卡同尺寸同滚动
          * <p>
-         * 布局（自上而下）：
+         * 布局与物种卡文字完全对齐（y 坐标同口径，x 前移一个槽位宽 18px——
+         * 能量卡无槽位贴图，文字从槽位贴图左侧开始）：
          * <ol>
-         *   <li>"FE" 标签 + 存量/容量（kFE 整数，容量来自引擎 EnergyKinetics）</li>
+         *   <li>第一行 "FE"：y = 槽位贴图顶（cardY+2，同物种卡缩写 y），
+         *       x = 物种卡文字 x − 18（pngX + NAME_DX − 18）</li>
+         *   <li>第二行 "xNk"（存量 kFE）：y = 槽位底面下方（cardY+13，
+         *       同物种卡浓度读数 y），x 同上</li>
          *   <li>绿色进度条（54×3，存量/容量比例，与物种卡进度条同位置口径）</li>
-         *   <li>产率读数（+充能 / −消耗，kFE/tick）</li>
          * </ol>
-         * 颜色：#2E7D32 深绿（浅灰卡片底上可读）；数据全部来自 ContainerData
+         * 颜色：#4CAF50 浅绿（浅灰卡片底上可读）；数据全部来自 ContainerData
          * （存量）与引擎 API（容量/换算），不复制任何公式
          *
          * @param graphics 渲染器
@@ -1195,20 +1198,18 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         private void drawEnergyCard(GuiGraphics graphics, int cardX, int cardY, int count) {
             int stored = menu.getEnergyStored();
             int capacity = com.github.crafteve.biocraft.reaction.EnergyKinetics.capacity(count);
-            // 顶部行：FE 标签 + 存量/容量（kFE，保留整数）
-            graphics.drawString(font, "FE", cardX + 3, cardY + 2, ENERGY_COLOR, false);
-            graphics.drawString(font,
-                    formatKfe(stored) + "/" + formatKfe(capacity),
-                    cardX + 18, cardY + 2, ENERGY_COLOR, false);
+            // 文字 x：物种卡文字（pngX + NAME_DX）前移一个槽位宽（18px）
+            int textX = cardX + MachineMenu.SLOT_PNG_X + MachineMenu.NAME_DX - 18;
+            // 第一行 "FE"：y 与物种卡缩写平齐（槽位贴图顶）
+            graphics.drawString(font, "FE", textX, cardY + MachineMenu.SLOT_PNG_Y, ENERGY_COLOR, false);
+            // 第二行 "xNk"：y 与物种卡浓度读数平齐（槽位底面下方 1px − 8px 字高）
+            int numY = cardY + MachineMenu.SLOT_PNG_Y + 18 + 1 - 8;
+            graphics.drawString(font, "x" + formatKfe(stored), textX, numY, ENERGY_COLOR, false);
             // 中部：绿色进度条（与物种卡进度条同位置口径：卡片内 y 20..28 居中）
             int barY = cardY + MachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
             int fill = capacity > 0 ? (int) (54L * stored / capacity) : 0;
             graphics.fill(cardX + 1, barY, cardX + 1 + 54, barY + 3, BAR_TRACK);
             graphics.fill(cardX + 1, barY, cardX + 1 + Math.min(fill, 54), barY + 3, ENERGY_COLOR);
-            // 底部：产率读数（FE/tick → kFE/tick，正 = 充能、负 = 消耗）
-            double rate = menu.getEnergyRate() / 1000.0;
-            graphics.drawString(font, String.format("%+.1f kFE/tick", rate),
-                    cardX + 3, cardY + 18, ENERGY_COLOR, false);
         }
 
         /**

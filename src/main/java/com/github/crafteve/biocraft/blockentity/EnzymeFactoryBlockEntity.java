@@ -303,6 +303,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     public void addEnergy(int amount) {
         energyStored = Math.min(getEnergyCapacity(), energyStored + amount);
         setChanged();
+        notifyEnergyCapabilityChange();
     }
 
     /**
@@ -316,6 +317,22 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     public void consumeEnergy(int amount) {
         energyStored = Math.max(0, energyStored - amount);
         setChanged();
+        notifyEnergyCapabilityChange();
+    }
+
+    /**
+     * 能量变化 → capability 缓存失效通知（NeoForge 标准实践）
+     * <p>
+     * Pipez 等管道模组用 BlockCapabilityCache 缓存 capability 查询结果，
+     * 缓存值仅在收到 invalidation 通知或方块/区块变化时重新查询；
+     * 能量/槽位数据变化后主动通知，保证任何时序下缓存都拿到最新能力
+     * （本机返回的是懒加载单例对象引用，缓存本身不失效也能读到最新
+     * 存量，此通知是对缓存 null 时序场景的兜底）
+     */
+    private void notifyEnergyCapabilityChange() {
+        if (level != null && !level.isClientSide) {
+            invalidateCapabilities();
+        }
     }
 
     /**
@@ -457,6 +474,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         if (energyStored != energyStoredSnapshot) {
             energyStoredSnapshot = energyStored;
             setChanged();
+            notifyEnergyCapabilityChange();
         }
         updateCachedData();
         fluxHistory[historyIndex] = cachedFluxX1000;

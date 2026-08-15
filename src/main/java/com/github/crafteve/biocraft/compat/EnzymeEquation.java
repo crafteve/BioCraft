@@ -29,8 +29,8 @@ public final class EnzymeEquation {
     public record Segment(String text, int color) {
     }
 
-    /** fe 能量物种段颜色（深绿，浅底/深底两套口径统一） */
-    private static final int ENERGY_SEGMENT_COLOR = 0xFF2E7D32;
+    /** fe 能量物种段颜色（浅绿，浅底/深底两套口径统一） */
+    private static final int ENERGY_SEGMENT_COLOR = 0xFF4CAF50;
 
     private EnzymeEquation() {
     }
