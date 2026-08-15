@@ -263,7 +263,7 @@
                            "name_en":  "Histidine",
                            "container":  "beaker",
                            "color":  4294022282,
-                           "smiles":  "c1c[nH]c(n1)CC(N)C(=O)O",
+                           "smiles":  "c1cnc[nH]1CC(N)C(=O)O",
                            "abbreviation":  "His",
                            "category":  "amino_acid"
                        },
@@ -373,7 +373,7 @@
                            "name_en":  "Phosphate Ion",
                            "container":  "test_tube",
                            "color":  4294155282,
-                           "smiles":  "[O-]P(=O)([O-])[O-]",
+                           "smiles":  "OP(=O)([O-])[O-]",
                            "abbreviation":  "PO₄",
                            "category":  "ion"
                        },
@@ -493,30 +493,30 @@
                            "name_en":  "Guanine",
                            "container":  "flask",
                            "color":  4294155282,
-                           "smiles":  "Nc1nc2c(n1)nc(=O)[nH]2",
+                           "smiles":  "C1=NC2=C(N1)C(=O)NC(=N2)N",
                            "abbreviation":  "G",
                            "category":  "base"
                        },
-                        {
-                            "id":  "uracil",
-                            "name_zn":  "尿嘧啶",
-                            "name_en":  "Uracil",
-                            "container":  "flask",
-                            "color":  4290787627,
-                            "smiles":  "O=C1NC=CC(=O)N1",
-                            "abbreviation":  "U",
-                            "category":  "base"
-                        },
-                        {
-                            "id":  "thymine",
-                            "name_zn":  "胸腺嘧啶",
-                            "name_en":  "Thymine",
-                            "container":  "flask",
-                            "color":  4289331407,
-                            "smiles":  "O=C1NC=C(C)C(=O)N1",
-                            "abbreviation":  "T",
-                            "category":  "base"
-                        },
+                       {
+                           "id":  "uracil",
+                           "name_zn":  "尿嘧啶",
+                           "name_en":  "Uracil",
+                           "container":  "flask",
+                           "color":  4290787627,
+                           "smiles":  "O=C1NC=CC(=O)N1",
+                           "abbreviation":  "U",
+                           "category":  "base"
+                       },
+                       {
+                           "id":  "thymine",
+                           "name_zn":  "胸腺嘧啶",
+                           "name_en":  "Thymine",
+                           "container":  "flask",
+                           "color":  4289331407,
+                           "smiles":  "O=C1NC=C(C)C(=O)N1",
+                           "abbreviation":  "T",
+                           "category":  "base"
+                       },
                        {
                            "id":  "atp",
                            "name_zn":  "三磷酸腺苷",
@@ -543,7 +543,7 @@
                            "name_en":  "Guanosine Triphosphate",
                            "container":  "flask",
                            "color":  4280790624,
-                           "smiles":  "c1nc2c(c(=O)[nH]1)n(cn2)C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O)O",
+                           "smiles":  "C1=NC2=C(N1C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O)O)N=C(NC2=O)N",
                            "abbreviation":  "GTP",
                            "category":  "nucleotide"
                        },
@@ -583,7 +583,7 @@
                            "name_en":  "Nicotinamide Adenine Dinucleotide (Reduced)",
                            "container":  "flask",
                            "color":  4279672965,
-                           "smiles":  "C1C(C=C(C=N1)C(=O)N)C2C(C(C(O2)COP(=O)(O)OP(=O)(O)OCC3C(C(C(O3)N4C=NC5=C4N=CN=C5N)O)O)O)O",
+                           "smiles":  "C1C=CN(C=C1C(=O)N)C2C(C(C(O2)COP(=O)(O)OP(=O)(O)OCC3C(C(C(O3)N4C=NC5=C(N=CN=C54)N)O)O)O)O",
                            "abbreviation":  "NADH",
                            "category":  "coenzyme"
                        },
@@ -623,7 +623,7 @@
                            "name_en":  "Fructose-1,6-Bisphosphate",
                            "container":  "flask",
                            "color":  4294155282,
-                           "smiles":  "OP(=O)(O)OCC(=O)C(O)C(O)C(O)COP(=O)(O)O",
+                           "smiles":  "OC1C(O)C(O)(COP(=O)(O)O)OC1COP(=O)(O)O",
                            "abbreviation":  "F16P",
                            "category":  "glycolysis"
                        },

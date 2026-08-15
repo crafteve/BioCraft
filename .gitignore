@@ -48,3 +48,7 @@ tools/texturegen/output/
 
 ### 化学引擎单测编译产物 ###
 tools/engineTest/out/
+
+### SMILES 校验工具中间产物 ###
+tools/smilesCheck/out/
+tools/smilesCheck/actual.tsv

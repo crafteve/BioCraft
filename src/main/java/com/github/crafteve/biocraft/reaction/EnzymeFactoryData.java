@@ -33,7 +33,6 @@ import java.util.List;
  * @param inputSlots    输入槽位数（M3 方块实体布局用）
  * @param outputSlots   输出槽位数（M3 方块实体布局用）
  * @param stallMessage  停摆原因文案（策略层 stallReason 的翻译键）
- * @param activators    激活剂物品注册名列表（策略层存在性判定，数值动力学二期）
  */
 public record EnzymeFactoryData(
         String id,
@@ -51,8 +50,7 @@ public record EnzymeFactoryData(
         double tempOptimum,
         int inputSlots,
         int outputSlots,
-        String stallMessage,
-        List<String> activators) {
+        String stallMessage) {
 
     /**
      * 单个物种在反应式中的条目：物品注册名 + 化学计量系数 + 米氏常数

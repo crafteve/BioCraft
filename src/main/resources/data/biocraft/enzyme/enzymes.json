@@ -1,127 +1,374 @@
 {
-    "enzymes": [
+    "enzymes":  [
         {
-            "id": "phosphoglucose_isomerase",
-            "name_zn": "磷酸葡萄糖异构酶",
-            "name_en": "Phosphoglucose Isomerase",
-            "abbreviation": "PGI",
-            "category": "EC5",
-            "kinetic": "ISOMERASE",
-            "reaction": {
-                "reversible": true,
-                "reactants": [
+            "id":  "hexokinase",
+            "name_zn":  "己糖激酶",
+            "name_en":  "Hexokinase",
+            "abbreviation":  "HK",
+            "category":  "EC2",
+            "kinetic":  "LIMITING",
+            "reaction":  {
+                "reversible":  false,
+                "reactants":  [
                     {
-                        "item": "glucose_6_phosphate",
-                        "count": 1,
-                        "km": 0.43
+                        "item":  "glucose",
+                        "count":  1,
+                        "km":  0.049
+                    },
+                    {
+                        "item":  "atp",
+                        "count":  1,
+                        "km":  1.12
                     }
                 ],
-                "products": [
+                "products":  [
                     {
-                        "item": "fructose_6_phosphate",
-                        "count": 1,
-                        "km": 0.046
+                        "item":  "glucose_6_phosphate",
+                        "count":  1,
+                        "km":  0
+                    },
+                    {
+                        "item":  "adp",
+                        "count":  1,
+                        "km":  0
                     }
                 ]
             },
-            "keq": 0.3104,
-            "deltaH": null,
-            "kcat": 79.0,
-            "tempOptimum": 298.15,
-            "stallMessage": "底物浓度不足",
-            "activators": []
+            "keq":  4800.0,
+            "deltaH":  -64.0,
+            "kcat":  54.1,
+            "tempOptimum":  298.15,
+            "stallMessage":  "ATP 耗尽"
         },
         {
-            "id": "hexokinase",
-            "name_zn": "己糖激酶",
-            "name_en": "Hexokinase",
-            "abbreviation": "HK",
-            "category": "EC2",
-            "kinetic": "LIMITING",
-            "reaction": {
-                "reversible": false,
-                "reactants": [
+            "id":  "phosphoglucose_isomerase",
+            "name_zn":  "磷酸葡萄糖异构酶",
+            "name_en":  "Phosphoglucose Isomerase",
+            "abbreviation":  "PGI",
+            "category":  "EC5",
+            "kinetic":  "ISOMERASE",
+            "reaction":  {
+                "reversible":  true,
+                "reactants":  [
                     {
-                        "item": "glucose",
-                        "count": 1,
-                        "km": 0.049
-                    },
-                    {
-                        "item": "atp",
-                        "count": 1,
-                        "km": 1.12
+                        "item":  "glucose_6_phosphate",
+                        "count":  1,
+                        "km":  0.43
                     }
                 ],
-                "products": [
+                "products":  [
                     {
-                        "item": "glucose_6_phosphate",
-                        "count": 1,
-                        "km": 0
-                    },
-                    {
-                        "item": "adp",
-                        "count": 1,
-                        "km": 0
+                        "item":  "fructose_6_phosphate",
+                        "count":  1,
+                        "km":  0.046
                     }
                 ]
             },
-            "keq": 4800.0,
-            "deltaH": -64.0,
-            "kcat": 54.1,
-            "tempOptimum": 298.15,
-            "stallMessage": "ATP 耗尽",
-            "activators": []
+            "keq":  0.3104,
+            "deltaH":  null,
+            "kcat":  79.0,
+            "tempOptimum":  298.15,
+            "stallMessage":  "底物浓度不足"
         },
         {
-            "id": "glyceraldehyde_3_phosphate_dehydrogenase",
-            "name_zn": "甘油醛-3-磷酸脱氢酶",
-            "name_en": "Glyceraldehyde-3-phosphate Dehydrogenase",
-            "abbreviation": "GAPDH",
-            "category": "EC1",
-            "kinetic": "OXIDO_LYASE",
-            "reaction": {
-                "reversible": true,
-                "reactants": [
+            "id":  "phosphofructokinase",
+            "name_zn":  "磷酸果糖激酶-1",
+            "name_en":  "6-Phosphofructokinase-1",
+            "abbreviation":  "PFK",
+            "category":  "EC2",
+            "kinetic":  "LIMITING",
+            "reaction":  {
+                "reversible":  false,
+                "reactants":  [
                     {
-                        "item": "glyceraldehyde_3_phosphate",
-                        "count": 1,
-                        "km": 0.137
+                        "item":  "fructose_6_phosphate",
+                        "count":  1,
+                        "km":  0.25
                     },
                     {
-                        "item": "nad_plus",
-                        "count": 1,
-                        "km": 0.045
-                    },
-                    {
-                        "item": "phosphate_ion",
-                        "count": 1,
-                        "km": 4.0
+                        "item":  "atp",
+                        "count":  1,
+                        "km":  0.13
                     }
                 ],
-                "products": [
+                "products":  [
                     {
-                        "item": "1_3_bisphosphoglycerate",
-                        "count": 1,
-                        "km": 0.137
+                        "item":  "fructose_1_6_bisphosphate",
+                        "count":  1,
+                        "km":  0
                     },
                     {
-                        "item": "nadh",
-                        "count": 1,
-                        "km": 0.045
-                    },
-                    {
-                        "item": "hydrogen_ion",
-                        "count": 1,
-                        "km": 0
+                        "item":  "adp",
+                        "count":  1,
+                        "km":  0
                     }
                 ]
             },
-            "keq": 0.0963,
-            "deltaH": null,
-            "kcat": 199.0,
-            "tempOptimum": 298.15,
-            "stallMessage": "NAD⁺ 耗尽",
-            "activators": []
+            "keq":  1164.2,
+            "deltaH":  null,
+            "kcat":  357.0,
+            "tempOptimum":  298.15,
+            "stallMessage":  "ATP 耗尽"
+        },
+        {
+            "id":  "aldolase",
+            "name_zn":  "果糖二磷酸醛缩酶",
+            "name_en":  "Fructose-bisphosphate Aldolase",
+            "abbreviation":  "ALDO",
+            "category":  "EC4",
+            "kinetic":  "OXIDO_LYASE",
+            "reaction":  {
+                "reversible":  true,
+                "reactants":  [
+                    {
+                        "item":  "fructose_1_6_bisphosphate",
+                        "count":  1,
+                        "km":  0.17
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "dihydroxyacetone_phosphate",
+                        "count":  1,
+                        "km":  0.88
+                    },
+                    {
+                        "item":  "glyceraldehyde_3_phosphate",
+                        "count":  1,
+                        "km":  0.79
+                    }
+                ]
+            },
+            "keq":  0.0001456,
+            "deltaH":  null,
+            "kcat":  10.7,
+            "tempOptimum":  298.15,
+            "stallMessage":  "底物浓度不足"
+        },
+        {
+            "id":  "triose_phosphate_isomerase",
+            "name_zn":  "磷酸丙糖异构酶",
+            "name_en":  "Triosephosphate Isomerase",
+            "abbreviation":  "TPI",
+            "category":  "EC5",
+            "kinetic":  "ISOMERASE",
+            "reaction":  {
+                "reversible":  true,
+                "reactants":  [
+                    {
+                        "item":  "dihydroxyacetone_phosphate",
+                        "count":  1,
+                        "km":  0.88
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "glyceraldehyde_3_phosphate",
+                        "count":  1,
+                        "km":  0.79
+                    }
+                ]
+            },
+            "keq":  0.10874,
+            "deltaH":  null,
+            "kcat":  9000.0,
+            "tempOptimum":  298.15,
+            "stallMessage":  "底物浓度不足"
+        },
+        {
+            "id":  "glyceraldehyde_3_phosphate_dehydrogenase",
+            "name_zn":  "甘油醛-3-磷酸脱氢酶",
+            "name_en":  "Glyceraldehyde-3-phosphate Dehydrogenase",
+            "abbreviation":  "GAPDH",
+            "category":  "EC1",
+            "kinetic":  "OXIDO_LYASE",
+            "reaction":  {
+                "reversible":  true,
+                "reactants":  [
+                    {
+                        "item":  "glyceraldehyde_3_phosphate",
+                        "count":  1,
+                        "km":  0.137
+                    },
+                    {
+                        "item":  "nad_plus",
+                        "count":  1,
+                        "km":  0.045
+                    },
+                    {
+                        "item":  "phosphate_ion",
+                        "count":  1,
+                        "km":  4.0
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "1_3_bisphosphoglycerate",
+                        "count":  1,
+                        "km":  0.137
+                    },
+                    {
+                        "item":  "nadh",
+                        "count":  1,
+                        "km":  0.045
+                    },
+                    {
+                        "item":  "hydrogen_ion",
+                        "count":  1,
+                        "km":  0
+                    }
+                ]
+            },
+            "keq":  0.0963,
+            "deltaH":  null,
+            "kcat":  199.0,
+            "tempOptimum":  298.15,
+            "stallMessage":  "NAD⁺ 耗尽"
+        },
+        {
+            "id":  "phosphoglycerate_kinase",
+            "name_zn":  "磷酸甘油酸激酶",
+            "name_en":  "Phosphoglycerate Kinase",
+            "abbreviation":  "PGK",
+            "category":  "EC2",
+            "kinetic":  "LIMITING",
+            "reaction":  {
+                "reversible":  true,
+                "reactants":  [
+                    {
+                        "item":  "1_3_bisphosphoglycerate",
+                        "count":  1,
+                        "km":  0.105
+                    },
+                    {
+                        "item":  "adp",
+                        "count":  1,
+                        "km":  0.12
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "3_phosphoglycerate",
+                        "count":  1,
+                        "km":  0.105
+                    },
+                    {
+                        "item":  "atp",
+                        "count":  1,
+                        "km":  0.11
+                    }
+                ]
+            },
+            "keq":  1262.1,
+            "deltaH":  null,
+            "kcat":  833.0,
+            "tempOptimum":  298.15,
+            "stallMessage":  "ADP 耗尽"
+        },
+        {
+            "id":  "phosphoglycerate_mutase",
+            "name_zn":  "磷酸甘油酸变位酶",
+            "name_en":  "Phosphoglycerate Mutase",
+            "abbreviation":  "PGM",
+            "category":  "EC5",
+            "kinetic":  "ISOMERASE",
+            "reaction":  {
+                "reversible":  true,
+                "reactants":  [
+                    {
+                        "item":  "3_phosphoglycerate",
+                        "count":  1,
+                        "km":  0.4
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "2_phosphoglycerate",
+                        "count":  1,
+                        "km":  0.06
+                    }
+                ]
+            },
+            "keq":  0.15016,
+            "deltaH":  null,
+            "kcat":  457.0,
+            "tempOptimum":  298.15,
+            "stallMessage":  "底物浓度不足"
+        },
+        {
+            "id":  "enolase",
+            "name_zn":  "烯醇化酶",
+            "name_en":  "Enolase",
+            "abbreviation":  "ENO",
+            "category":  "EC4",
+            "kinetic":  "OXIDO_LYASE",
+            "reaction":  {
+                "reversible":  true,
+                "reactants":  [
+                    {
+                        "item":  "2_phosphoglycerate",
+                        "count":  1,
+                        "km":  0.25
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "phosphoenolpyruvate",
+                        "count":  1,
+                        "km":  0.64
+                    },
+                    {
+                        "item":  "water",
+                        "count":  1,
+                        "km":  0
+                    }
+                ]
+            },
+            "keq":  4.4489,
+            "deltaH":  null,
+            "kcat":  81.7,
+            "tempOptimum":  298.15,
+            "stallMessage":  "底物浓度不足"
+        },
+        {
+            "id":  "pyruvate_kinase",
+            "name_zn":  "丙酮酸激酶",
+            "name_en":  "Pyruvate Kinase",
+            "abbreviation":  "PK",
+            "category":  "EC2",
+            "kinetic":  "LIMITING",
+            "reaction":  {
+                "reversible":  false,
+                "reactants":  [
+                    {
+                        "item":  "phosphoenolpyruvate",
+                        "count":  1,
+                        "km":  0.37
+                    },
+                    {
+                        "item":  "adp",
+                        "count":  1,
+                        "km":  0.29
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "pyruvate",
+                        "count":  1,
+                        "km":  0
+                    },
+                    {
+                        "item":  "atp",
+                        "count":  1,
+                        "km":  0
+                    }
+                ]
+            },
+            "keq":  21257.0,
+            "deltaH":  null,
+            "kcat":  1182.0,
+            "tempOptimum":  298.15,
+            "stallMessage":  "ADP 耗尽"
         }
     ]
 }

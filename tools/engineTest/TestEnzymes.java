@@ -43,7 +43,7 @@ public final class TestEnzymes {
                 List.of(s("glucose_6_phosphate", 1, 0.43)),
                 List.of(s("fructose_6_phosphate", 1, 0.046)),
                 true, 0.3104, null, 79.0, 298.15,
-                1, 1, "底物浓度不足", List.of());
+                1, 1, "底物浓度不足");
     }
 
     /**
@@ -58,7 +58,7 @@ public final class TestEnzymes {
                 List.of(s("glucose", 1, 0.049), s("atp", 1, 1.12)),
                 List.of(s("glucose_6_phosphate", 1, 0.0), s("adp", 1, 0.0)),
                 false, 4800.0, null, 54.1, 298.15,
-                2, 2, "ATP 耗尽", List.of());
+                2, 2, "ATP 耗尽");
     }
 
     /**
@@ -80,7 +80,7 @@ public final class TestEnzymes {
                         s("nadh", 1, 0.045),
                         s("hydrogen_ion", 1, 0.0)),
                 true, 0.0963, null, 199.0, 298.15,
-                3, 2, "NAD⁺ 耗尽", List.of());
+                3, 2, "NAD⁺ 耗尽");
     }
 
     /**
@@ -96,7 +96,7 @@ public final class TestEnzymes {
                 List.of(s("dihydroxyacetone_phosphate", 1, 0.62)),
                 List.of(s("glyceraldehyde_3_phosphate", 1, 0.52)),
                 true, 0.1087, null, 2946.0, 298.15,
-                1, 1, "底物浓度不足", List.of());
+                1, 1, "底物浓度不足");
     }
 
     /**
@@ -112,7 +112,7 @@ public final class TestEnzymes {
                 List.of(s("2_phosphoglycerate", 1, 0.244)),
                 List.of(s("phosphoenolpyruvate", 1, 0.637), s("water", 1, 0.0)),
                 true, 4.449, null, 81.7, 298.15,
-                1, 2, "底物浓度不足", List.of());
+                1, 2, "底物浓度不足");
     }
 
     /**

@@ -52,14 +52,14 @@
 - 已完成 tooltip 布局：手持物品时创意标签页标题（蓝色）自动移至 tooltip 末尾（`MoleculeTooltipLayout`）
 - 已完成 视觉校验闭环：`.opencode/agents/vision.md` 视觉审查子代理（opencode-go/qwen3.7-plus 多模态）+ `tools/texturegen/` 程序化贴图工具链（PixelCanvas DSL，生成 PNG 后派 vision 子代理读图审查）
 - 已完成 化学引擎内核（纯 Java 零 MC 依赖，`tools/engineTest/` 独立单测 16 用例全绿）：多底物可逆米氏乘积速率方程（共享分母，平衡精确 = Keq 绝不缩放 + 饱和有界 + 产物回压 + 全底物平等，ATP/NAD⁺ 参与速率）、RK4 积分（Δt=0.05）、温度修正（van't Hoff/Q10 + 0.1K 缓存）、固定活性物种（H₂O/H⁺ 只结算不进速率）、三断言数据防火墙（配平/数值健康/Keq 红线）；PGI 平衡收敛误差 <1%、黄金值快照防回归、可达通量收敛进引擎（显示层禁复制速率公式，见 2.6 欠账 23）
-- 已完成 酶工厂数据驱动注册体系：`enzymes.json` 已有 3 条酶数据（PGI 异构酶 / HK 限速酶 / GAPDH 氧化裂解，Km/kcat/Keq/ΔH/stallMessage 数值溯源见根目录《糖酵解热力学数据库》md 文档），`EnzymeFactoryRegistry` 注册期解析 + 引擎断言防火墙校验；数据表新增酶即自动注册方块/物品/配方，代码零改动
+- 已完成 酶工厂数据驱动注册体系：`enzymes.json` 已有糖酵解全部 10 步酶数据（HK/PGI/PFK/ALDO/TPI/GAPDH/PGK/PGM/ENO/PK，Km/kcat/Keq/ΔH/stallMessage 数值溯源见根目录《糖酵解热力学数据库》md 文档；无激活剂/抑制剂字段——该项目无此设计），`EnzymeFactoryRegistry` 注册期解析 + 引擎断言防火墙校验；数据表新增酶即自动注册方块/物品/配方，代码零改动
 - 已完成 BE 桥接：`EnzymeFactoryBlockEntity` 浓度-槽位双向投影（引擎连续浓度是权威，槽位 = floor(浓度×64)，余量驱动 GUI 进度条）、每 tick RK4 步进 + 睡眠机制、NBT 定点存档浓度、漏斗防呆弹出非法物品
 - 已完成 DNA 编码器（第一台原始机器）：缓冲池模型（碱基吸收进池、上限 4096、事件驱动）、序列经数据组件存储于 DNA 模板物品、事务式合成、方块破坏缓冲池折算掉落（onRemove 而非 setRemoved）
 - 已完成 酶工厂 GUI：256×256 手绘基底 `gui_v1.png`、滚动卡片物种槽（`isActive=false` 全接管绘制与命中）、反应方程式彩色分段渲染、v-t 通量折线图（4x 超采样、1s 一点 10 点）、平衡区（log(Q/Keq) 缩放滑块 + Keq/Q 读数）、速率实时读数；ContainerData 每 tick 同步，打开数据包一次性下发 v-t 历史
 - 已完成 JEI 酶工厂配方显示：每酶一个专属配方类别（查看用途互不混淆），`EnzymeRecipeDisplay` 为 JEI/EMI 共享只读 DTO（零 JEI 依赖，新增酶自动生效）
 - 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
 - 待开发 转录仪 / 翻译仪（后两台原始机器）
-- 待开发 剩余 7 步糖酵解酶数据与流水线（纪元二）
+- 待开发 糖酵解流水线搭建（纪元二：10 步酶数据已齐，机器布局与产线衔接待做）
 - 待开发 策略层三种动力学变体生效（LIMITING/ISOMERASE/OXIDO_LYASE 目前仅数据存储，活性恒 1）
 - 待开发 温度机制（M5）、酶插件升级、细胞器纪元（纪元三/四）
 
@@ -97,9 +97,11 @@
 - `.gitattributes` — 行尾/文本属性
 - `README.md` — 项目介绍（中文，含 B 站视频嵌入与当前进度章节，与本文档 1.5 进度同步维护；无图片/emoji）
 - `糖酵解热力学数据库_2026-08-13.md` — 酶数据数值溯源文档（eQuilibrator ΔG°′/BRENDA Km/kcat 出处与换算过程，enzymes.json 的权威数据源）
+- `全部SMILES结构式清单_2026-08-13.md` — 全部化合物 SMILES 核对清单（PubChem canonical 与 eQuilibrator 双源交叉，InChIKey 前 25 位连通性校验），substances.json 的 SMILES 权威对照（tools/smilesCheck 的期望表来源）
 - `TEMPLATE_LICENSE.txt` — 模板许可
 - `tools/texturegen/` — 程序化贴图工具链（`PixelCanvas.java` 像素画 DSL + `TextureScript.java` 示例脚本），纯 JDK 21 AWT 零依赖，与 Gradle 构建完全隔离。编译 `javac -encoding UTF-8 -d tools/texturegen/out tools/texturegen/*.java`，运行 `java -cp tools/texturegen/out TextureScript [输出目录]`；输出目录 `tools/texturegen/output/` 已 gitignore，正式贴图确定后拷入 `src/main/resources`
 - `tools/engineTest/` — 化学引擎独立单测（16 用例），纯 JDK 零依赖扮演"伪方块实体"验证引擎纯函数契约。运行前需先 `gradlew build`（生成主代码 class），再 `javac -encoding UTF-8 -cp build/classes/java/main -d tools/engineTest/out tools/engineTest/*.java` + `java -cp "build/classes/java/main;tools/engineTest/out" engineTest.EngineSelfTest`；退出码 0=全绿、1=有失败。输出目录 `tools/engineTest/out/` 已 gitignore
+- `tools/smilesCheck/` — 物质表 SMILES 批量校验程序（`SmilesCheck.java`，独立工具不进 mod 源码源集）。先 `javac -encoding UTF-8 -cp build/cdk/cdk-all.jar -d tools/smilesCheck/out tools/smilesCheck/SmilesCheck.java`，再从 substances.json 提取 id+SMILES 生成 actual.tsv，运行 `java -cp "build/cdk/cdk-all.jar;tools/smilesCheck/out" smilesCheck.SmilesCheck`（0=全过、1=有失败）。三连校验：CDK 可解析性、重原子组成一致、键序归一化后 Pattern 双向子图同构（连通性口径，芳香/电荷/立体差异算记法差异，与《全部SMILES结构式清单_2026-08-13.md》对照）。升级 CDK 或新增分子后重跑；out/ 与 actual.tsv 已 gitignore
 
 ### 2.2 构建与运行目录
 

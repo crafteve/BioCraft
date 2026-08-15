@@ -148,8 +148,6 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "kcat = %s s⁻¹" : "kcat = %s s⁻¹");
         translations.put("jei.biocraft.temp",
                 zh ? "T = %s K" : "T = %s K");
-        translations.put("jei.biocraft.activator",
-                zh ? "激活剂: %s" : "Activators: %s");
         translations.put("jei.biocraft.count",
                 zh ? "数量 ×%s" : "Count ×%s");
         translations.put("jei.biocraft.vmax_f",

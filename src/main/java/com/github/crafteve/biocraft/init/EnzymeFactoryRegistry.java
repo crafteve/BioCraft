@@ -98,16 +98,9 @@ public final class EnzymeFactoryRegistry {
         double tempOptimum = enzyme.get("tempOptimum").getAsDouble();
         String stallMessage = enzyme.get("stallMessage").getAsString();
 
-        List<String> activators = new ArrayList<>();
-        if (enzyme.has("activators")) {
-            for (JsonElement activator : enzyme.getAsJsonArray("activators")) {
-                activators.add(activator.getAsString());
-            }
-        }
-
         return new EnzymeFactoryData(id, nameZn, nameEn, abbreviation, category, kinetic,
                 reactants, products, reversible, keq, deltaH, kcat, tempOptimum,
-                reactants.size(), products.size(), stallMessage, activators);
+                reactants.size(), products.size(), stallMessage);
     }
 
     /**

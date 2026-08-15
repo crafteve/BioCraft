@@ -33,7 +33,6 @@ import java.util.Map;
  * @param deltaG       ΔG°′（kJ/mol，由 Keq 换算：−RT·ln(Keq)）
  * @param kcat         正向周转数（s⁻¹）
  * @param tempOptimum  最适温度（K）
- * @param activators   激活剂物品列表
  * @param machineStack 本酶工厂方块物品（信息卡酶槽图标）
  * @param vmaxFPerTick 正向饱和可达最大速率（个/tick，与 GUI 速率条同口径）
  * @param vmaxBPerTick 逆向饱和可达最大速率（个/tick，不可逆为 0）
@@ -51,7 +50,6 @@ public record EnzymeRecipeDisplay(
         double deltaG,
         double kcat,
         double tempOptimum,
-        List<ItemStack> activators,
         ItemStack machineStack,
         double vmaxFPerTick,
         double vmaxBPerTick,
@@ -98,16 +96,13 @@ public record EnzymeRecipeDisplay(
     private static EnzymeRecipeDisplay build(EnzymeFactoryData data) {
         List<Entry> inputs = data.reactants().stream().map(EnzymeRecipeDisplay::toEntry).toList();
         List<Entry> outputs = data.products().stream().map(EnzymeRecipeDisplay::toEntry).toList();
-        List<ItemStack> activators = data.activators().stream()
-                .map(id -> new ItemStack(ModItems.byId(id).get()))
-                .toList();
 
         ReactionDefinition definition = data.buildSimulator().getDefinition();
 
         double deltaG = CompatRenderUtil.deltaGFromKeq(data.keq());
         return new EnzymeRecipeDisplay(data.id(), data.nameZn(), data.abbreviation(),
                 data.category(), data.kinetic(), data.reversible(), data.keq(), deltaG,
-                data.kcat(), data.tempOptimum(), activators,
+                data.kcat(), data.tempOptimum(),
                 machineStack(data.id()),
                 definition.forwardReachableFlux() * CompatRenderUtil.ITEMS_PER_TICK,
                 definition.reverseReachableFlux() * CompatRenderUtil.ITEMS_PER_TICK,
