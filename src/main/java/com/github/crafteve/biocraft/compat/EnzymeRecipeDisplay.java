@@ -16,7 +16,7 @@ import java.util.Map;
  * 酶工厂配方的展示模型（JEI/EMI 共享的只读 DTO）
  * <p>
  * 由 {@link EnzymeFactoryData} 在注册期转换构建：物品 id 解析为实际 ItemStack、
- * 固定活性物种标记、ΔG°′ 换算、饱和可达 Vmax（个/tick），此后全程只读。
+ * 固定活性物种标记、ΔG°′ 换算、饱和可达 Vmax（/tick），此后全程只读。
  * JEI 与 EMI 的显示层都只依赖本模型，保证两侧配方卡内容与数据完全一致，
  * 新增酶（改 enzymes.json）自动生效
  * <p>
@@ -33,8 +33,8 @@ import java.util.Map;
  * @param kcat         正向周转数（s⁻¹）
  * @param tempOptimum  最适温度（K）
  * @param machineStack 本酶工厂方块物品（信息卡酶槽图标）
- * @param vmaxFPerTick 正向饱和可达最大速率（个/tick，与 GUI 速率条同口径）
- * @param vmaxBPerTick 逆向饱和可达最大速率（个/tick，不可逆为 0）
+ * @param vmaxFPerTick 正向饱和可达最大速率（/tick，与 GUI 速率条同口径）
+ * @param vmaxBPerTick 逆向饱和可达最大速率（/tick，不可逆为 0）
  * @param inputs       反应物条目（左侧槽位，按酶数据表顺序）
  * @param outputs      产物条目（右侧槽位，按酶数据表顺序）
  */

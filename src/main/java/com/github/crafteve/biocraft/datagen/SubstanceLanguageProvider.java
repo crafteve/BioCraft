@@ -134,7 +134,7 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "固定活性物种（不参与速率计算，仅化学计量结算）"
                         : "Fixed-activity species (not in rate law, stoichiometry only)");
         translations.put("jei.biocraft.keq",
-                zh ? "平衡常数 = %s" : "Kₑq = %s");
+                zh ? "平衡常数 %s" : "Equilibrium Constant %s");
         translations.put("jei.biocraft.delta_g",
                 zh ? "ΔG°′ = %s kJ/mol" : "ΔG°′ = %s kJ/mol");
         translations.put("jei.biocraft.kcat",
@@ -144,9 +144,9 @@ public class SubstanceLanguageProvider implements DataProvider {
         translations.put("jei.biocraft.count",
                 zh ? "数量 ×%s" : "Count ×%s");
         translations.put("jei.biocraft.vmax_f",
-                zh ? "正向速率最大值 %s 个/tick" : "Fwd Max Rate %s/tick");
+                zh ? "正向速率最大值 %s/tick" : "Fwd Max Rate %s/tick");
         translations.put("jei.biocraft.vmax_b",
-                zh ? "逆向速率最大值 %s 个/tick" : "Rev Max Rate %s/tick");
+                zh ? "逆向速率最大值 %s/tick" : "Rev Max Rate %s/tick");
     }
 
     /**
@@ -162,11 +162,11 @@ public class SubstanceLanguageProvider implements DataProvider {
         translations.put("tooltip.biocraft.enzyme.irreversible",
                 zh ? "不可逆" : "Irreversible");
         translations.put("tooltip.biocraft.enzyme.keq",
-                zh ? "平衡常数 = %s" : "Kₑq = %s");
+                zh ? "平衡常数 %s" : "Equilibrium Constant %s");
         translations.put("tooltip.biocraft.enzyme.vmax_f",
-                zh ? "正向速率最大值 %s 个/tick" : "Fwd Max Rate %s/tick");
+                zh ? "正向速率最大值 %s/tick" : "Fwd Max Rate %s/tick");
         translations.put("tooltip.biocraft.enzyme.vmax_b",
-                zh ? "逆向速率最大值 %s 个/tick" : "Rev Max Rate %s/tick");
+                zh ? "逆向速率最大值 %s/tick" : "Rev Max Rate %s/tick");
         translations.put("tooltip.biocraft.enzyme.temp",
                 zh ? "最适温度 %s K" : "Optimum Temp %s K");
         translations.put("machine.category.EC1",

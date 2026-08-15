@@ -27,8 +27,8 @@ import net.minecraft.network.chat.Component;
  *   y=43   磷酸葡萄糖异构酶                                hover 显示酶名，点击查看本酶配方）
  *                                                    右侧上部缩写（主题色+阴影）、下部显示名（白+阴影）
  *   y=56   Keq = 4.8×10³                             行 2：Keq（左对齐 x=2，白字+阴影，
- *   y=65   正向速率最大值 0.18 个/tick                     位于酶槽下方、速率上方）
- *   y=74   逆向速率最大值 0.026 个/tick                行 3/4：饱和可达速率（左对齐 x=2）
+ *   y=65   正向速率最大值 0.18 /tick                     位于酶槽下方、速率上方）
+ *   y=74   逆向速率最大值 0.026 /tick                行 3/4：饱和可达速率（左对齐 x=2）
  * </pre>
  * 输入槽从 x=2 起排布，箭头区固定在输入末槽右侧（arrowX = 2 + nIn*20 + 8），
  * 输出槽在箭头右侧（outputX = arrowX + 30）；卡宽固定 160（容纳最多 3 输入 + 3 输出）
@@ -239,7 +239,7 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
         graphics.drawString(font, recipe.abbreviation(), ENZ_TEXT_X, ABBR_Y, theme, true);
         graphics.drawString(font, recipe.displayName(), ENZ_TEXT_X, NAME_Y, COLOR_WHITE, true);
 
-        // 行 2/3：正向/逆向饱和可达最大速率，各自独立一行（中文文案，两位有效数字，个/tick）
+        // 行 2/3：正向/逆向饱和可达最大速率，各自独立一行（中文文案，两位有效数字，/tick）
         graphics.drawString(font,
                 Component.translatable("jei.biocraft.vmax_f", CompatRenderUtil.formatRate(recipe.vmaxFPerTick()))
                         .withStyle(style -> style.withColor(COLOR_WHITE)),

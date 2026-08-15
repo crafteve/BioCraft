@@ -43,10 +43,10 @@ import java.util.List;
  *       平滑插值，视口 scissor 裁剪</li>
  *   <li>v-t 图：4x 超采样抗锯齿，Y 轴按刻度宽度自动定位、X 轴按
  *       vmax 比例定位（可逆居中/不可逆贴底），1s 一点 10 点折线，
- *       刻度标注（个/tick）</li>
+ *       刻度标注（/tick）</li>
  *   <li>平衡区：渐变平衡条（两端加深主题色中间白）+ log10(Q/Keq)
  *       缩放滑块 + Keq/Q 读数（左右对齐滑槽）</li>
- *   <li>速率区：居中显示 v=xxx（个/tick）8px 黑色</li>
+ *   <li>速率区：居中显示 v=xxx（/tick）8px 黑色</li>
  * </ul>
  * 字体约定：全程使用 Minecraft 自带字体（含中文 unicode 自动回退），
  * 不加载任何自定义 TTF 字体资源
@@ -371,9 +371,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
     /**
      * 速率实时显示区：平衡区下方 1px 间隔，浅色底画到 y=164，
-     * 居中显示 v=xxx（个/tick，8px 黑色字体，不超采样）
+     * 居中显示 v=xxx（/tick，8px 黑色字体，不超采样）
      * <p>
-     * 数值 = 引擎净通量（堆叠分数/s）× 64 × 0.05s = ×3.2（个/tick）；
+     * 数值 = 引擎净通量（堆叠分数/s）× 64 × 0.05s = ×3.2（/tick）；
      * 2 位有效数字，|v| < 0.05 显示 "0.0"（接近 0 判定）；
      * 区高不足 8px（多行方程式挤压）时跳过文字避免重叠
      *
@@ -391,7 +391,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         }
         double v = menu.getFlux() * 3.2;
         String vs = Math.abs(v) < 0.05 ? "0.0" : formatTickValue(v);
-        String text = "v=" + vs + " 个/tick";
+        String text = "v=" + vs + " /tick";
         int textW = this.font.width(text);
         int x = this.leftPos + (VT_BG_X0 + VT_BG_X1) / 2 - textW / 2;
         int y = y0 + (h - 8) / 2;
@@ -473,7 +473,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      *       满堆工况恰好顶到 y 最大/最小值</li>
      *   <li>折线：1s 一点共 10 点，从左往右滚动（最新在左端）；
      *       2.5px 主题色方形点 + 1.25px 主题色折线（中心对齐穿点）</li>
-     *   <li>刻度：每 10px 一条，值 = v×3.2（个/tick），2x 文字（显示 4px）</li>
+     *   <li>刻度：每 10px 一条，值 = v×3.2（/tick），2x 文字（显示 4px）</li>
      * </ul>
      *
      * @param graphics 渲染器
@@ -525,7 +525,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         }
 
         // 折线：绘制在轴与刻度之下（先画，后画的轴/刻度/单位覆盖其上，
-        // 避免折线遮挡单位等标记——原顺序折线最后绘制盖住"个/tick"）
+        // 避免折线遮挡单位等标记——原顺序折线最后绘制盖住"/tick"）
         // 从左往右滚动——最新点在左端（Y 轴处），旧点逐格右移，
         // 最右点恰好落在 X 轴箭头屁股（消失处）
         int count = Math.min(vtSampleCount, VT_POINTS);
@@ -579,8 +579,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             int ty = p * ss - ss * 2;
             drawScaledText(graphics, label, tx, ty, 2.0F);
         }
-        // 单位标注：个/tick，Y 轴顶端右侧
-        drawScaledText(graphics, "个/tick", axisX + ss + ss - 1, 0, 2.0F);
+        // 单位标注：/tick，Y 轴顶端右侧
+        drawScaledText(graphics, "/tick", axisX + ss + ss - 1, 0, 2.0F);
 
         graphics.pose().popPose();
     }

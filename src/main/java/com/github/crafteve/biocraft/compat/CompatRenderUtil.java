@@ -13,7 +13,7 @@ import java.util.Locale;
  */
 public final class CompatRenderUtil {
 
-    /** 堆叠分数/s → 个/tick 的换算因子（64 个物品 = 满堆叠，1 tick = 0.05s），与 GUI 速率条同口径 */
+    /** 堆叠分数/s → /tick 的换算因子（64 个物品 = 满堆叠，1 tick = 0.05s），与 GUI 速率条同口径 */
     public static final double ITEMS_PER_TICK = 64.0 * KineticConstants.TICK_SECONDS;
 
     private CompatRenderUtil() {
@@ -114,10 +114,10 @@ public final class CompatRenderUtil {
     /**
      * 速率文本格式化（两位有效数字，含 e 时回退两位小数）
      * <p>
-     * 用于 Vmax 等以"个/tick"为单位的展示值；与 GUI 速率条刻度同款处理
+     * 用于 Vmax 等以"/tick"为单位的展示值；与 GUI 速率条刻度同款处理
      * （%.2g 含 e 回退 %.2f），避免科学计数法符号挤占卡片宽度
      *
-     * @param value 速率值（个/tick）
+     * @param value 速率值（/tick）
      * @return 显示文本
      */
     public static String formatRate(double value) {
