@@ -149,11 +149,35 @@ public class MachineBlock extends Block implements EntityBlock {
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
         if (!state.is(newState.getBlock())) {
             if (level.getBlockEntity(pos) instanceof MachineBlockEntity machine) {
-                Containers.dropContents(level, pos, machine.getContainer());
+                dropContainerContents(level, pos, machine);
                 machine.dropExtraContents(level, pos);
             }
         }
         super.onRemove(state, level, pos, newState, movedByPiston);
+    }
+
+    /**
+     * 容器内容掉落：按 64 拆堆生成掉落物实体
+     * <p>
+     * 槽位容量放大到 128 后，Containers.dropContents 会直接生成
+     * count=128 的 ItemEntity——其存档同样走 ItemStack.CODEC 的
+     * [1,99] count 校验，进出存档即崩溃（与 BE 存档同根因）。
+     * 此处按物品最大堆叠拆成多堆掉落，每堆 ≤64 存档安全
+     *
+     * @param level   所在世界
+     * @param pos     方块位置
+     * @param machine 机器方块实体
+     */
+    private static void dropContainerContents(Level level, BlockPos pos, MachineBlockEntity machine) {
+        net.minecraft.world.SimpleContainer container = machine.getContainer();
+        for (int i = 0; i < container.getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack stack = container.getItem(i);
+            while (!stack.isEmpty()) {
+                int drop = Math.min(stack.getCount(), 64);
+                Containers.dropItemStack(level, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                        stack.split(drop));
+            }
+        }
     }
 
     /**

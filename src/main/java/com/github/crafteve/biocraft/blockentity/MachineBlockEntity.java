@@ -124,7 +124,7 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
     @Override
     public void saveAdditional(CompoundTag tag, net.minecraft.core.HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
-        tag.put("inventory", inventory.createTag(registries));
+        tag.put("inventory", saveContainerData(registries));
     }
 
     /**
@@ -137,8 +137,33 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
     public void loadAdditional(CompoundTag tag, net.minecraft.core.HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         if (tag.contains("inventory", Tag.TAG_LIST)) {
-            inventory.fromTag(tag.getList("inventory", Tag.TAG_COMPOUND), registries);
+            loadContainerData(tag.getList("inventory", Tag.TAG_COMPOUND), registries);
         }
+    }
+
+    /**
+     * 容器序列化钩子（子类覆写）：默认走 vanilla createTag
+     * <p>
+     * 酶工厂覆写为自定义格式：vanilla 的 ItemStack.CODEC 对 count
+     * 硬编码校验 [1,99]（ItemStack.java:107），槽位容量放大到 128 后
+     * 存档直接崩溃（实测"破坏正在工作的酶工厂崩溃"根因）——
+     * 自定义序列化把物品 id 与 count 分开存，绕过 CODEC 校验
+     *
+     * @param registries 注册表查找器
+     * @return 容器内容 NBT 列表
+     */
+    protected Tag saveContainerData(net.minecraft.core.HolderLookup.Provider registries) {
+        return inventory.createTag(registries);
+    }
+
+    /**
+     * 容器反序列化钩子（子类覆写）：与 saveContainerData 对称
+     *
+     * @param list       容器内容 NBT 列表
+     * @param registries 注册表查找器
+     */
+    protected void loadContainerData(net.minecraft.nbt.ListTag list, net.minecraft.core.HolderLookup.Provider registries) {
+        inventory.fromTag(list, registries);
     }
 
     /**

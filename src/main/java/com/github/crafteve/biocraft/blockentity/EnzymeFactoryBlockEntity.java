@@ -369,6 +369,67 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
+     * 容器序列化钩子（覆写基类）：自定义格式绕过 vanilla count 上限
+     * <p>
+     * vanilla 的 ItemStack.CODEC 对 count 硬编码校验 [1,99]
+     * （ItemStack.java:107），槽位容量放大到 128 后 createTag 存档
+     * 直接崩溃（实测"破坏正在工作的酶工厂崩溃"根因）。本方法把
+     * 每槽物品拆成 {slot, id, count} 三个独立字段存 NBT，count 用
+     * 原生 int 不受 CODEC 校验；分子物品无组件（SMILES 等由注册表
+     * 驱动），id+count 即可完整还原
+     *
+     * @param registries 注册表查找器
+     * @return 容器内容 NBT 列表
+     */
+    @Override
+    protected net.minecraft.nbt.Tag saveContainerData(net.minecraft.core.HolderLookup.Provider registries) {
+        net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+        for (int i = 0; i < speciesIds.length; i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            net.minecraft.nbt.CompoundTag entry = new net.minecraft.nbt.CompoundTag();
+            entry.putInt("slot", i);
+            entry.putString("id", net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+            entry.putInt("count", stack.getCount());
+            list.add(entry);
+        }
+        return list;
+    }
+
+    /**
+     * 容器反序列化钩子（覆写基类）：与 saveContainerData 对称
+     * <p>
+     * 按槽位写回物品堆；count 直接用存档值（可超 64，引擎浓度
+     * 投影在 loadAdditional 末尾执行，槽位与浓度保持一致）
+     *
+     * @param list       容器内容 NBT 列表
+     * @param registries 注册表查找器
+     */
+    @Override
+    protected void loadContainerData(net.minecraft.nbt.ListTag list, net.minecraft.core.HolderLookup.Provider registries) {
+        inventory.clearContent();
+        for (net.minecraft.nbt.Tag element : list) {
+            net.minecraft.nbt.CompoundTag entry = (net.minecraft.nbt.CompoundTag) element;
+            int slot = entry.getInt("slot");
+            if (slot < 0 || slot >= speciesIds.length) {
+                continue;
+            }
+            net.minecraft.resources.ResourceLocation id =
+                    net.minecraft.resources.ResourceLocation.tryParse(entry.getString("id"));
+            if (id == null) {
+                continue;
+            }
+            net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(id);
+            if (item == net.minecraft.world.item.Items.AIR) {
+                continue;
+            }
+            inventory.setItem(slot, new ItemStack(item, entry.getInt("count")));
+        }
+    }
+
+    /**
      * 存档：引擎浓度数组（余量可由浓度与槽位重算，无需单独存档）
      * <p>
      * NBT 无 double 数组 API，采用 int 定点缩放（×1e6，精度 1e-6 浓度
