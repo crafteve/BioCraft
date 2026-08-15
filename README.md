@@ -128,3 +128,25 @@
 - **feat** DNA 编码器：碱基缓冲池 + 序列输入 + 事务式合成 + 完整 GUI/网络
 - **feat** 化学引擎内核：可逆米氏速率方程 + RK4 + 温度修正 + 数据防火墙（18 用例）
 - **feat** 物品地基：63 个分子物品 + 数据驱动注册 + 分子图 tooltip + 视觉三件套
+
+## 搁置问题（Issue 区）
+
+> 已定位根因但暂不修复/无法由本 mod 修复的已知问题。新问题先在此登记（含根因与验证证据），修复后移出并同步更新日志。
+
+### #1 Pipez 能量管道无法从 ATP 水解酶抽出能量（2026-08-15 登记）
+
+**现象**：ATPase 能量已满（Jade 确认能量槽存在且满），Pipez 能量管道设为抽出模式后仍无法抽走能量；Mekanism 线缆 PULL 模式可正常抽出（抽出速率与引擎工作速度相关）。
+
+**根因分析**（反编译 Pipez 1.2.31 字节码确认）：
+- Pipez 能量管道内部无能量缓存（`PipeEnergyStorage.getEnergyStored()` 恒 0），采用"每 tick 直通拉取"模型：`PipeEnergyStorage.tick()` → `EnergyPipeType.pullEnergy()` → 从源 extract → 直接推给目标
+- 但拉取器 `energyStorages[方向]` 是**懒创建**：只在外部方块查询**管道 BE 自身**的 EnergyStorage capability 时创建（`onRegisterCapability`）；创建前 `tick()` 中 `ifnull` 直接跳过 → 拉取逻辑从未启动
+- 本场景 ATPase（被动拉取方）与 Trash Cans 垃圾桶（被动接收方）均不查询管道 capability → 拉取器恒 null → 永不拉取
+
+**排除项**（已实测/反编译验证）：
+- 本 mod 的 `IEnergyStorage` 实现正确（Mekanism PULL 模式抽出成功、Jade 读得到能量）
+- Pipez 的 `isExtracting`/`shouldWork`/`canExtract`/`getExtractingConnection`/`getSortedConnections`/`insertOrdered` 链路均无问题
+- 能量变化时本 mod 已调用 `invalidateCapabilities()` 通知 capability 缓存刷新
+
+**搁置原因**：属 Pipez 自身"被动网络不启动拉取"的机制问题，本 mod 无代码修复空间；验证动作（Jade 对准管道触发懒创建）待用户复测。
+
+**规避方案**：能量传输使用 Mekanism 线缆 + PULL 模式（已实测可用）；Pipez 保留用于物品/流体管道。
