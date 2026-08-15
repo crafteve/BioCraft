@@ -27,6 +27,26 @@ public final class KineticConstants {
     public static final double CONCENTRATION_SCALE = 1.0;
 
     /**
+     * 槽位组数（n）：每槽可容纳 n 组物品（1 组 = 64 个 = 浓度 1.0）
+     * <p>
+     * 容量参数化的核心旋钮：n=2 时槽位可放 128 个物品、浓度上限 2.0，
+     * 让 ALDO 类强偏向反应物（Keq 极小）的酶在满堆下平衡产物突破
+     * 1 个物品粒度，玩家能抽出产物推动反应（否则平衡产物 <1 个
+     * 永远抽不出，反应卡死——用户实测的 ALDO 卡死问题根因）
+     */
+    public static final int SLOT_GROUPS = 2;
+
+    /**
+     * 浓度上限：槽位满 n 组 + 进度条余量 <1 个物品
+     * <p>
+     * 总量 = count + 余量，最大 = 64n + 0.99 个物品 → 浓度上限 = n + 1/64。
+     * 此前钳制在 1.0（64 个）导致余量 + 投入物品被吞（用户实测
+     * "63.23 投入后变 64 被钳回 63"的吞物品 bug）；钳制必须允许
+     * "槽位已满 n 组但余量仍在积累"的状态存在
+     */
+    public static final double MAX_CONCENTRATION = SLOT_GROUPS + 1.0 / 64.0;
+
+    /**
      * 时间尺度：游戏秒 / 真实秒，即真实 kcat 除以本值进入引擎
      * <p>
      * 唯一可随意调节的节奏旋钮：值越大反应越慢。

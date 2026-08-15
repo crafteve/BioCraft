@@ -3,6 +3,7 @@ package engineTest;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.github.crafteve.biocraft.reaction.EnzymeSimulator;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
+import com.github.crafteve.biocraft.reaction.KineticsCalculator;
 import com.github.crafteve.biocraft.reaction.ReactionDefinition;
 import com.github.crafteve.biocraft.reaction.StepResult;
 import com.github.crafteve.biocraft.reaction.ThermoUtil;
@@ -45,7 +46,9 @@ public final class EngineSelfTest {
         run("13 相对快慢：TPI/PGI 初速比 ≈ 科学 kcat 比", EngineSelfTest::test13RelativeSpeed);
         run("14 PGI 黄金值快照", EngineSelfTest::test14Snapshot);
         run("15 产物堆积时底物稀少仍逆向反应（无停机判定）", EngineSelfTest::test15ReverseWithLowSubstrate);
-        run("16 可达通量契约：引擎给出浓度=1 的可达上限（手算对照）", EngineSelfTest::test16ReachableFlux);
+        run("16 可达通量契约：引擎给出满堆=槽位组数的可达上限（手算对照）", EngineSelfTest::test16ReachableFlux);
+        run("17 浓度钳制上限：余量+满槽共存不被吞（64.77/64 保留）", EngineSelfTest::test17ConcentrationClamp);
+        run("18 ALDO 容量翻倍：平衡产物 ≥1 个可抽出（旧容量 0.77 卡死回归）", EngineSelfTest::test18AlodoProductExtractable);
 
         if (failures > 0) {
             System.err.println("引擎单测失败: " + failures + "/" + total);
@@ -106,13 +109,14 @@ public final class EngineSelfTest {
         return i;
     }
 
-    /** 五套数据全部能通过构建断言 */
+    /** 六套数据全部能通过构建断言 */
     private static void test01Build() {
         TestEnzymes.pgi().buildSimulator();
         TestEnzymes.hk().buildSimulator();
         TestEnzymes.gapdh().buildSimulator();
         TestEnzymes.tpi().buildSimulator();
         TestEnzymes.eno().buildSimulator();
+        TestEnzymes.aldo().buildSimulator();
     }
 
     /** kcat 非正、速率项 Km 非正等坏数据必须在构建期快速失败 */
@@ -334,7 +338,7 @@ public final class EngineSelfTest {
                 for (int tick = 0; tick < 500; tick++) {
                     sim.step(KineticConstants.TICK_SECONDS);
                     for (int i = 0; i < x.length; i++) {
-                        check(!Double.isNaN(x[i]) && x[i] >= 0.0 && x[i] <= 1.0,
+                        check(!Double.isNaN(x[i]) && x[i] >= 0.0 && x[i] <= KineticConstants.MAX_CONCENTRATION,
                                 data.id() + " 稳定性破坏: " + x[i]);
                     }
                 }
@@ -400,23 +404,25 @@ public final class EngineSelfTest {
     }
 
     /**
-     * 可达通量契约：引擎给出"游戏内可达上限"——速率方程代入浓度=1 的最大通量
+     * 可达通量契约：引擎给出"满堆"的可达上限（手算对照）
      * <p>
+     * 满堆浓度 = 槽位组数（SLOT_GROUPS=2，即 128 个物品），
      * 显示层（GUI 刻度/JEI 信息卡）只做单位换算，不得在显示层重写速率公式。
-     * 手算对照（旧显示层公式的同数值回归）：
+     * 手算对照（旧显示层公式的同数值回归，浓度 x=SLOT_GROUPS）：
      * <ul>
-     *   <li>PGI 可逆单底物：fwd = Vmax_f·(1/Km₆ₚ)/(1+1/Km₆ₚ)，rev = Vmax_b·(1/Km_ᶠ⁶ᵖ)/(1+1/Km_ᶠ⁶ᵖ)</li>
-     *   <li>HK 不可逆：rev 恒 0，fwd = Vmax_f·∏(1/(1+Km))</li>
+     *   <li>PGI 可逆单底物：fwd = Vmax_f·(x/Km₆ₚ)/(1+x/Km₆ₚ)，rev = Vmax_b·(x/Km_ᶠ⁶ᵖ)/(1+x/Km_ᶠ⁶ᵖ)</li>
+     *   <li>HK 不可逆：rev 恒 0，fwd = Vmax_f·∏(x/(Km+x))</li>
      * </ul>
      * 同时断言饱和有界：可达通量必须小于 Vmax（Vmax 是浓度趋无穷的数学极限）
      */
     private static void test16ReachableFlux() {
+        double x = KineticConstants.SLOT_GROUPS;
         EnzymeSimulator pgi = TestEnzymes.pgi().buildSimulator();
         ReactionDefinition pgiDef = pgi.getDefinition();
-        double f = 1.0 / 0.43;
+        double f = x / 0.43;
         double pgiFwd = pgiDef.getVmaxF() * f / (1.0 + f);
         checkNear(pgiDef.forwardReachableFlux(), pgiFwd, 1e-9, "PGI 正向可达通量与手算不符");
-        double r = 1.0 / 0.046;
+        double r = x / 0.046;
         double pgiRev = pgiDef.vmaxBForTemperature(KineticConstants.T0) * r / (1.0 + r);
         checkNear(pgiDef.reverseReachableFlux(), pgiRev, 1e-9, "PGI 逆向可达通量与手算不符");
         check(pgiDef.forwardReachableFlux() < pgiDef.getVmaxF(),
@@ -425,11 +431,69 @@ public final class EngineSelfTest {
         EnzymeSimulator hk = TestEnzymes.hk().buildSimulator();
         ReactionDefinition hkDef = hk.getDefinition();
         checkNear(hkDef.reverseReachableFlux(), 0.0, 0.0, "HK 不可逆逆向可达通量应为 0");
-        double hkFactor = (1.0 / (1.0 + 0.049)) * (1.0 / (1.0 + 1.12));
+        double hkFactor = (x / (x + 0.049)) * (x / (x + 1.12));
         checkNear(hkDef.forwardReachableFlux(), hkDef.getVmaxF() * hkFactor, 1e-9,
                 "HK 正向可达通量与手算不符");
         check(hkDef.forwardReachableFlux() < hkDef.getVmaxF(),
                 "HK 可达通量应小于 Vmax_f（饱和有界）");
+    }
+
+    /**
+     * 浓度钳制上限契约：输入浓度可超过 1.0（槽位 n 组 + 余量），
+     * 引擎钳制在 MAX_CONCENTRATION 而非旧的 1.0
+     * <p>
+     * 用户实测 bug：平衡 63.23 个物品（浓度 0.9879）+ 投入 1 个 → 浓度 1.0036
+     * 被旧 clamp01 钳回 1.0，0.23 个物品被吞。新上限 = n + 1/64 允许
+     * "槽满仍攒余量"的状态存在
+     */
+    private static void test17ConcentrationClamp() {
+        checkNear(KineticsCalculator.clampConcentration(64.77 / 64.0), 64.77 / 64.0, 1e-12,
+                "浓度 64.77/64 不应被钳制（余量 + 满槽应共存）");
+        checkNear(KineticsCalculator.clampConcentration(KineticConstants.MAX_CONCENTRATION),
+                KineticConstants.MAX_CONCENTRATION, 1e-12, "MAX_CONCENTRATION 边界应原样保留");
+        check(KineticsCalculator.clampConcentration(5.0) <= KineticConstants.MAX_CONCENTRATION,
+                "超上限浓度应被钳制到 MAX_CONCENTRATION");
+        check(KineticsCalculator.clampConcentration(-0.1) == 0.0, "负浓度应钳制到 0");
+        check(Double.isNaN(KineticsCalculator.clampConcentration(Double.NaN)) == false,
+                "NaN 应钳制到 0");
+
+        // 引擎端：超上限输入 step 后浓度仍被钳在 MAX 内（不爆 NaN 不越界）
+        EnzymeSimulator pgi = TestEnzymes.pgi().buildSimulator();
+        double[] x = pgi.getState().getConcentrations();
+        x[idx(pgi, "glucose_6_phosphate")] = 2.5;
+        x[idx(pgi, "fructose_6_phosphate")] = 2.5;
+        runTicks(pgi, 10);
+        for (double v : x) {
+            check(!Double.isNaN(v) && v >= 0.0 && v <= KineticConstants.MAX_CONCENTRATION,
+                    "step 后浓度越界: " + v);
+        }
+    }
+
+    /**
+     * 满堆容量下强偏向反应物酶的产物可抽出契约
+     * <p>
+     * ALDO（F16P⇌DHAP+G3P，Keq=1.456e-4 极小）：旧容量（1 组 = 64 个，
+     * 浓度钳 1.0）下平衡产物浓度 sqrt(Keq×0.988)×64 ≈ 0.77 个 < 1 个，
+     * 槽位投影为 0，玩家永远抽不出产物 → 反应卡死（用户实测 bug）。
+     * 容量翻倍（n=2，满堆 128 个 = 浓度 2.0）后平衡产物
+     * sqrt(Keq×2.0)×64 ≈ 1.09 个 > 1 个，可抽出
+     */
+    private static void test18AlodoProductExtractable() {
+        double keq = 1.456e-4;
+        double eqProductConc = Math.sqrt(keq * KineticConstants.SLOT_GROUPS);
+        check(eqProductConc * 64.0 >= 1.0,
+                String.format("满堆 %.1f 组时 ALDO 平衡产物 %.3f 个应 ≥1 个（可抽出）",
+                        (double) KineticConstants.SLOT_GROUPS, eqProductConc * 64.0));
+
+        // 引擎端：F16P 满堆 2.0 起步跑向平衡，产物浓度应达到可抽出的 1/64 以上
+        EnzymeSimulator ald = TestEnzymes.aldo().buildSimulator();
+        double[] x = ald.getState().getConcentrations();
+        x[idx(ald, "fructose_1_6_bisphosphate")] = KineticConstants.SLOT_GROUPS;
+        runTicks(ald, 20_000);
+        double dhap = x[idx(ald, "dihydroxyacetone_phosphate")];
+        check(dhap >= 1.0 / 64.0,
+                String.format("ALDO 满堆平衡后 DHAP 浓度 %.5f 应 ≥ 1/64（可抽出）", dhap));
+        check(dhap < 0.05, String.format("ALDO 平衡 DHAP 浓度 %.5f 应远小于 1（Keq 极小）", dhap));
     }
 
     private EngineSelfTest() {

@@ -116,6 +116,24 @@ public final class TestEnzymes {
     }
 
     /**
+     * 果糖二磷酸醛缩酶（ALDO，EC 4.1.2.13）：F16P ⇌ DHAP + G3P，可逆
+     * <p>
+     * kcat 醛缩酶 A 4.7~16.7 → 10.7；Km F16P 0.0016~0.33 → 0.17、
+     * 产物 Km 借 TPI 同分子数据（DHAP 0.88 / G3P 0.79，逆向缺测对称近似）；
+     * Keq=1.456e-4（ΔG°′=+21.9，强偏向反应物）——旧槽位容量（64 个）
+     * 下平衡产物仅 0.77 个 < 1 个无法抽出（卡死），容量翻倍后满堆
+     * 平衡产物 sqrt(Keq×2.0)×64 ≈ 1.09 个可抽出（test18 守护）
+     */
+    public static EnzymeFactoryData aldo() {
+        return new EnzymeFactoryData(
+                "aldolase", "果糖二磷酸醛缩酶", "Fructose-bisphosphate Aldolase", "ALDO", "EC4",
+                List.of(s("fructose_1_6_bisphosphate", 1, 0.17)),
+                List.of(s("dihydroxyacetone_phosphate", 1, 0.88), s("glyceraldehyde_3_phosphate", 1, 0.79)),
+                true, 1.456e-4, null, 10.7, 298.15,
+                1, 2);
+    }
+
+    /**
      * 便捷构造单个物种条目
      */
     private static EnzymeFactoryData.SpeciesSpec s(String item, int count, double km) {

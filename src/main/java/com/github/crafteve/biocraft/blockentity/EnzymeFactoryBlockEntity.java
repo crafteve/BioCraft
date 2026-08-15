@@ -173,6 +173,20 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
+     * 槽位堆叠上限：按槽位组数放大（n 组 = n×64 个物品）
+     * <p>
+     * 容量参数化（KineticConstants.SLOT_GROUPS）：每槽可容纳多组物品，
+     * 配合浓度钳制上限放宽（MAX_CONCENTRATION），让强偏向反应物
+     * （Keq 极小）的酶在满堆下平衡产物突破 1 个物品粒度可被抽出
+     *
+     * @return 单槽最大堆叠数（默认 2 组 = 128）
+     */
+    @Override
+    protected int slotStackLimit() {
+        return 64 * KineticConstants.SLOT_GROUPS;
+    }
+
+    /**
      * 容器内容变化回调：槽位 IO 事件 → 浓度回写
      * <p>
      * 玩家/漏斗改动槽位后（如取走 3 个物品），把引擎浓度同步为
@@ -188,7 +202,10 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     /**
      * 槽位 → 浓度事件回写（setChanged 触发）
      * <p>
-     * 每个物种：浓度 = (槽位数量 + 余量)/64，钳制 [0,1]；
+     * 每个物种：浓度 = (槽位数量 + 余量)/64，钳制 [0, MAX_CONCENTRATION]；
+     * 上限随槽位容量参数化（n 组 + 余量 <1 个物品），"槽满仍攒余量"
+     * 的状态合法存在——此前钳制 1.0 会把投入物品吞掉
+     * （余量 0.23 + 投入后 (64+0.23)/64 = 1.0036 被钳回 1.0 的 bug）；
      * 投影自身修改槽位时由 projecting 守卫跳过，避免递归覆盖
      */
     private void syncFromSlots() {
@@ -198,7 +215,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         double[] x = simulator.getState().getConcentrations();
         for (int i = 0; i < speciesIds.length; i++) {
             int count = inventory.getItem(i).getCount();
-            x[i] = KineticsCalculator.clamp01((count + remainder[i]) / 64.0);
+            x[i] = KineticsCalculator.clampConcentration((count + remainder[i]) / 64.0);
         }
     }
 
@@ -263,17 +280,20 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     /**
      * 浓度 → 槽位整数投影（每 tick 引擎 step 后）
      * <p>
-     * 槽位数量 = floor(浓度×64)，余量 = 浓度×64 − 数量；
-     * 槽位满（64）时浓度钳制 1.0 与引擎边界截断同步，
-     * 产物满堆反应自然停转，取走产物即恢复
+     * 槽位数量 = floor(浓度×64)，钳制到槽位物理容量（64×n 组），
+     * 余量 = 浓度×64 − 数量（0~1 个物品的积累进度）；
+     * 槽位满（n 组）时浓度钳制到 MAX_CONCENTRATION 与引擎边界缩放
+     * 同步，产物满堆反应自然停转，取走产物即恢复；
+     * 余量不会被钳制吞掉（此前 (64+0.23)/64 被 clamp01 钳回 1.0 的 bug）
      */
     private void projectToSlots() {
         projecting = true;
         try {
             double[] x = simulator.getState().getConcentrations();
+            int slotLimit = slotStackLimit();
             for (int i = 0; i < speciesIds.length; i++) {
                 double total = x[i] * 64.0;
-                int count = (int) Math.floor(total);
+                int count = Math.min((int) Math.floor(total), slotLimit);
                 remainder[i] = total - count;
                 ItemStack stack = inventory.getItem(i);
                 if (stack.getCount() == count) {

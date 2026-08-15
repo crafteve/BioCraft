@@ -160,9 +160,10 @@ public final class KineticsCalculator {
      * 可逆形式（线性项）：低浓度时与质量作用定律一致（v ∝ ∏浓度），
      * 分母共享项提供整体饱和；不可逆形式（饱和项）：各底物独立饱和
      * <p>
-     * 浓度先钳制到 [0,1]：RK4 中间采样点允许出现临时负值，
+     * 浓度先钳制到 [0, MAX_CONCENTRATION]：RK4 中间采样点允许出现临时负值，
      * 负浓度的整数次幂虽然数学可算但会造成符号混乱，钳制后速率函数
-     * 对任意中间值都稳定有定义
+     * 对任意中间值都稳定有定义；上限放宽到槽位容量（n 组 + 余量），
+     * 满堆（浓度 2.0）时饱和行为仍然正确
      *
      * @param entries       速率项物种条目
      * @param concentrations 浓度数组
@@ -173,7 +174,7 @@ public final class KineticsCalculator {
                                       double[] concentrations, boolean saturating) {
         double product = 1.0;
         for (ReactionDefinition.SpeciesEntry entry : entries) {
-            double c = clamp01(concentrations[entry.index()]);
+            double c = clampConcentration(concentrations[entry.index()]);
             if (saturating) {
                 product *= Math.pow(c / (entry.kmFraction() + c), entry.coeff());
             } else {
@@ -184,19 +185,21 @@ public final class KineticsCalculator {
     }
 
     /**
-     * 浓度钳制到 [0,1]，NaN 归零（NaN 防护统一出口）
+     * 浓度钳制到 [0, MAX_CONCENTRATION]，NaN 归零（NaN 防护统一出口）
      * <p>
      * 引擎内所有进入速率方程的浓度都必须经过本函数，
-     * 防止任何数值异常（RK4 中间值、存档脏数据）把 NaN 传播进模拟
+     * 防止任何数值异常（RK4 中间值、存档脏数据）把 NaN 传播进模拟；
+     * 上限为槽位容量（n 组 + 余量 <1 个物品），允许"槽满仍攒余量"
+     * 的物理状态存在（此前钳制 1.0 会吞掉投入物品）
      *
      * @param value 原始浓度值
-     * @return 钳制后的浓度（恒在 [0,1]）
+     * @return 钳制后的浓度（恒在 [0, MAX_CONCENTRATION]）
      */
-    public static double clamp01(double value) {
+    public static double clampConcentration(double value) {
         if (Double.isNaN(value) || value <= 0.0) {
             return 0.0;
         }
-        return Math.min(value, 1.0);
+        return Math.min(value, KineticConstants.MAX_CONCENTRATION);
     }
 
     private KineticsCalculator() {

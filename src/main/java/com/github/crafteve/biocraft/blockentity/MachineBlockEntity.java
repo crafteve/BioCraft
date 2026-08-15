@@ -46,7 +46,32 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
                 super.setChanged();
                 MachineBlockEntity.this.setChanged();
             }
+
+            /**
+             * 槽位堆叠上限：委托子类钩子
+             * <p>
+             * 酶工厂按槽位组数放大容量（n 组 = n×64 个，见
+             * EnzymeFactoryBlockEntity.slotStackLimit）；其余机器
+             * （DNA 编码器）保持 vanilla 64
+             */
+            @Override
+            public int getMaxStackSize() {
+                return MachineBlockEntity.this.slotStackLimit();
+            }
         };
+    }
+
+    /**
+     * 槽位堆叠上限钩子（子类覆写）
+     * <p>
+     * vanilla 槽位默认 64；酶工厂覆写为 64×SLOT_GROUPS，
+     * 让容量参数化（n 组物品）生效——Slot/漏斗/InvWrapper 的
+     * limitSize 全部经容器的 getMaxStackSize 取值，一处覆写全局跟随
+     *
+     * @return 单槽最大堆叠数
+     */
+    protected int slotStackLimit() {
+        return 64;
     }
 
     /**

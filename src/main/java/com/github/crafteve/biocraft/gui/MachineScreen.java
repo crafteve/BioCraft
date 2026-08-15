@@ -429,14 +429,16 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 物种槽位浓度（客户端重建：槽位数量 + 同步余量）/64，钳制 [0,1]
+     * 物种槽位浓度（客户端重建：槽位数量 + 同步余量）/64，
+     * 钳制 [0, MAX_CONCENTRATION]（与引擎/进度条同源上限）
      *
      * @param slot 物种槽位下标
-     * @return 浓度 0~1
+     * @return 浓度 0~MAX_CONCENTRATION
      */
     private double concentrationOf(int slot) {
         return Math.max(0.0, Math.min(
-                (menu.getSlot(slot).getItem().getCount() + menu.getRemainder(slot)) / 64.0, 1.0));
+                (menu.getSlot(slot).getItem().getCount() + menu.getRemainder(slot)) / 64.0,
+                com.github.crafteve.biocraft.reaction.KineticConstants.MAX_CONCENTRATION));
     }
 
     /**
@@ -491,9 +493,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
         // v 值域：[-vmaxR, vmaxF]（正向 kcat/TIME_SCALE；逆向 Haldane）
         ReactionDefinition definition = blockEntity.getSimulator().getDefinition();
-        // 满刻度用引擎可达通量：速率方程代入满堆浓度（浓度 1）算出的最大通量，
-        // 即"游戏内可达上限"——Vmax 本身是浓度趋无穷的数学极限，满堆只能逼近其一部分
-        // （可逆共享分母约 0.7 倍、不可逆米氏积更低），引擎直接给出，显示层不再标定
+        // 满刻度用引擎可达通量：速率方程代入满堆浓度（浓度 = 槽位组数 SLOT_GROUPS）
+        // 算出的最大通量，即"游戏内可达上限"——Vmax 本身是浓度趋无穷的数学极限，
+        // 满堆只能逼近其一部分（可逆共享分母约 0.7 倍、不可逆米氏积更低），
+        // 引擎直接给出，显示层不再标定
         double vmaxFShow = definition.forwardReachableFlux();
         double vmaxRShow = definition.reverseReachableFlux();
         double span = Math.max(vmaxFShow + vmaxRShow, 1e-9);
@@ -1036,9 +1039,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
                 // 浓度：客户端重建引擎连续浓度 = (槽位数量 + 同步余量)/64，
                 // 槽位数经菜单槽位同步、余量经 ContainerData 扩展通道同步
-                // （客户端 BE 引擎浓度恒 0，直接读引擎会导致进度条/读数不显示）
+                // （客户端 BE 引擎浓度恒 0，直接读引擎会导致进度条/读数不显示）；
+                // 上限 = MAX_CONCENTRATION（槽位 n 组 + 余量），允许"槽满仍攒余量"
                 double concentration = Math.max(0.0, Math.min(
-                        (stack.getCount() + menu.getRemainder(baseSlot + i)) / 64.0, 1.0));
+                        (stack.getCount() + menu.getRemainder(baseSlot + i)) / 64.0,
+                        com.github.crafteve.biocraft.reaction.KineticConstants.MAX_CONCENTRATION));
 
                 // 进度条：槽位下方与卡片底端之间（20..28）垂直居中，
                 // 3px 高、54px 长（卡片宽 56 居中 → x+1），浅灰轨道 + 物品色填充

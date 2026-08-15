@@ -230,7 +230,7 @@ public final class ReactionDefinition {
      */
     public boolean hasSupply(double[] concentrations) {
         for (int index : supplyReactants) {
-            if (KineticsCalculator.clamp01(concentrations[index]) <= 0.0) {
+            if (KineticsCalculator.clampConcentration(concentrations[index]) <= 0.0) {
                 return false;
             }
         }
@@ -238,26 +238,30 @@ public final class ReactionDefinition {
     }
 
     /**
-     * 正向可达通量：速率项底物全部满堆（浓度 1）、产物为零时，
-     * 引擎速率方程算出的最大正向通量（堆叠分数/s）
+     * 正向可达通量：速率项底物全部满堆（浓度 = 槽位组数，即 n 组物品）、
+     * 产物为零时，引擎速率方程算出的最大正向通量（堆叠分数/s）
      * <p>
      * 这是"游戏内可达上限"的引擎定义：引擎 Vmax_f 是速率方程的数学极限
      * （浓度趋无穷），满堆时通量只能逼近其一部分（可逆共享分母约 0.7 倍、
      * 不可逆米氏积更低）——显示层（GUI 刻度/JEI 信息卡）应直接取本值，
      * 不得在显示层重写速率方程
+     * <p>
+     * 满堆浓度随槽位容量参数化（SLOT_GROUPS 组 = 浓度 n）：n=2 时满堆
+     * 浓度 2.0（128 个物品），速率在更饱和区域取值，与引擎边界缩放
+     * 上限（MAX_CONCENTRATION）同源
      *
      * @return 正向可达通量（堆叠分数/s，恒为正）
      */
     public double forwardReachableFlux() {
         double[] x = new double[speciesIds.length];
         for (SpeciesEntry entry : rateReactants) {
-            x[entry.index()] = 1.0;
+            x[entry.index()] = KineticConstants.SLOT_GROUPS;
         }
         return KineticsCalculator.forwardFlux(this, x, vmaxBForTemperature(KineticConstants.T0));
     }
 
     /**
-     * 逆向可达通量：速率项产物全部满堆（浓度 1）、底物为零时，
+     * 逆向可达通量：速率项产物全部满堆（浓度 = 槽位组数）、底物为零时，
      * 引擎速率方程算出的最大逆向通量（堆叠分数/s）
      * <p>
      * 与正向可达通量对称（产物满堆、底物空），供 GUI 速率条负向刻度与
@@ -271,7 +275,7 @@ public final class ReactionDefinition {
         }
         double[] x = new double[speciesIds.length];
         for (SpeciesEntry entry : rateProducts) {
-            x[entry.index()] = 1.0;
+            x[entry.index()] = KineticConstants.SLOT_GROUPS;
         }
         return KineticsCalculator.reverseFlux(this, x, vmaxBForTemperature(KineticConstants.T0));
     }

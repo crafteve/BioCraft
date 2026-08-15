@@ -111,7 +111,7 @@ public final class EnzymeSimulator {
 
         double scale = boundaryScale(x, next);
         for (int i = 0; i < x.length; i++) {
-            x[i] = KineticsCalculator.clamp01(x[i] + (next[i] - x[i]) * scale);
+            x[i] = KineticsCalculator.clampConcentration(x[i] + (next[i] - x[i]) * scale);
         }
 
         double forward = KineticsCalculator.forwardFlux(definition, x, vmaxB) * activity * scale;
@@ -157,12 +157,14 @@ public final class EnzymeSimulator {
     }
 
     /**
-     * 边界缩放因子：保证终值不越出 [0,1] 且守恒不被钳制破坏
+     * 边界缩放因子：保证终值不越出 [0, MAX_CONCENTRATION] 且守恒不被钳制破坏
      * <p>
      * 若 RK4 终值使某物种越界（如产物满堆仍继续产出），本方法对全部
      * 物种的增量按同一比例缩减，使最紧迫的物种恰好停在边界——
-     * 所有物种同步缩放，化学计量守恒精确保持。产物满堆时反应自动
-     * 减速至停，玩家取走产物即恢复，这就是"槽满停转"的动力学实现
+     * 所有物种同步缩放，化学计量守恒精确保持。产物满堆（上限 = 槽位
+     * 容量 n 组 + 余量）时反应自动减速至停，玩家取走产物即恢复，
+     * 这就是"槽满停转"的动力学实现；上限放宽后满堆浓度可达 2.0
+     * （128 个物品），"槽满仍攒余量"的中间状态不会被冻结
      *
      * @param oldX 更新前浓度
      * @param newX RK4 原始终值
@@ -173,7 +175,7 @@ public final class EnzymeSimulator {
         for (int i = 0; i < oldX.length; i++) {
             double delta = newX[i] - oldX[i];
             if (delta > 1e-12) {
-                scale = Math.min(scale, (1.0 - oldX[i]) / delta);
+                scale = Math.min(scale, (KineticConstants.MAX_CONCENTRATION - oldX[i]) / delta);
             } else if (delta < -1e-12) {
                 scale = Math.min(scale, oldX[i] / -delta);
             }

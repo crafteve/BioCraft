@@ -134,14 +134,14 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
     }
 
     /**
-     * 槽位容量上限（64 = 满堆叠）
+     * 槽位容量上限（n 组 = 64×SLOT_GROUPS 个物品，与容器 getMaxStackSize 同源）
      *
      * @param slot 槽位下标
      * @return 槽位容量
      */
     @Override
     public int getSlotLimit(int slot) {
-        return 64;
+        return 64 * com.github.crafteve.biocraft.reaction.KineticConstants.SLOT_GROUPS;
     }
 
     /**
