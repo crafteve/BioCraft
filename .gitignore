@@ -52,3 +52,7 @@ tools/engineTest/out/
 ### SMILES 校验工具中间产物 ###
 tools/smilesCheck/out/
 tools/smilesCheck/actual.tsv
+
+# 测试截图（搜狗截图等）不入库
+搜狗截图*.jpg
+搜狗截图*.png
