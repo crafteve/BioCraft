@@ -13,10 +13,7 @@ import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
 import net.minecraft.resources.ResourceLocation;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * BioCraft 的 JEI 插件入口（@JeiPlugin 注解由 JEI 自动发现）
@@ -24,35 +21,24 @@ import java.util.Map;
  * JEI 未安装时本类永远不会被加载（无人扫描），主 mod 零引用本类，
  * 因此 JEI 是纯可选依赖；JEI 与 EMI 双装时各自注册各自显示，互不干扰
  * <p>
- * 每酶一个专属配方类型与类别（配方 id 形如 biocraft:enzyme_factory/&lt;酶id&gt;）：
- * 查看某酶方块（如 PGI）的用途时只显示该酶的专属配方，而不是所有酶工厂
- * 配方混在同一类别；配方数据源为 EnzymeFactoryRegistry（enzymes.json 数据驱动）
- * 经 EnzymeRecipeDisplay 转换——新增酶自动出现，无需改插件代码
+ * 酶工厂方块时代结束后的统一配方模型：
+ * <ul>
+ *   <li>全部酶配方挂在同一个 RecipeType（enzyme_factory）与同一个
+ *       配方类别（EnzymeFactoryRecipeCategory）下——机器收敛为统一
+ *       酶反应腔后，配方不再按酶分类型</li>
+ *   <li>追溯语义：酶蛋白物品作为各自配方的酶槽 ingredient（精确匹配，
+ *       对酶物品按 U 只显示含它的唯一配方）；enzyme_chamber 方块物品
+ *       作为催化剂挂统一类型（对反应腔按 U 显示全部酶配方）</li>
+ * </ul>
+ * 配方数据源为 EnzymeFactoryRegistry（enzymes.json 数据驱动）经
+ * EnzymeRecipeDisplay 转换——新增酶自动出现，无需改插件代码
  */
 @JeiPlugin
 public class BioCraftJeiPlugin implements IModPlugin {
 
-    /** 酶 id -> 专属配方类型（注册顺序 = 酶数据表顺序） */
-    private static final Map<String, RecipeType<EnzymeRecipeDisplay>> RECIPE_TYPES = new LinkedHashMap<>();
-
-    /**
-     * 获取酶的专属配方类型（类别与催化剂注册共用）
-     *
-     * @param enzymeId 酶注册名
-     * @return 该酶的配方类型
-     */
-    public static RecipeType<EnzymeRecipeDisplay> recipeTypeOf(String enzymeId) {
-        return RECIPE_TYPES.get(enzymeId);
-    }
-
-    /**
-     * 获取全部酶的配方类型（只读，按酶数据表顺序）
-     *
-     * @return 配方类型映射
-     */
-    public static Map<String, RecipeType<EnzymeRecipeDisplay>> recipeTypes() {
-        return Collections.unmodifiableMap(RECIPE_TYPES);
-    }
+    /** 统一配方类型（全部酶配方共用） */
+    public static final RecipeType<EnzymeRecipeDisplay> RECIPE_TYPE = RecipeType.create(
+            BioCraft.MODID, "enzyme_factory", EnzymeRecipeDisplay.class);
 
     /**
      * 插件唯一标识（JEI 日志与调试定位用）
@@ -65,54 +51,38 @@ public class BioCraftJeiPlugin implements IModPlugin {
     }
 
     /**
-     * 注册配方类别：每个酶一个专属类别（标题 = 酶显示名，图标 = 该酶方块）
-     * <p>
-     * 类别与配方类型按酶数据表顺序一一注册，查看用途时各酶配方互不混淆
+     * 注册配方类别：统一酶工厂类别（标题 = 酶反应腔，图标 = 反应腔方块）
      *
      * @param registration 类别注册器
      */
     @Override
     public void registerCategories(IRecipeCategoryRegistration registration) {
-        RECIPE_TYPES.clear();
-        for (EnzymeFactoryData data : EnzymeFactoryRegistry.ordered()) {
-            RecipeType<EnzymeRecipeDisplay> type = RecipeType.create(
-                    BioCraft.MODID, "enzyme_factory/" + data.id(), EnzymeRecipeDisplay.class);
-            RECIPE_TYPES.put(data.id(), type);
-            registration.addRecipeCategories(
-                    new EnzymeFactoryRecipeCategory(type, EnzymeRecipeDisplay.from(data),
-                            registration.getJeiHelpers().getGuiHelper()));
-        }
+        registration.addRecipeCategories(
+                new EnzymeFactoryRecipeCategory(RECIPE_TYPE, registration.getJeiHelpers().getGuiHelper()));
     }
 
     /**
-     * 注册全部酶工厂配方：每酶一条配方挂到该酶专属类型
-     * <p>
-     * 点击用途追溯（U 键）由 JEI 根据槽位的 INPUT/OUTPUT 角色自动建立反向索引，
-     * 跨类别全局索引：点 ATP 会列出所有以 ATP 为底物/产物的酶配方（各一条）
+     * 注册全部酶工厂配方：每酶一条配方，全部挂统一类型
      *
      * @param registration 配方注册器
      */
     @Override
     public void registerRecipes(IRecipeRegistration registration) {
         for (EnzymeFactoryData data : EnzymeFactoryRegistry.ordered()) {
-            List<EnzymeRecipeDisplay> recipes = List.of(EnzymeRecipeDisplay.from(data));
-            registration.addRecipes(recipeTypeOf(data.id()), recipes);
+            registration.addRecipes(RECIPE_TYPE, List.of(EnzymeRecipeDisplay.from(data)));
         }
     }
 
     /**
-     * 注册配方催化剂：每个酶方块物品挂到该酶专属配方类型
+     * 注册配方催化剂：enzyme_chamber 方块物品 → 统一类型
      * <p>
-     * 玩家在 JEI 中点击/拖拽某酶机器方块物品，只显示该酶的专属配方
+     * 对反应腔方块按 U 显示全部酶配方；酶蛋白物品不注册为催化剂——
+     * 它们作为各自配方的酶槽 ingredient 参与精确追溯（唯一配方）
      *
      * @param registration 催化剂注册器
      */
     @Override
     public void registerRecipeCatalysts(IRecipeCatalystRegistration registration) {
-        List<EnzymeFactoryData> ordered = EnzymeFactoryRegistry.ordered();
-        for (int i = 0; i < ordered.size(); i++) {
-            registration.addRecipeCatalyst(ModBlocks.enzymeItems().get(i).get(),
-                    recipeTypeOf(ordered.get(i).id()));
-        }
+        registration.addRecipeCatalyst(ModBlocks.ENZYME_CHAMBER_ITEM.get(), RECIPE_TYPE);
     }
 }

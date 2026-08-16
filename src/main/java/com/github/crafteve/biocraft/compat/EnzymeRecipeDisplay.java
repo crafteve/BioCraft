@@ -1,7 +1,5 @@
 package com.github.crafteve.biocraft.compat;
 
-import com.github.crafteve.biocraft.init.EnzymeFactoryRegistry;
-import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
@@ -23,7 +21,7 @@ import java.util.Map;
  * 本类只依赖 Minecraft 与 reaction 包，不 import 任何 JEI/EMI 类——
  * 两套显示层插件在各自框架存在时才被加载，本模型始终可安全加载
  *
- * @param enzymeId     酶注册名（与方块注册名一致，调试定位用）
+ * @param enzymeId     酶注册名（调试定位用）
  * @param displayName  显示名（酶数据表中文名，与 GUI 标题一致）
  * @param abbreviation 酶缩写（如 PGI/HK/GAPDH，信息卡酶信息区主题色徽标）
  * @param ecCategory   EC 类别（EC1~EC6，酶学分类，不决定颜色）
@@ -33,7 +31,7 @@ import java.util.Map;
  * @param deltaG       ΔG°′（kJ/mol，由 Keq 换算：−RT·ln(Keq)）
  * @param kcat         正向周转数（s⁻¹）
  * @param tempOptimum  最适温度（K）
- * @param machineStack 本酶工厂方块物品（信息卡酶槽图标）
+ * @param enzymeStack  本酶蛋白物品（信息卡酶槽图标，U 键追溯唯一配方）
  * @param vmaxFPerTick 正向饱和可达最大速率（/tick，与 GUI 速率条同口径）
  * @param vmaxBPerTick 逆向饱和可达最大速率（/tick，不可逆为 0）
  * @param energyStoich fe 能量物种净化学计量（0 = 无能量；产物侧 +count / 反应物侧 −count）
@@ -52,7 +50,7 @@ public record EnzymeRecipeDisplay(
         double deltaG,
         double kcat,
         double tempOptimum,
-        ItemStack machineStack,
+        ItemStack enzymeStack,
         double vmaxFPerTick,
         double vmaxBPerTick,
         int energyStoich,
@@ -114,7 +112,7 @@ public record EnzymeRecipeDisplay(
         return new EnzymeRecipeDisplay(data.id(), data.nameZn(), data.abbreviation(),
                 data.category(), data.color(), data.reversible(), data.keq(), deltaG,
                 data.kcat(), data.tempOptimum(),
-                machineStack(data.id()),
+                enzymeStack(data.id()),
                 definition.forwardReachableFlux() * CompatRenderUtil.ITEMS_PER_TICK,
                 definition.reverseReachableFlux() * CompatRenderUtil.ITEMS_PER_TICK,
                 energyStoich, energyCapacityFE,
@@ -122,22 +120,13 @@ public record EnzymeRecipeDisplay(
     }
 
     /**
-     * 按酶 id 查找对应工厂方块物品（方块注册顺序与酶数据表一致）
+     * 按酶 id 查找对应酶蛋白物品（酶物品注册名 enzyme_&lt;酶id&gt;）
      *
      * @param enzymeId 酶注册名
-     * @return 酶工厂方块物品堆
+     * @return 酶蛋白物品堆
      */
-    private static ItemStack machineStack(String enzymeId) {
-        int index = 0;
-        List<com.github.crafteve.biocraft.reaction.EnzymeFactoryData> ordered =
-                EnzymeFactoryRegistry.ordered();
-        for (int i = 0; i < ordered.size(); i++) {
-            if (ordered.get(i).id().equals(enzymeId)) {
-                index = i;
-                break;
-            }
-        }
-        return new ItemStack(ModBlocks.enzymeItems().get(index).get());
+    private static ItemStack enzymeStack(String enzymeId) {
+        return new ItemStack(ModItems.enzymeById(enzymeId).get());
     }
 
     /**

@@ -18,13 +18,13 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 /**
- * 酶工厂配方类别（JEI 显示层核心，每酶一个专属类别实例）
+ * 酶工厂配方类别（JEI 显示层，统一类别实例——全部酶配方共用）
  * <p>
  * 布局规格（像素单位，文本元素一律左对齐）：
  * <pre>
  *   y=2    [槽1] [槽2]  →(JEI 自带箭头)  [槽1] [槽2]   标准槽纹理，箭头无视可逆统一右向
- *   y=34   [酶槽] [PGI]                              行 1：酶方块槽（CATALYST 可交互，
- *   y=43   磷酸葡萄糖异构酶                                hover 显示酶名，点击查看本酶配方）
+ *   y=34   [酶槽] [PGI]                              行 1：酶蛋白物品槽（INPUT 角色，
+ *   y=43   磷酸葡萄糖异构酶                                hover 显示酶名，U 键追溯唯一配方）
  *                                                    右侧上部缩写（主题色+阴影）、下部显示名（白+阴影）
  *   y=56   Keq = 4.8×10³                             行 2：Keq（左对齐 x=2，白字+阴影，
  *   y=65   正向速率最大值 0.18 /tick                     位于酶槽下方、速率上方）
@@ -66,31 +66,25 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
     /** 能量行颜色（深绿，深色 JEI 卡底可读） */
     private static final int COLOR_ENERGY = 0x4CAF50;
 
-    /** 本类别对应的配方类型（每酶专属） */
+    /** 本类别对应的配方类型（统一 enzyme_factory） */
     private final RecipeType<EnzymeRecipeDisplay> recipeType;
-
-    /** 本类别展示的酶（标题/图标/酶槽/信息区数据源） */
-    private final EnzymeRecipeDisplay display;
 
     /** JEI 自带配方箭头纹理（无视可逆统一右向） */
     private final IDrawable recipeArrow;
 
     /**
-     * @param recipeType 该酶的专属配方类型
-     * @param display    该酶的展示模型
+     * @param recipeType 统一配方类型
      * @param guiHelper  JEI 图形助手（标准槽纹理、配方箭头）
      */
-    public EnzymeFactoryRecipeCategory(RecipeType<EnzymeRecipeDisplay> recipeType,
-                                       EnzymeRecipeDisplay display, IGuiHelper guiHelper) {
+    public EnzymeFactoryRecipeCategory(RecipeType<EnzymeRecipeDisplay> recipeType, IGuiHelper guiHelper) {
         this.recipeType = recipeType;
-        this.display = display;
         this.recipeArrow = guiHelper.getRecipeArrow();
     }
 
     /**
      * 本类别对应的配方类型
      *
-     * @return 该酶专属配方类型
+     * @return 统一配方类型
      */
     @Override
     public RecipeType<EnzymeRecipeDisplay> getRecipeType() {
@@ -98,17 +92,17 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
     }
 
     /**
-     * 类别标题（JEI 侧边栏类别名）：该酶显示名
+     * 类别标题（JEI 侧边栏类别名）：统一"酶反应腔"
      *
-     * @return 酶显示名组件
+     * @return 类别标题组件
      */
     @Override
     public Component getTitle() {
-        return Component.literal(display.displayName());
+        return Component.translatable("block.biocraft.enzyme_chamber");
     }
 
     /**
-     * 类别图标：该酶工厂方块的物品图标
+     * 类别图标：酶反应腔方块物品图标
      *
      * @return 16x16 图标绘制器
      */
@@ -127,7 +121,8 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
 
             @Override
             public void draw(GuiGraphics graphics, int xOffset, int yOffset) {
-                graphics.renderItem(display.machineStack(), xOffset, yOffset);
+                graphics.renderItem(new net.minecraft.world.item.ItemStack(
+                        com.github.crafteve.biocraft.init.ModBlocks.ENZYME_CHAMBER_ITEM.get()), xOffset, yOffset);
             }
         };
     }
@@ -153,10 +148,12 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
     }
 
     /**
-     * 布槽：反应物/产物槽（INPUT/OUTPUT）+ 酶工厂方块槽（CATALYST）
+     * 布槽：反应物/产物槽（INPUT/OUTPUT）+ 酶蛋白物品槽（INPUT 角色）
      * <p>
      * 反应物/产物槽角色同时驱动 JEI 的点击用途反向索引（跨类别全局）；
-     * 酶槽用 CATALYST 角色：hover 显示酶名、点击直接查看本酶配方
+     * 酶槽用 INPUT 角色并注册酶物品：JEI 对 ingredient 是精确物品匹配，
+     * 对酶物品按 U 只显示包含它的唯一配方（CATALYST 是类型级追溯，
+     * 统一类型下会误显示全部配方——已弃用）
      *
      * @param builder 布局构建器
      * @param recipe  展示模型
@@ -179,13 +176,16 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
             outputX += SLOT_GAP;
         }
 
-        // 酶工厂方块槽：标准槽纹理，CATALYST 角色（可交互）。
+        // 酶蛋白物品槽：标准槽纹理，INPUT 角色（精确追溯唯一配方）。
         // 不再自定义 tooltip 回调：JEI 对槽内物品自带名称显示（即酶名），
         // 再加回调会与默认名称重复成两行（此前实测的显示 bug）
-        IRecipeSlotBuilder machineSlot = builder
-                .addSlot(RecipeIngredientRole.CATALYST, TEXT_X, MACHINE_SLOT_Y)
-                .addItemStack(recipe.machineStack());
-        machineSlot.setStandardSlotBackground();
+        IRecipeSlotBuilder enzymeSlot = builder
+                .addSlot(RecipeIngredientRole.INPUT, TEXT_X, MACHINE_SLOT_Y)
+                .addItemStack(recipe.enzymeStack());
+        enzymeSlot.setStandardSlotBackground();
+        enzymeSlot.addTooltipCallback((view, tooltip) ->
+                tooltip.add(Component.translatable("jei.biocraft.enzyme_catalyst")
+                        .withStyle(style -> style.withColor(COLOR_DIM))));
     }
 
     /**

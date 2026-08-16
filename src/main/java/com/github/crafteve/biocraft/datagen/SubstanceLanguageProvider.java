@@ -79,6 +79,10 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "生物工艺 · 机器" : "BioCraft: Machines");
         translations.put("itemGroup.biocraft.enzymes",
                 zh ? "生物工艺 · 酶" : "BioCraft: Enzymes");
+        translations.put("block.biocraft.enzyme_chamber",
+                zh ? "酶反应腔" : "Enzyme Chamber");
+        translations.put("gui.biocraft.enzyme_chamber.no_enzyme",
+                zh ? "放入酶蛋白以启动反应腔" : "Insert enzyme to start the chamber");
         translations.put("tooltip.biocraft.molar_mass",
                 zh ? "摩尔质量 %s g/mol" : "Molar Mass %s g/mol");
         translations.put("tooltip.biocraft.smiles_error",
@@ -100,6 +104,9 @@ public class SubstanceLanguageProvider implements DataProvider {
         translations.put("jei.biocraft.fixed_activity",
                 zh ? "固定活性物种（不参与速率计算，仅化学计量结算）"
                         : "Fixed-activity species (not in rate law, stoichiometry only)");
+        translations.put("jei.biocraft.enzyme_catalyst",
+                zh ? "酶催化剂：插入酶反应腔 0 槽，堆叠数 = [E]"
+                        : "Enzyme catalyst: insert into chamber slot 0, stack = [E]");
         translations.put("jei.biocraft.keq",
                 zh ? "平衡常数 %s" : "Equilibrium Constant %s");
         translations.put("jei.biocraft.delta_g",
@@ -121,7 +128,7 @@ public class SubstanceLanguageProvider implements DataProvider {
     /**
      * 添加酶物品 tooltip 翻译
      * <p>
-     * tooltip.biocraft.enzyme.* 供 EnzymeItem/EnzymeBlockItem 数据摘要使用；
+     * tooltip.biocraft.enzyme.* 供 EnzymeItem 数据摘要使用；
      * 主题色已数据表化（enzymes.json color 字段），不再需要类别名条目
      */
     private void addEnzymeTooltipTranslations() {
@@ -147,17 +154,13 @@ public class SubstanceLanguageProvider implements DataProvider {
      * <p>
      * 酶显示名是权威数据（策略方提供的显示名），
      * en_us 缺省回退为 id（英文命名后续本地化轮次补充）；
-     * 方块条目（block.biocraft.&lt;id&gt;）为过渡期保留（酶工厂方块仍在），
-     * 酶蛋白物品条目（item.biocraft.enzyme_&lt;id&gt;）为新架构物品
+     * 方块条目已随酶工厂方块移除，只保留酶蛋白物品条目
      */
     private void addEnzymeTranslations() {
         boolean zh = "zh_cn".equals(language);
-        com.github.crafteve.biocraft.init.EnzymeFactoryRegistry.ordered().forEach(data -> {
-            translations.put("block.biocraft." + data.id(),
-                    zh ? data.nameZn() : data.nameEn());
-            translations.put("item.biocraft.enzyme_" + data.id(),
-                    zh ? data.nameZn() : data.nameEn());
-        });
+        com.github.crafteve.biocraft.init.EnzymeFactoryRegistry.ordered().forEach(data ->
+                translations.put("item.biocraft.enzyme_" + data.id(),
+                        zh ? data.nameZn() : data.nameEn()));
     }
 
     /**

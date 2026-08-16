@@ -15,7 +15,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  * 创意标签页注册中心，采用多标签页架构
  * <p>
  * 每个功能域一个独立标签页：分子页（物质表驱动）、酶页（酶数据表驱动，
- * 酶蛋白物品）、机器页（原始机器 + 酶工厂方块），
+ * 酶蛋白物品）、机器页（统一酶反应腔），
  * 后续纪元的功能页只需追加新的 DeferredHolder
  */
 public final class ModCreativeTabs {
@@ -49,17 +49,14 @@ public final class ModCreativeTabs {
                     })
                     .build());
 
-    /** 生物工艺 · 机器标签页：酶工厂方块（数据驱动注册，过渡期保留） */
+    /** 生物工艺 · 机器标签页：统一酶反应腔方块 */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> MACHINES = TABS.register(
             "biocraft_machines",
             () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup.biocraft.machines"))
-                    .icon(() -> new ItemStack(ModBlocks.enzymeBlocks().get(0)))
+                    .icon(() -> new ItemStack(ModBlocks.ENZYME_CHAMBER))
                     .displayItems((parameters, output) -> {
-                        // 酶工厂方块（数据驱动注册，按酶数据表顺序展示）
-                        for (var item : ModBlocks.enzymeItems()) {
-                            output.accept(item.get());
-                        }
+                        output.accept(ModBlocks.ENZYME_CHAMBER_ITEM.get());
                     })
                     .build());
 

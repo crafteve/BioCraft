@@ -187,7 +187,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private static final double SCROLL_LERP = 0.25;
 
     private final EnzymeFactoryBlockEntity blockEntity;
-    private final EnzymeFactoryData enzymeData;
+
+    /**
+     * 当前酶数据（动态：每 tick 从 menu.getEnzymeData() 刷新，
+     * GUI 打开期间放酶/换酶实时重建卡片区；无酶为 null）
+     */
+    private EnzymeFactoryData enzymeData;
+
+    /** 当前酶 id 快照（酶变化检测，与重建联动） */
+    private String currentEnzymeId = "";
 
     /**
      * 引擎物种下标 → 菜单槽位映射（fe 能量物种为 -1）
@@ -195,13 +203,13 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * fe 加入后引擎物种表与菜单槽位不再 1:1（fe 无槽位），
      * computeQ 等按引擎下标取浓度的地方必须经本映射换算
      */
-    private final int[] speciesToMenuSlot;
+    private int[] speciesToMenuSlot = new int[0];
 
-    /** 输入滚动卡片区（反应物，容器 x=7） */
-    private final CardScrollArea inputArea;
+    /** 输入滚动卡片区（反应物，容器 x=7；无酶时空卡片区） */
+    private CardScrollArea inputArea;
 
-    /** 输出滚动卡片区（产物，容器 x=193） */
-    private final CardScrollArea outputArea;
+    /** 输出滚动卡片区（产物，容器 x=193；无酶时空卡片区） */
+    private CardScrollArea outputArea;
 
     /** v-t 通量采样环形缓冲（每 1s 一点，窗口 VT_POINTS） */
     private final double[] vtFlux = new double[VT_POINTS];
@@ -229,19 +237,60 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         this.imageHeight = GUI_H;
         this.blockEntity = menu.getBlockEntity();
         this.enzymeData = menu.getEnzymeData();
-        this.speciesToMenuSlot = buildSpeciesToMenuSlot(enzymeData);
-        int inputSlots = nonEnergyCount(enzymeData.reactants());
-        this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, buildCards(enzymeData.reactants(), 0));
-        this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X,
-                buildCards(enzymeData.products(), inputSlots));
+        this.currentEnzymeId = enzymeData == null ? "" : enzymeData.id();
+        this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, java.util.Collections.emptyList());
+        this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X, java.util.Collections.emptyList());
+        rebuildEnzymeAreas();
         initVtHistory(menu.getFluxHistory());
     }
 
     /**
-     * 引擎物种下标 → 菜单槽位映射（fe 能量物种为 -1）
+     * 每 tick 刷新：检测酶数据变化（放酶/换酶/取空）→ 重建卡片区与映射
      * <p>
-     * 规则与 Menu 槽位注册一致：反应物先产物后、跳过 fe 依次编号；
-     * 引擎物种表顺序 = 反应物 + 产物（含 fe），故映射按同一遍历顺序建立
+     * 服务端换酶会清空物种槽内容并重置引擎，客户端经 DATA_ENZYME
+     * 感知变化后重建渲染数据；同种酶数量增减（[E] 缩放）不触发。
+     * 放在 containerTick 内（Screen.tick 为 final 无法覆写）
+     */
+    private void refreshEnzymeIfChanged() {
+        EnzymeFactoryData current = menu.getEnzymeData();
+        String id = current == null ? "" : current.id();
+        if (!id.equals(currentEnzymeId)) {
+            currentEnzymeId = id;
+            this.enzymeData = current;
+            rebuildEnzymeAreas();
+            // 换酶/无酶后重置图表采样：旧酶的历史折线不再有意义
+            java.util.Arrays.fill(vtFlux, 0.0);
+            vtSampleCount = 0;
+        }
+    }
+
+    /**
+     * 按当前酶数据重建卡片区与物种映射（构造/换酶/无酶共用）
+     * <p>
+     * 无酶 → 空卡片区 + 空映射（Screen 只画告示与 0 槽）；
+     * 有酶 → 按酶数据构建输入/输出卡片（容器槽位从 SPECIES_SLOT_BASE 起）
+     */
+    private void rebuildEnzymeAreas() {
+        if (enzymeData == null) {
+            this.speciesToMenuSlot = new int[0];
+            this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, java.util.Collections.emptyList());
+            this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X, java.util.Collections.emptyList());
+            return;
+        }
+        this.speciesToMenuSlot = buildSpeciesToMenuSlot(enzymeData);
+        int inputSlots = nonEnergyCount(enzymeData.reactants());
+        int speciesBase = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+        this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X,
+                buildCards(enzymeData.reactants(), speciesBase));
+        this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X,
+                buildCards(enzymeData.products(), speciesBase + inputSlots));
+    }
+
+    /**
+     * 引擎物种下标 → 容器槽位映射（fe 能量物种为 -1）
+     * <p>
+     * 规则与 Menu 槽位注册一致：0 槽为酶槽，反应物先产物后、跳过 fe
+     * 从 SPECIES_SLOT_BASE 起依次编号；引擎物种表顺序 = 反应物 + 产物（含 fe）
      *
      * @param data 酶数据档案
      * @return 映射表（长度 = 引擎物种数）
@@ -250,7 +299,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int total = data.reactants().size() + data.products().size();
         int[] mapping = new int[total];
         int speciesIndex = 0;
-        int slot = 0;
+        int slot = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
         for (EnzymeFactoryData.SpeciesSpec spec : data.reactants()) {
             mapping[speciesIndex++] =
                     com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item()) ? -1 : slot++;
@@ -365,6 +414,12 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         graphics.blit(GUI_BG, this.leftPos, this.topPos, 0, 0, GUI_W, GUI_H, GUI_W, GUI_H);
+        drawEnzymeSlotBackground(graphics);
+        if (enzymeData == null) {
+            // 无酶态：只画 0 槽背景（已画）+ 中央黑色告示，其余区域全部隐藏
+            drawNoEnzymeNotice(graphics);
+            return;
+        }
         drawTitleArea(graphics);
         drawReactionArea(graphics);
         inputArea.draw(graphics);
@@ -372,6 +427,36 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         drawVtChart(graphics);
         drawBalanceArea(graphics);
         drawRateArea(graphics);
+    }
+
+    /**
+     * 0 槽（酶槽）背景：slot.png 18×18 绘制在标题栏原方块图标位 (8,8) 的 (7,7) 外扩 1px
+     * <p>
+     * 0 槽 isActive=true 由 vanilla 渲染物品图标/悬停高亮/点击命中，
+     * 背景贴图在此自绘（vanilla 不画槽位背景）
+     */
+    private void drawEnzymeSlotBackground(GuiGraphics graphics) {
+        graphics.blit(SLOT, this.leftPos + MachineMenu.ENZYME_SLOT_X - 1,
+                this.topPos + MachineMenu.ENZYME_SLOT_Y - 1, 0, 0, 18, 18, 18, 18);
+    }
+
+    /**
+     * 无酶告示：中央区域黑色告示块 + 居中提示文字（按语言提示放入酶启动机器）
+     * <p>
+     * 覆盖范围 = 反应区/卡片区/图表区/平衡区/速率区的整体区域
+     * （x 67~249、y 30~142），完全遮住本应显示酶内容的区域
+     */
+    private void drawNoEnzymeNotice(GuiGraphics graphics) {
+        int x0 = this.leftPos + 67;
+        int y0 = this.topPos + 30;
+        int x1 = this.leftPos + 249;
+        int y1 = this.topPos + 142;
+        graphics.fill(x0, y0, x1, y1, 0xFF1E1E1E);
+        Component notice = Component.translatable("gui.biocraft.enzyme_chamber.no_enzyme");
+        int textW = this.font.width(notice);
+        int textX = this.leftPos + (67 + 249 - textW) / 2;
+        int textY = this.topPos + (30 + 142 - 9) / 2;
+        graphics.drawString(this.font, notice, textX, textY, 0xFFFFFFFF, false);
     }
 
     /**
@@ -914,6 +999,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     @Override
     protected void containerTick() {
         super.containerTick();
+        refreshEnzymeIfChanged();
         inputArea.tick();
         outputArea.tick();
         // v-t 采样：每 1s（20 tick）取当前净通量一点入环形缓冲
@@ -1262,9 +1348,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * @param graphics 渲染器
      */
     private void drawTitleArea(GuiGraphics graphics) {
-        // 方块 3D 物品图标：16×16 标准物品图标尺寸，左上角 (8,8)
-        ItemStack blockStack = new ItemStack(blockEntity.getBlockState().getBlock());
-        graphics.renderItem(blockStack, this.leftPos + ITEM_X, this.topPos + ITEM_Y);
+        // 0 槽（酶槽）占原方块图标位：物品图标由 vanilla 渲染（isActive=true），
+        // 背景贴图已在 renderBg 的 drawEnzymeSlotBackground 绘制，此处不再画方块
 
         // 缩写文本框：1px 矩形框架（无圆角），y 范围 10~21
         String abbr = enzymeData.abbreviation();

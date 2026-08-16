@@ -4,35 +4,39 @@ import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
 import com.github.crafteve.biocraft.init.EnzymeFactoryRegistry;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModItems;
+import com.github.crafteve.biocraft.item.EnzymeItem;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-
-import java.util.List;
+import net.minecraft.world.level.block.Blocks;
 
 /**
- * 酶工厂菜单（experiment/gui-remake 分支全新重建，与 main 合并前定稿）
+ * 酶反应腔菜单（统一机器：0 槽 = 酶物品，1..n = 当前酶的物种槽）
  * <p>
- * 槽位布局（全酶工厂统一，写死源码不做 json 解析）：
+ * 槽位布局（固定最大容量，未用槽位禁用）：
  * <ul>
- *   <li>物种槽（反应物 + 产物）：槽位数 = JSON 条目数之和；每张滚动卡片
- *       一个槽位，isActive 恒 false 使 vanilla 完全跳过（slot.x/y 为 final
- *       无法动态移动），位置由 Screen 的 CardScrollArea 按滚动偏移手动
- *       计算绘制与命中</li>
+ *   <li>0 槽（酶槽）：isActive=true 由 vanilla 渲染/命中，固定位于标题栏
+ *       (8,8)——原酶工厂方块图标位；mayPlace 只接受酶蛋白物品，
+ *       堆叠上限 64（堆叠数 = [E]，1 个 = 1 倍速、64 个 = 64 倍速）</li>
+ *   <li>1..maxSpecies 槽（物种槽）：isActive 恒 false 使 vanilla 完全跳过，
+ *       位置由 Screen 的 CardScrollArea 按滚动偏移手动计算绘制与命中；
+ *       mayPlace 查 BE 当前酶的槽位映射（无酶/未用槽位拒绝一切）</li>
  *   <li>玩家背包槽位：起始 (48,174)，x 步进 18；主背包三行 y = 174/192/210，
  *       快捷栏 y = 232</li>
  * </ul>
  * 打开数据包协议（与 writeClientSideData 对齐）：
- * 酶 id → 历史长度 → 历史数组 → BlockPos（NeoForge 后写）
+ * 酶 id（空串 = 无酶）→ 历史长度 → 历史数组 → BlockPos（NeoForge 后写）
+ * <p>
+ * ContainerData 每 tick 同步：温度/通量/主产物浓度 + 酶 id 索引
+ * （DATA_ENZYME：registry 顺序索引 +1，0 = 无酶——GUI 打开期间
+ * 放酶/换酶也能实时刷新）+ 每物种槽余量 + 能量存量/产率
  */
 public class MachineMenu extends AbstractContainerMenu {
     /** 背包槽起始 x（16×16 内容区左上角） */
@@ -69,25 +73,27 @@ public class MachineMenu extends AbstractContainerMenu {
     /** 槽位物品缩写/浓度文字相对槽位贴图左侧：png 右侧 4px */
     public static final int NAME_DX = 18 + 4;
 
+    /** 酶槽（0 槽）固定位置：标题栏原方块图标位 (8,8)，16×16 */
+    public static final int ENZYME_SLOT_X = 8, ENZYME_SLOT_Y = 8;
+
     /** 容器数据下标：温度×100 */
     public static final int DATA_TEMP = 0;
     /** 容器数据下标：净通量×1000 */
     public static final int DATA_FLUX = 1;
     /** 容器数据下标：主产物浓度×1000 */
     public static final int DATA_PROGRESS = 2;
-    /** 余量数据起始下标（每槽一个 int，×1000 定点；3 之后按槽位顺序排列，fe 物种无槽位） */
-    public static final int DATA_REMAINDER_BASE = 3;
+    /** 容器数据下标：酶 id 索引（registry 顺序索引 +1，0 = 无酶；GUI 实时刷新用） */
+    public static final int DATA_ENZYME = 3;
+    /** 余量数据起始下标（每物种槽一个 int，×1000 定点；4 之后按槽位顺序，0 槽酶无余量） */
+    public static final int DATA_REMAINDER_BASE = 4;
 
-    /** 本机槽位数（非 fe 物种数，Menu 构造时固化） */
-    private final int slotCount;
+    /** 固定物种槽数（最大非 fe 物种数，注册期统计；未用槽位禁用） */
+    private final int speciesSlotCount;
 
     /** 方块实体引用，菜单生命周期内保持存活（stillValid 与物种槽用） */
     private final EnzymeFactoryBlockEntity blockEntity;
 
-    /** 酶数据档案（客户端与服务端同源查表，Screen 渲染用） */
-    private final EnzymeFactoryData enzymeData;
-
-    /** 容器数据（服务端权威，每 tick 同步：温度/通量/主产物浓度 + 每槽余量×1000 + 能量） */
+    /** 容器数据（服务端权威，每 tick 同步） */
     private final ContainerData data;
 
     /** v-t 通量历史（服务端打开时下发，Screen 构造时初始化折线图；服务端不使用） */
@@ -103,15 +109,15 @@ public class MachineMenu extends AbstractContainerMenu {
      */
     public MachineMenu(int containerId, Inventory playerInventory,
                        EnzymeFactoryBlockEntity blockEntity, int[] fluxHistory) {
-        super(ModBlocks.ENZYME_FACTORY_MENU.get(), containerId);
+        super(ModBlocks.ENZYME_CHAMBER_MENU.get(), containerId);
         this.blockEntity = blockEntity;
-        this.enzymeData = blockEntity.getEnzymeData();
         this.fluxHistory = fluxHistory == null ? new int[0] : fluxHistory;
-        this.slotCount = blockEntity.getContainer().getContainerSize();
-        this.data = new SimpleContainerData(DATA_REMAINDER_BASE + slotCount + 2);
+        this.speciesSlotCount = EnzymeFactoryRegistry.maxNonFeSpeciesCount();
+        this.data = new SimpleContainerData(DATA_REMAINDER_BASE + speciesSlotCount + 2);
         refreshData();
         addDataSlots(data);
-        addSpeciesSlots(blockEntity);
+        addEnzymeSlot();
+        addSpeciesSlots();
         addPlayerInventory(playerInventory);
     }
 
@@ -142,15 +148,15 @@ public class MachineMenu extends AbstractContainerMenu {
      * 解析打开数据包并定位方块实体（与 EnzymeFactoryBlockEntity.writeClientSideData
      * 的写入顺序严格对应：酶 id → 历史长度 → 历史数组 → BlockPos）
      * <p>
-     * 方块已被破坏时按数据表档案构造占位实体（防御降级，避免菜单崩溃）；
-     * 历史数组保留并随初始化数据传入 Screen（打开瞬间折线图即有数据）
+     * 方块已被破坏时按空气状态构造占位实体（防御降级，避免菜单崩溃）；
+     * 占位实体无酶（0 槽空），GUI 显示无酶告示态
      *
      * @param playerInventory 玩家物品栏
      * @param buffer          打开数据包缓冲
      * @return 初始化数据（实体 + 历史快照）
      */
     private static InitData parseOpenBuffer(Inventory playerInventory, RegistryFriendlyByteBuf buffer) {
-        String enzymeId = buffer.readUtf();
+        buffer.readUtf();
         int historyLength = buffer.readVarInt();
         int[] history = new int[historyLength];
         for (int i = 0; i < historyLength; i++) {
@@ -160,14 +166,7 @@ public class MachineMenu extends AbstractContainerMenu {
         EnzymeFactoryBlockEntity be = playerInventory.player.level().getBlockEntity(pos)
                 instanceof EnzymeFactoryBlockEntity factory ? factory : null;
         if (be == null) {
-            EnzymeFactoryData data = EnzymeFactoryRegistry.byId(enzymeId);
-            if (data == null) {
-                throw new IllegalStateException("打开数据包含未知酶 id: " + enzymeId);
-            }
-            be = new EnzymeFactoryBlockEntity(pos, data);
-        }
-        if (!enzymeId.equals(be.getEnzymeData().id())) {
-            throw new IllegalStateException("酶 id 不一致: 包内 " + enzymeId + " / 实体 " + be.getEnzymeData().id());
+            be = new EnzymeFactoryBlockEntity(pos, Blocks.AIR.defaultBlockState());
         }
         return new InitData(be, history);
     }
@@ -182,43 +181,31 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 添加物种槽（反应物 + 产物，槽位数 = JSON 条目数之和 − fe 能量物种数）
-     * <p>
-     * fe（能量物种）不建槽位：其"存量"由能量存储承载，GUI 由能量卡片显示；
-     * 容器槽位序号是"非 fe 物种连续序号"（与 BE 的 slotToSpeciesIndex 一致），
-     * 输入卡 = 非 fe 反应物（容器索引 0 起），输出卡 = 非 fe 产物（容器索引
-     * = 非 fe 反应物数 + i）
-     * <p>
-     * 位置约定：Slot.x/y 是 final 静态字段（vanilla 渲染与命中直接读字段），
-     * 滚动卡片槽位位置由 Screen 全接管——槽位 isActive() 恒 false 使 vanilla
-     * 完全跳过（渲染/hover/点击），Screen 按滚动偏移手动计算位置绘制与
-     * 命中（见 MachineScreen 的 CardScrollArea）
-     *
-     * @param blockEntity 方块实体（提供容器与酶数据）
+     * 添加 0 槽（酶槽）：固定位置 (8,8)，isActive=true 由 vanilla 渲染/命中，
+     * mayPlace 只接受酶蛋白物品；堆叠上限 64（[E]）
      */
-    private void addSpeciesSlots(EnzymeFactoryBlockEntity blockEntity) {
-        Container container = blockEntity.getContainer();
-        int containerSlot = 0;
-        for (EnzymeFactoryData.SpeciesSpec spec : enzymeData.reactants()) {
-            if (com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item())) {
-                continue;
-            }
-            Item item = ModItems.byId(spec.item()).get();
-            addSlot(new RestrictedSlot(container, containerSlot++, 0, 0, item));
-        }
-        for (EnzymeFactoryData.SpeciesSpec spec : enzymeData.products()) {
-            if (com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item())) {
-                continue;
-            }
-            Item item = ModItems.byId(spec.item()).get();
-            addSlot(new RestrictedSlot(container, containerSlot++, 0, 0, item));
+    private void addEnzymeSlot() {
+        addSlot(new RestrictedSlot(blockEntity, EnzymeFactoryBlockEntity.ENZYME_SLOT,
+                ENZYME_SLOT_X, ENZYME_SLOT_Y, 64, true));
+    }
+
+    /**
+     * 添加物种槽（1..maxSpecies，固定最大容量）
+     * <p>
+     * 全部 isActive=false（vanilla 完全跳过渲染/hover/点击），
+     * 位置由 Screen 的 CardScrollArea 按当前酶动态绘制与命中；
+     * mayPlace 查 BE 当前酶的槽位映射（无酶/未用槽位拒绝一切）
+     */
+    private void addSpeciesSlots() {
+        int slotLimit = 64 * com.github.crafteve.biocraft.reaction.KineticConstants.SLOT_GROUPS;
+        for (int slot = EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+             slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount; slot++) {
+            addSlot(new RestrictedSlot(blockEntity, slot, 0, 0, slotLimit, false));
         }
     }
 
     /**
      * 添加玩家背包槽位（36 个：主背包 3×9 + 快捷栏 1×9）
-     * <p>
-     * 槽位坐标 = 16×16 内容区左上角（Slot 对象定位点，用户给定的像素值）
      *
      * @param playerInventory 玩家物品栏
      */
@@ -237,32 +224,51 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 从方块实体刷新全部容器数据（温度/通量/主产物浓度/每槽余量 + 能量）
-     * <p>
-     * 余量 = 引擎连续浓度的尾数（浓度×64 − 槽位整数），经 ContainerData
-     * 同步到客户端后，客户端浓度 = (槽位数量 + 余量)/64 即可重建引擎
-     * 连续浓度——解决客户端 BE 引擎浓度恒 0 导致的进度条/读数不显示；
-     * 能量数据：存量（FE）+ 产率（FE/tick ×10 定点，无能量酶恒 0）
+     * 从方块实体刷新全部容器数据（温度/通量/主产物浓度/酶索引/每槽余量 + 能量）
+     *
+     * @param offset 无
      */
     private void refreshData() {
         data.set(DATA_TEMP, blockEntity.getCachedTempX100());
         data.set(DATA_FLUX, blockEntity.getCachedFluxX1000());
         data.set(DATA_PROGRESS, blockEntity.getCachedProgressX1000());
-        for (int i = 0; i < slotCount; i++) {
-            data.set(DATA_REMAINDER_BASE + i, (int) Math.round(blockEntity.getRemainder(i) * 1000.0));
+        data.set(DATA_ENZYME, enzymeIndex(blockEntity.getEnzymeData()));
+        for (int i = 0; i < speciesSlotCount; i++) {
+            data.set(DATA_REMAINDER_BASE + i,
+                    (int) Math.round(blockEntity.getRemainder(EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + i) * 1000.0));
         }
         data.set(energyIndex(0), blockEntity.getEnergyStored());
         data.set(energyIndex(1), (int) Math.round(blockEntity.getCachedEnergyRate() * 10.0));
     }
 
     /**
-     * 能量数据下标：余量段之后（DATA_REMAINDER_BASE + 槽位数 + 0/1）
+     * 酶数据 → ContainerData 索引（registry 顺序索引 +1，无酶为 0）
+     *
+     * @param data 酶数据档案（可为 null）
+     * @return 索引值
+     */
+    private static int enzymeIndex(EnzymeFactoryData data) {
+        if (data == null) {
+            return 0;
+        }
+        int index = 0;
+        for (EnzymeFactoryData enzyme : EnzymeFactoryRegistry.ordered()) {
+            index++;
+            if (enzyme.id().equals(data.id())) {
+                return index;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * 能量数据下标：余量段之后（DATA_REMAINDER_BASE + 物种槽数 + 0/1）
      *
      * @param offset 能量偏移（0 = 存量、1 = 产率）
      * @return 容器数据下标
      */
     private int energyIndex(int offset) {
-        return DATA_REMAINDER_BASE + slotCount + offset;
+        return DATA_REMAINDER_BASE + speciesSlotCount + offset;
     }
 
     /**
@@ -305,13 +311,17 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 读取物种余量（ContainerData 同步值，客户端重建引擎浓度用）
+     * 读取物种槽余量（ContainerData 同步值，客户端重建引擎浓度用）
      *
-     * @param slot 反应物槽位下标
-     * @return 0~1 的余量（浓度小数部分）
+     * @param slot 容器槽位（1..maxSpecies，物种槽）
+     * @return 0~1 的余量（浓度小数部分），0 槽/非法槽恒 0
      */
     public double getRemainder(int slot) {
-        return data.get(DATA_REMAINDER_BASE + slot) / 1000.0;
+        if (slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
+                || slot >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
+            return 0.0;
+        }
+        return data.get(DATA_REMAINDER_BASE + slot - EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE) / 1000.0;
     }
 
     /**
@@ -333,7 +343,34 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * Shift 点击转移逻辑：物种槽 → 背包；背包 → 物种槽（受 mayPlace 限制）
+     * 获取当前酶数据（动态解析：服务端直查 BE，客户端从 DATA_ENZYME 索引查表——
+     * GUI 打开期间放酶/换酶也能实时感知，Screen 据此重建卡片）
+     *
+     * @return 酶数据档案，无酶为 null
+     */
+    public EnzymeFactoryData getEnzymeData() {
+        if (blockEntity.getLevel() == null || blockEntity.getLevel().isClientSide) {
+            int index = data.get(DATA_ENZYME);
+            if (index <= 0) {
+                return null;
+            }
+            java.util.List<EnzymeFactoryData> ordered = EnzymeFactoryRegistry.ordered();
+            return index <= ordered.size() ? ordered.get(index - 1) : null;
+        }
+        return blockEntity.getEnzymeData();
+    }
+
+    /**
+     * 获取方块实体（Screen 读物种名/余量用）
+     *
+     * @return 方块实体
+     */
+    public EnzymeFactoryBlockEntity getBlockEntity() {
+        return blockEntity;
+    }
+
+    /**
+     * Shift 点击转移逻辑：机器槽（酶槽 + 物种槽）→ 背包；背包 → 机器槽
      *
      * @param player 操作玩家
      * @param index  被点击的槽位索引
@@ -346,12 +383,13 @@ public class MachineMenu extends AbstractContainerMenu {
         if (slot != null && slot.hasItem()) {
             ItemStack original = slot.getItem();
             moved = original.copy();
-            if (index < slotCount) {
-                if (!this.moveItemStackTo(original, slotCount, slotCount + 36, true)) {
+            int machineSlots = 1 + speciesSlotCount;
+            if (index < machineSlots) {
+                if (!this.moveItemStackTo(original, machineSlots, machineSlots + 36, true)) {
                     return ItemStack.EMPTY;
                 }
             } else {
-                if (!this.moveItemStackTo(original, 0, slotCount, false)) {
+                if (!this.moveItemStackTo(original, 0, machineSlots, false)) {
                     return ItemStack.EMPTY;
                 }
             }
@@ -369,59 +407,50 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 获取酶数据档案（Screen 渲染用）
-     *
-     * @return 酶数据档案
-     */
-    public EnzymeFactoryData getEnzymeData() {
-        return enzymeData;
-    }
-
-    /**
-     * 获取方块实体（Screen 读物种名/余量用）
-     *
-     * @return 方块实体
-     */
-    public EnzymeFactoryBlockEntity getBlockEntity() {
-        return blockEntity;
-    }
-
-    /**
-     * 受限槽位：仅允许放入对应物种物品（玩家放置与 Shift 转移都经 mayPlace）
+     * 受限槽位：酶槽只接受酶蛋白物品；物种槽只接受当前酶的对应物种
      * <p>
-     * isActive 恒 false：vanilla 的槽位遍历（渲染/hover/点击命中）全部跳过
-     * 本槽位，其滚动位置由 Screen 手动计算（slot.x/y 为 final 无法动态移动，
-     * 见 MachineScreen 的手动绘制与命中方案）
+     * 物种槽 isActive 恒 false：vanilla 的槽位遍历（渲染/hover/点击命中）全部跳过，
+     * 其滚动位置由 Screen 手动计算；酶槽 isActive=true（固定位置，vanilla 全权处理）
      */
     private static class RestrictedSlot extends Slot {
-        private final Item acceptedItem;
+        private final EnzymeFactoryBlockEntity blockEntity;
+        private final int maxStack;
+        private final boolean active;
+        private final boolean enzymeSlot;
 
-        RestrictedSlot(Container container, int slot, int x, int y, Item acceptedItem) {
-            super(container, slot, x, y);
-            this.acceptedItem = acceptedItem;
+        RestrictedSlot(EnzymeFactoryBlockEntity blockEntity, int slot, int x, int y,
+                       int maxStack, boolean enzymeSlot) {
+            super(blockEntity.getContainer(), slot, x, y);
+            this.blockEntity = blockEntity;
+            this.maxStack = maxStack;
+            this.enzymeSlot = enzymeSlot;
+            this.active = !enzymeSlot;
         }
 
         @Override
         public boolean mayPlace(ItemStack stack) {
-            return stack.is(acceptedItem);
+            if (enzymeSlot) {
+                return stack.getItem() instanceof EnzymeItem;
+            }
+            String speciesId = blockEntity.getSpeciesId(index);
+            return speciesId != null && stack.is(ModItems.byId(speciesId).get());
         }
 
         /**
-         * 槽位堆叠上限（按物品查询）：直接返回容器容量
+         * 槽位堆叠上限（按物品查询）：酶槽 64（[E] 上限），物种槽槽位容量
          * <p>
          * vanilla 默认是 min(容器容量, 物品自身 getMaxStackSize)——分子物品
-         * 自身上限 64 会把容量参数化后的 128 钳回 64（"槽位只能放一组"根因）。
-         * safeInsert（拖拽）与 moveItemStackTo（shift）都经本方法取上限，
-         * 必须返回槽位容量才能放入多组物品
+         * 自身上限 64 会把容量参数化后的 128 钳回 64；safeInsert（拖拽）与
+         * moveItemStackTo（shift）都经本方法取上限，必须返回槽位容量
          */
         @Override
         public int getMaxStackSize(ItemStack stack) {
-            return getMaxStackSize();
+            return maxStack;
         }
 
         @Override
         public boolean isActive() {
-            return false;
+            return active;
         }
     }
 }

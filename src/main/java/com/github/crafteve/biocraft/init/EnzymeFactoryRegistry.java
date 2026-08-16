@@ -37,6 +37,15 @@ public final class EnzymeFactoryRegistry {
     /** 按 JSON 顺序排列的酶数据列表（创意标签页展示用） */
     private static final List<EnzymeFactoryData> ORDERED = new ArrayList<>();
 
+    /**
+     * 全部酶中"非 fe 物种数"的最大值（统一酶反应腔的容器物种槽位数）
+     * <p>
+     * 统一反应腔的容器容量固定 = 1（酶槽）+ 本值：不同酶的物种数不同，
+     * 槽位按当前酶动态映射，未用槽位禁用——容器大小注册期一次算出，
+     * 数据表新增更大物种数的酶时本值自动跟随（数据防火墙同风格）
+     */
+    private static int maxNonFeSpecies = 0;
+
     static {
         loadEnzymes();
     }
@@ -61,8 +70,39 @@ public final class EnzymeFactoryRegistry {
             data.buildSimulator();
             ENZYMES.put(data.id(), data);
             ORDERED.add(data);
+            maxNonFeSpecies = Math.max(maxNonFeSpecies, nonFeSpeciesCount(data));
         }
         BioCraft.LOGGER.info("Registered {} enzyme factories from enzyme data table", ENZYMES.size());
+    }
+
+    /**
+     * 统计单个酶的"非 fe 物种数"（fe 能量物种无物品槽，不占容器槽位）
+     *
+     * @param data 酶数据档案
+     * @return 非 fe 物种数
+     */
+    private static int nonFeSpeciesCount(EnzymeFactoryData data) {
+        int count = 0;
+        for (EnzymeFactoryData.SpeciesSpec spec : data.reactants()) {
+            if (!com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item())) {
+                count++;
+            }
+        }
+        for (EnzymeFactoryData.SpeciesSpec spec : data.products()) {
+            if (!com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 获取全部酶中非 fe 物种数的最大值（统一反应腔容器容量计算用）
+     *
+     * @return 最大非 fe 物种数
+     */
+    public static int maxNonFeSpeciesCount() {
+        return maxNonFeSpecies;
     }
 
     /**

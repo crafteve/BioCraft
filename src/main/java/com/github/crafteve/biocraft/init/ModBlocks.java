@@ -3,21 +3,15 @@ package com.github.crafteve.biocraft.init;
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.block.MachineBlock;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
-import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * 机器方块与相关注册中心
@@ -25,9 +19,8 @@ import java.util.List;
  * 统一管理四件套：方块（DeferredBlock）、方块实体类型（BlockEntityType）、
  * 菜单类型（MenuType）与方块物品，三者共享同一命名空间与注册生命周期
  * <p>
- * DNA 编码器移除后机器只剩酶工厂：由 EnzymeFactoryRegistry 数据驱动循环注册，
- * 全部实例共享一个 BlockEntityType（实体从方块取回酶数据）与一个 MenuType
- * （数据包缓冲传 enzymeId）
+ * 酶工厂方块时代结束：机器收敛为唯一的"酶反应腔"（enzyme_chamber）——
+ * 酶以物品形式插入 0 槽，BE 动态解析当前酶；方块/BE/菜单各只有一个实例
  */
 public final class ModBlocks {
     /** 方块注册表 */
@@ -41,83 +34,38 @@ public final class ModBlocks {
     public static final DeferredRegister<MenuType<?>> MENUS =
             DeferredRegister.create(Registries.MENU, BioCraft.MODID);
 
+    /** 酶反应腔方块（唯一机器方块，酶由 0 槽物品动态解析） */
+    public static final DeferredBlock<MachineBlock> ENZYME_CHAMBER = BLOCKS.register(
+            "enzyme_chamber",
+            () -> new MachineBlock());
+
     /**
-     * 酶工厂共享菜单类型（全部酶实例一个 MenuType）
+     * 酶反应腔方块物品（手持放置方块用）
      * <p>
-     * 打开数据包内容：酶 id → v-t 历史数组（writeClientSideData 写入）→
+     * 方块默认不自动生成 BlockItem，缺失时 Block.asItem() 返回空气物品，
+     * 导致合成配方/创意标签页出现 air 错误，必须显式注册
+     */
+    public static final DeferredItem<BlockItem> ENZYME_CHAMBER_ITEM = ModItems.ITEMS.register(
+            "enzyme_chamber",
+            () -> new BlockItem(ENZYME_CHAMBER.get(), new Item.Properties()));
+
+    /** 酶反应腔方块实体类型（唯一 BE，酶从 0 槽动态解析） */
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<EnzymeFactoryBlockEntity>> ENZYME_CHAMBER_BE =
+            BE_TYPES.register("enzyme_chamber",
+                    () -> BlockEntityType.Builder.of(EnzymeFactoryBlockEntity::new, ENZYME_CHAMBER.get())
+                            .build(null));
+
+    /**
+     * 酶反应腔共享菜单类型（唯一 MenuType）
+     * <p>
+     * 打开数据包内容：酶 id（空 = 无酶）→ v-t 历史数组（writeClientSideData 写入）→
      * BlockPos（NeoForge 自动写入）
      */
-    public static final DeferredHolder<MenuType<?>, MenuType<com.github.crafteve.biocraft.gui.MachineMenu>> ENZYME_FACTORY_MENU =
-            MENUS.register("enzyme_factory",
+    public static final DeferredHolder<MenuType<?>, MenuType<com.github.crafteve.biocraft.gui.MachineMenu>> ENZYME_CHAMBER_MENU =
+            MENUS.register("enzyme_chamber",
                     () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(
                             com.github.crafteve.biocraft.gui.MachineMenu::new));
 
-    /** 全部酶工厂方块（数据驱动注册，注册名 = 酶 id） */
-    private static final List<DeferredBlock<MachineBlock>> ENZYME_BLOCKS = new ArrayList<>();
-
-    /** 全部酶工厂方块物品 */
-    private static final List<DeferredItem<BlockItem>> ENZYME_ITEMS = new ArrayList<>();
-
-    static {
-        registerEnzymeFactories();
-    }
-
-    /**
-     * 酶工厂共享方块实体类型：全部酶实例注册进同一类型
-     * <p>
-     * 实体工厂从 BlockState 取回本机酶数据（MachineBlock 持有），
-     * 因此无需为每个酶单独注册 BE 类型
-     * <p>
-     * 注意：1.21.1 的 ticker 机制不在 BlockEntityType 侧（该类无 getTicker），
-     * 而是 EntityBlock 接口的 getTicker 方法（MachineBlock 覆写），见方块类
-     * <p>
-     * 声明顺序依赖：ENZYME_BLOCKS/ENZYME_ITEMS 列表必须在上方静态块
-     * registerEnzymeFactories() 填充完成后声明本字段，保证注册解析期
-     * 的 lambda 读到完整方块列表
-     */
-    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<EnzymeFactoryBlockEntity>> ENZYME_FACTORY_BE =
-            BE_TYPES.register("enzyme_factory",
-                    () -> BlockEntityType.Builder.of(
-                                    EnzymeFactoryBlockEntity::new,
-                                    ENZYME_BLOCKS.stream().map(DeferredBlock::get).toArray(Block[]::new))
-                            .build(null));
-
     private ModBlocks() {
-    }
-
-    /**
-     * 循环注册全部酶工厂方块（数据驱动，无需逐个手写）
-     * <p>
-     * 注册名 = 酶 id（lower_snake_case），方块持有酶数据档案；
-     * 方块物品用 EnzymeBlockItem（tooltip 展示酶数据摘要，过渡期保留，
-     * 后续步骤废弃方块时移除），BlockItem 需显式注册，缺失会 air 报错
-     */
-    private static void registerEnzymeFactories() {
-        for (EnzymeFactoryData data : EnzymeFactoryRegistry.ordered()) {
-            DeferredBlock<MachineBlock> block = BLOCKS.register(
-                    data.id(), () -> new MachineBlock(data));
-            ENZYME_BLOCKS.add(block);
-            ENZYME_ITEMS.add(ModItems.ITEMS.register(data.id(),
-                    () -> new com.github.crafteve.biocraft.item.EnzymeBlockItem(
-                            block.get(), new Item.Properties(), data)));
-        }
-    }
-
-    /**
-     * 获取全部酶工厂方块（datagen 模型生成与 tint 注册用）
-     *
-     * @return 只读列表
-     */
-    public static List<DeferredBlock<MachineBlock>> enzymeBlocks() {
-        return Collections.unmodifiableList(ENZYME_BLOCKS);
-    }
-
-    /**
-     * 获取全部酶工厂方块物品（创意标签页展示用）
-     *
-     * @return 只读列表
-     */
-    public static List<DeferredItem<BlockItem>> enzymeItems() {
-        return Collections.unmodifiableList(ENZYME_ITEMS);
     }
 }

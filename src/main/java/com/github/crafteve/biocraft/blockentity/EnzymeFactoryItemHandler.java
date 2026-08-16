@@ -1,25 +1,25 @@
 package com.github.crafteve.biocraft.blockentity;
 
-import com.github.crafteve.biocraft.init.ModItems;
+import com.github.crafteve.biocraft.item.EnzymeItem;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
 
 /**
- * 酶工厂的工业 IO 适配器（IItemHandlerModifiable），供管道类模组接入
+ * 酶反应腔的工业 IO 适配器（IItemHandlerModifiable），供管道类模组接入
  * <p>
- * 设计要点（与策划确认的方案）：
+ * 设计要点：
  * <ul>
- *   <li>槽位顺序 = 引擎物种顺序（反应物 0,1,2… 后接产物），与 GUI/漏斗共用
- *       同一容器实例，天然一致</li>
+ *   <li>槽位协议：0 = 酶槽（只接受酶蛋白物品，堆叠上限 64 = [E]），
+ *       1..n = 物种槽（当前酶的物种，与 GUI/漏斗共用同一容器实例）</li>
  *   <li>物种过滤：insertItem/setStackInSlot 校验槽位对应物种，
- *       不匹配直接拒绝（返回原 stack / 置空），与 GUI 的 RestrictedSlot 同规则</li>
+ *       不匹配直接拒绝（返回原 stack / 置空），与 GUI 的 RestrictedSlot 同规则；
+ *       酶槽物种校验 = 必须是酶蛋白物品（任意酶种，registry 由 BE 解析）</li>
  *   <li>全槽位可进可出：产物槽同样允许输入（可逆反应逆向供料）、
- *       反应物槽允许抽出（回收），不做方向/面区分（side 参数忽略）</li>
+ *       反应物槽允许抽出（回收）、酶槽可抽出（换酶），不做方向/面区分</li>
  *   <li>复用 setChanged 链：容器操作 → BE.setChanged() → syncFromSlots()
  *       回写引擎浓度，零额外同步代码</li>
- *   <li>性能：全部方法 O(1) 直接索引，无循环扫描；每 BE 懒加载单例
- *       （getItemHandler 返回同一实例），避免管道每 tick 查询时分配对象</li>
+ *   <li>性能：全部方法 O(1) 直接索引，无循环扫描；每 BE 懒加载单例</li>
  * </ul>
  * 本类不改动容器结构：SimpleContainer 仍是内部权威存储，
  * 玩家 GUI / 原版漏斗 / 工业管道三路共用同一容器
@@ -29,14 +29,14 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
     private final EnzymeFactoryBlockEntity blockEntity;
 
     /**
-     * @param blockEntity 宿主酶工厂方块实体
+     * @param blockEntity 宿主酶反应腔方块实体
      */
     public EnzymeFactoryItemHandler(EnzymeFactoryBlockEntity blockEntity) {
         this.blockEntity = blockEntity;
     }
 
     /**
-     * 槽位总数（= 物种数，反应物 + 产物）
+     * 槽位总数（= 固定容量：酶槽 + 最大非 fe 物种数）
      *
      * @return 槽位数
      */
@@ -58,10 +58,6 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
 
     /**
      * 插入物品：物种过滤 + 容量合并
-     * <p>
-     * 槽位只接受对应物种（reaction 中该槽位的分子物品），
-     * 不匹配返回原 stack 拒绝；匹配则按槽位剩余容量合并，
-     * 空槽直接放置。simulate=true 仅计算不修改
      *
      * @param slot     槽位下标
      * @param stack    待插入物品堆（不可修改）
@@ -78,16 +74,11 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
         }
         SimpleContainer container = blockEntity.getContainer();
         ItemStack inSlot = container.getItem(slot);
-        // 容量上限直接用槽位容量（64×n 组），不取 min(物品自身上限, 槽位)：
-        // 物品保持 vanilla 默认 64 堆叠（玩家背包/箱子不放大），
-        // 槽位的多组容量由本 handler 的 getSlotLimit 单独实现——
-        // 与 InvWrapper 的 min 语义不同（那会拿物品 64 把槽位 128 钳回 64）
         int limit = getSlotLimit(slot);
         int canInsert;
         if (inSlot.isEmpty()) {
             canInsert = Math.min(limit, stack.getCount());
         } else {
-            // 槽位非空：必须同物种才能叠加（isItemValid 已保证是合法物种）
             canInsert = Math.min(limit - inSlot.getCount(), stack.getCount());
             if (canInsert <= 0) {
                 return stack;
@@ -111,9 +102,6 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
 
     /**
      * 抽取物品：全槽位可抽（不限物种），支持模拟
-     * <p>
-     * 产物槽可抽走产物、反应物槽也可抽走反应物（回收）；
-     * 返回数量 ≤ amount 的副本，容器减量走原生 API 触发浓度回写
      *
      * @param slot     槽位下标
      * @param amount   抽取数量
@@ -138,37 +126,49 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
     }
 
     /**
-     * 槽位容量上限（n 组 = 64×SLOT_GROUPS 个物品，与容器 getMaxStackSize 同源）
+     * 槽位容量上限：酶槽 = 64（[E] 上限），物种槽 = 64×SLOT_GROUPS 组
      *
      * @param slot 槽位下标
      * @return 槽位容量
      */
     @Override
     public int getSlotLimit(int slot) {
+        if (slot == EnzymeFactoryBlockEntity.ENZYME_SLOT) {
+            return 64;
+        }
         return 64 * com.github.crafteve.biocraft.reaction.KineticConstants.SLOT_GROUPS;
     }
 
     /**
      * 物种合法性校验（insertItem/setStackInSlot 共用）
+     * <p>
+     * 酶槽：必须是酶蛋白物品（任意酶种，BE 动态解析）；
+     * 物种槽：必须是当前酶对应物种（无酶/未用槽位拒绝一切）
      *
      * @param slot  槽位下标
      * @param stack 待校验物品堆
-     * @return true 表示该槽位接受此物种
+     * @return true 表示该槽位接受此物品
      */
     @Override
     public boolean isItemValid(int slot, ItemStack stack) {
-        if (slot < 0 || slot >= getSlots()) {
+        if (slot < 0 || slot >= getSlots() || stack.isEmpty()) {
             return false;
         }
-        return stack.is(ModItems.byId(blockEntity.getSpeciesId(slot)).get());
+        if (slot == EnzymeFactoryBlockEntity.ENZYME_SLOT) {
+            return stack.getItem() instanceof EnzymeItem;
+        }
+        String speciesId = blockEntity.getSpeciesId(slot);
+        if (speciesId == null) {
+            return false;
+        }
+        return stack.is(com.github.crafteve.biocraft.init.ModItems.byId(speciesId).get());
     }
 
     /**
      * 强制写入槽位（IItemHandlerModifiable 契约）
      * <p>
      * 补 InvWrapper 的漏洞：这里同样做物种校验，
-     * 非法物种直接置空槽位（防管道类模组绕过 insertItem 过滤）；
-     * 合法写入经 setChanged 链回写引擎浓度
+     * 非法物种直接置空槽位；合法写入经 setChanged 链回写引擎浓度
      *
      * @param slot  槽位下标
      * @param stack 待写入物品堆

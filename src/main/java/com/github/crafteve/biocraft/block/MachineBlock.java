@@ -2,7 +2,6 @@ package com.github.crafteve.biocraft.block;
 
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
 import com.github.crafteve.biocraft.blockentity.MachineBlockEntity;
-import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionResult;
@@ -23,39 +22,41 @@ import javax.annotation.Nullable;
 /**
  * 唯一的机器方块类（AGENTS.md 1.4 硬性规则）
  * <p>
- * DNA 编码器移除后，机器只剩酶工厂（数据驱动注册）：方块持有酶数据档案，
- * 放置时由共享的酶工厂方块实体按方块取回数据；BlockEntity 统一为
- * 酶工厂实体，每 tick 由本类 getTicker 调度引擎流水线
+ * 酶工厂方块时代结束：机器收敛为统一的"酶反应腔"（enzyme_chamber）——
+ * 方块不持有任何酶数据，酶由方块实体从 0 槽（酶物品）动态解析，
+ * 同一方块随插入的酶种不同而呈现不同反应网络
  * <p>
  * 方块类只承载方块行为（放置/右键交互/破坏掉落/硬度/地图色），
  * 机器的业务逻辑（容器/浓度/引擎）全部在 BlockEntity 层
  */
 public class MachineBlock extends Block implements EntityBlock {
-    /** 酶数据档案（数据驱动注册时绑定，方块实体放置时取回） */
-    private final EnzymeFactoryData enzymeFactoryData;
 
     /**
-     * 酶工厂构造（数据驱动注册）
+     * 酶反应腔构造（唯一机器形态，无参数——酶数据来自 0 槽物品）
      * <p>
-     * 地图色统一取灰色（地图上不做区分，视觉区分由方块 tint 承担）；
-     * 方块持有数据档案的引用，方块实体放置时从方块取回（共享 BE 类型无需每实例注册）
-     *
-     * @param enzymeFactoryData 酶数据档案
+     * 地图色统一取灰色（地图上不做区分）；贴图暂用纯色占位，
+     * 后续美化轮次替换为正式方块贴图
      */
-    public MachineBlock(EnzymeFactoryData enzymeFactoryData) {
-        super(Properties.of()
-                .mapColor(MapColor.COLOR_GRAY)
-                .strength(1.5F)
-                .sound(SoundType.METAL));
-        this.enzymeFactoryData = enzymeFactoryData;
+    public MachineBlock(Properties properties) {
+        super(properties);
     }
 
     /**
-     * 创建酶工厂方块实体（本类方块全部为酶工厂）
+     * 无参数构造（DeferredRegister 默认工厂）：硬度/声音/地图色统一
+     */
+    public MachineBlock() {
+        this(Properties.of()
+                .mapColor(MapColor.COLOR_GRAY)
+                .strength(1.5F)
+                .sound(SoundType.METAL));
+    }
+
+    /**
+     * 创建酶反应腔方块实体
      *
      * @param pos   方块位置
      * @param state 方块状态
-     * @return 酶工厂实体
+     * @return 酶反应腔实体
      */
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
@@ -66,12 +67,12 @@ public class MachineBlock extends Block implements EntityBlock {
      * 方块实体每 tick 调度器（1.21.1 机制：getTicker 属于 EntityBlock 接口，
      * 不在 BlockEntityType 侧，与 1.20 及更早版本不同）
      * <p>
-     * 酶工厂服务端每 tick 执行引擎桥接流水线；客户端无 tick 逻辑返回 null
+     * 服务端每 tick 执行引擎桥接流水线；客户端无 tick 逻辑返回 null
      *
      * @param level 所在世界
      * @param state 方块状态
      * @param type  方块实体类型
-     * @return 服务端 ticker（酶工厂）
+     * @return 服务端 ticker（酶反应腔）
      */
     @Nullable
     @Override
@@ -150,14 +151,5 @@ public class MachineBlock extends Block implements EntityBlock {
                         stack.split(drop));
             }
         }
-    }
-
-    /**
-     * 获取酶数据档案（方块实体放置时取回数据，客户端染色同源）
-     *
-     * @return 酶数据档案
-     */
-    public EnzymeFactoryData getEnzymeFactoryData() {
-        return enzymeFactoryData;
     }
 }
