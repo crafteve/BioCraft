@@ -48,6 +48,28 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     /** 本机酶数据档案（从 0 槽解析，无酶为 null） */
     private EnzymeFactoryData enzymeData;
 
+    /**
+     * 主题液体色缓存（ARGB，客户端 BlockColor 0 号 tint 查询用，O(1) 免每帧查酶）
+     * <p>
+     * 无酶 = 空机暗灰（液体槽位呈现"空窗/空管"）；有酶 = 酶数据表主题色，
+     * 由 rebuildFromEnzymeSlot 随换酶同步更新（客户端渲染线程只读本字段，
+     * 与引擎数据无耦合，服务端/客户端各自维护）
+     */
+    private int themeLiquidArgb = EMPTY_LIQUID_ARGB;
+
+    /**
+     * 主题灯色缓存（ARGB，客户端 BlockColor 1 号 tint 查询用）
+     * <p>
+     * 无酶 = 灭灯暗色；有酶 = 酶主题色向白提亮 40%（灯亮起）
+     */
+    private int themeLampArgb = EMPTY_LAMP_ARGB;
+
+    /** 空机液体暗灰（无酶时所有液体槽位的 tint 色） */
+    public static final int EMPTY_LIQUID_ARGB = 0xFF2A2F38;
+
+    /** 灭灯暗色（无酶时所有指示灯的 tint 色） */
+    public static final int EMPTY_LAMP_ARGB = 0xFF1D2129;
+
     /** 引擎模拟器实例（有酶时构建，无酶为 null） */
     private EnzymeSimulator simulator;
 
@@ -182,8 +204,12 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             this.simulator = null;
             this.speciesIds = new String[0];
             this.feSpeciesIndex = -1;
+            this.themeLiquidArgb = EMPTY_LIQUID_ARGB;
+            this.themeLampArgb = EMPTY_LAMP_ARGB;
             return;
         }
+        this.themeLiquidArgb = data.color();
+        this.themeLampArgb = lightenArgb(data.color());
         this.simulator = data.buildSimulator();
         this.speciesIds = simulator.getDefinition().getSpeciesIds();
         this.feSpeciesIndex = -1;
@@ -275,6 +301,42 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      */
     public EnzymeFactoryData getEnzymeData() {
         return enzymeData;
+    }
+
+    /**
+     * 获取主题液体色（ARGB，客户端方块染色 0 号 tint 数据源）
+     *
+     * @return 酶主题色（无酶 = 空机暗灰）
+     */
+    public int getThemeLiquidArgb() {
+        return themeLiquidArgb;
+    }
+
+    /**
+     * 获取主题灯色（ARGB，客户端方块染色 1 号 tint 数据源）
+     *
+     * @return 提亮酶主题色（无酶 = 灭灯暗色）
+     */
+    public int getThemeLampArgb() {
+        return themeLampArgb;
+    }
+
+    /**
+     * 颜色向白提亮 40%（指示灯"点亮"效果用，纯数学无渲染依赖）
+     * <p>
+     * 亮度公式：c + (255 − c) × 0.4，三通道独立；alpha 保持 0xFF
+     *
+     * @param argb 原色（ARGB）
+     * @return 提亮后的 ARGB
+     */
+    private static int lightenArgb(int argb) {
+        int r = (argb >> 16) & 0xFF;
+        int g = (argb >> 8) & 0xFF;
+        int b = argb & 0xFF;
+        r = r + ((255 - r) * 2 / 5);
+        g = g + ((255 - g) * 2 / 5);
+        b = b + ((255 - b) * 2 / 5);
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
     /**

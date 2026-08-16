@@ -27,11 +27,30 @@ public class ChamberAssets {
     static final int LAMP = 0xFFE8E8E8;         // 指示灯灰度（左上 1px 更亮）
 
     /**
-     * 概念稿程序入口：生成六面贴图、每面预览与展开图
+     * 程序入口：按模式生成资源
+     * <ul>
+     *   <li>concept（默认）：六面概念稿 + 每面预览 + 展开图 → output/concept/</li>
+     *   <li>textures：正式反照率贴图（base 5 张 + side 镜像 1 张 + theme 6 张 + lamp 1 张）
+     *       → output/block/，确定后手动拷入 src/main/resources/assets/biocraft/textures/block/</li>
+     * </ul>
      *
-     * @param args 不使用（输出目录固定为 tools/texturegen/output/concept）
+     * @param args 可选模式参数 concept/textures
      */
     public static void main(String[] args) throws IOException {
+        String mode = args.length > 0 ? args[0] : "concept";
+        if ("textures".equals(mode)) {
+            textures();
+        } else {
+            concept();
+        }
+    }
+
+    /**
+     * 概念稿模式：六面贴图 + 每面 8 倍预览 + 展开图
+     *
+     * @throws IOException PNG 写出失败时抛出
+     */
+    static void concept() throws IOException {
         String out = "tools/texturegen/output/concept";
         String[] names = {"front", "side", "back", "top", "bottom"};
         PixelCanvas[] faces = {front(), side(), back(), top(), bottom()};
@@ -317,5 +336,242 @@ public class ChamberAssets {
                 }
             }
         }
+    }
+
+    /**
+     * 正式贴图模式：生成全部反照率贴图到 output/block/
+     * <p>
+     * 资产清单（12 张，全部 16×16）：
+     * <ul>
+     *   <li>base 5 张：enzyme_chamber_{front,side,back,top,bottom}.png（无 tint，
+     *       主题槽位处保留基底材质，由贴片元素覆盖）</li>
+     *   <li>side 镜像 1 张：enzyme_chamber_side_mirrored.png（西面用——西面
+     *       UV u=16−z 会让同一张 side 贴图在东西两面互为镜像，为让管道在两
+     *       面都位于前端，西面必须使用水平镜像贴图）</li>
+     *   <li>theme 6 张 + lamp 1 张：灰度反照率（白=纯色、灰=暗化），内容画在
+     *       贴片元素 UV 裁剪对应的坐标处，由 BlockColor 乘酶主题色得到
+     *       "带内置左上光照的主题色"</li>
+     * </ul>
+     *
+     * @throws IOException PNG 写出失败时抛出
+     */
+    static void textures() throws IOException {
+        String out = "tools/texturegen/output/block";
+        baseFront().save(out + "/enzyme_chamber_front.png");
+        baseSide().save(out + "/enzyme_chamber_side.png");
+        flipH(baseSide()).save(out + "/enzyme_chamber_side_mirrored.png");
+        baseBack().save(out + "/enzyme_chamber_back.png");
+        baseTop().save(out + "/enzyme_chamber_top.png");
+        baseBottom().save(out + "/enzyme_chamber_bottom.png");
+        themeWindow().save(out + "/enzyme_chamber_theme_window.png");
+        themePipe().save(out + "/enzyme_chamber_theme_pipe.png");
+        themePorthole().save(out + "/enzyme_chamber_theme_porthole.png");
+        themeFlange().save(out + "/enzyme_chamber_theme_flange.png");
+        themeTop().save(out + "/enzyme_chamber_theme_top.png");
+        themeRing().save(out + "/enzyme_chamber_theme_ring.png");
+        themeLamp().save(out + "/enzyme_chamber_theme_lamp.png");
+        System.out.println("正式贴图生成完成: " + out);
+    }
+
+    /**
+     * 正面基底：概念稿去掉全部主题区（液体→玻璃底、灯→凹槽色）
+     * <p>
+     * 主题区保留基底材质的原因：贴片元素（tint 分区 quad）覆盖其上，
+     * 基底只负责"贴片没盖到的边框/玻璃"，防止 UV 缝隙露出异常色
+     *
+     * @return 正面基底 16×16 画布
+     */
+    static PixelCanvas baseFront() {
+        PixelCanvas c = front();
+        c.rect(4, 7, 11, 9, GLASS);
+        c.rect(4, 3, 5, 4, FRAME_DARK);
+        c.rect(10, 3, 11, 4, FRAME_DARK);
+        return c;
+    }
+
+    /**
+     * 侧面基底：概念稿去掉主题区（管道液体→管壁色、观察孔→玻璃底、灯→凹槽色）
+     *
+     * @return 侧面基底 16×16 画布
+     */
+    static PixelCanvas baseSide() {
+        PixelCanvas c = side();
+        c.vline(2, 13, 4, METAL_DARK);
+        c.rect(10, 6, 12, 8, GLASS);
+        c.set(10, 6, GLASS_HI);
+        c.rect(11, 12, 12, 13, FRAME_DARK);
+        return c;
+    }
+
+    /**
+     * 背面基底：概念稿去掉主题区（大法兰内环→内环槽色、灯→凹槽色）
+     *
+     * @return 背面基底 16×16 画布
+     */
+    static PixelCanvas baseBack() {
+        PixelCanvas c = back();
+        c.rect(6, 7, 9, 8, FRAME_DARK);
+        c.rect(11, 12, 12, 13, FRAME_DARK);
+        return c;
+    }
+
+    /**
+     * 顶面基底：概念稿去掉主题区（中央观察孔液体→玻璃底）
+     *
+     * @return 顶面基底 16×16 画布
+     */
+    static PixelCanvas baseTop() {
+        PixelCanvas c = top();
+        c.rect(6, 6, 9, 9, GLASS);
+        return c;
+    }
+
+    /**
+     * 底面基底：概念稿去掉主题区（中央接口环→金属）
+     *
+     * @return 底面基底 16×16 画布
+     */
+    static PixelCanvas baseBottom() {
+        PixelCanvas c = bottom();
+        c.rect(7, 7, 8, 8, METAL);
+        return c;
+    }
+
+    /**
+     * 水平镜像画布（16×16），用于西面侧贴图
+     *
+     * @param src 源画布
+     * @return 镜像后的新画布
+     */
+    static PixelCanvas flipH(PixelCanvas src) {
+        PixelCanvas dst = new PixelCanvas(16, 16);
+        for (int y = 0; y < 16; y++) {
+            for (int x = 0; x < 16; x++) {
+                dst.set(15 - x, y, src.get(x, y));
+            }
+        }
+        return dst;
+    }
+
+    /**
+     * 正面观察窗液体反照率（内容在 (4,7)-(11,9)，顶行受光底行背光）
+     * <p>
+     * 内容坐标 = 贴片元素在正面（north，u=x、v=y）的 UV 裁剪区，
+     * 采样 1:1 无拉伸
+     *
+     * @return theme_window 16×16 画布
+     */
+    static PixelCanvas themeWindow() {
+        PixelCanvas c = new PixelCanvas(16, 16);
+        c.hline(4, 11, 7, LIQ_HI);
+        c.hline(4, 11, 8, LIQ);
+        c.hline(4, 11, 9, LIQ_DARK);
+        return c;
+    }
+
+    /**
+     * 管道液体反照率：1px 宽竖柱画两处——x4（东面 UV [4,2,5,13]）与
+     * x11（西面 UV [11,2,12,13]，西面 u=16−z 的镜像采样区），
+     * 上亮下暗渐变与侧面管道一致
+     *
+     * @return theme_pipe 16×16 画布
+     */
+    static PixelCanvas themePipe() {
+        PixelCanvas c = new PixelCanvas(16, 16);
+        for (int y = 2; y <= 13; y++) {
+            int col = y <= 6 ? LIQ_HI : (y <= 10 ? LIQ : LIQ_DARK);
+            c.set(4, y, col);
+            c.set(11, y, col);
+        }
+        return c;
+    }
+
+    /**
+     * 观察孔液体反照率：3×3 内容画两处——(10,6)（东面）与 (3,6)（西面镜像区）
+     *
+     * @return theme_porthole 16×16 画布
+     */
+    static PixelCanvas themePorthole() {
+        PixelCanvas c = new PixelCanvas(16, 16);
+        portholeContent(c, 10, 6);
+        portholeContent(c, 3, 6);
+        return c;
+    }
+
+    /**
+     * 单个 3×3 观察孔液体内容：基色 + 左上受光点
+     *
+     * @param c 目标画布
+     * @param x 内容左上角横坐标
+     * @param y 内容左上角纵坐标
+     */
+    static void portholeContent(PixelCanvas c, int x, int y) {
+        c.rect(x, y, x + 2, y + 2, LIQ);
+        c.set(x, y, 0xFFFFFFFF);
+    }
+
+    /**
+     * 大法兰内环液体反照率（内容在 (6,7)-(9,8)，背面 south 面 UV [6,7,10,9]）
+     *
+     * @return theme_flange 16×16 画布
+     */
+    static PixelCanvas themeFlange() {
+        PixelCanvas c = new PixelCanvas(16, 16);
+        c.rect(6, 7, 9, 8, LIQ);
+        c.set(6, 7, 0xFFFFFFFF);
+        return c;
+    }
+
+    /**
+     * 顶面观察孔液体反照率（内容在 (6,6)-(9,9)，顶面受光强整体偏亮）
+     *
+     * @return theme_top 16×16 画布
+     */
+    static PixelCanvas themeTop() {
+        PixelCanvas c = new PixelCanvas(16, 16);
+        c.hline(6, 9, 6, 0xFFFFFFFF);
+        c.hline(6, 9, 7, LIQ_HI);
+        c.hline(6, 9, 8, LIQ);
+        c.hline(6, 9, 9, LIQ_DARK);
+        return c;
+    }
+
+    /**
+     * 中央接口环液体反照率（内容在 (7,7)-(8,8)，底面 down 面 UV [7,7,9,9]）
+     *
+     * @return theme_ring 16×16 画布
+     */
+    static PixelCanvas themeRing() {
+        PixelCanvas c = new PixelCanvas(16, 16);
+        c.rect(7, 7, 8, 8, LIQ);
+        c.set(7, 7, 0xFFFFFFFF);
+        return c;
+    }
+
+    /**
+     * 指示灯反照率：2×2 内容画四处——(4,3)/(10,3)（正面双灯）、
+     * (11,12)（东面灯）、(3,12)（西面镜像区，西面 u=16−z 的镜像采样区）
+     *
+     * @return theme_lamp 16×16 画布
+     */
+    static PixelCanvas themeLamp() {
+        PixelCanvas c = new PixelCanvas(16, 16);
+        lampContent(c, 4, 3);
+        lampContent(c, 10, 3);
+        lampContent(c, 11, 12);
+        lampContent(c, 3, 12);
+        return c;
+    }
+
+    /**
+     * 单个 2×2 灯内容：基色 + 左上灯芯高光
+     *
+     * @param c 目标画布
+     * @param x 内容左上角横坐标
+     * @param y 内容左上角纵坐标
+     */
+    static void lampContent(PixelCanvas c, int x, int y) {
+        c.rect(x, y, x + 1, y + 1, LAMP);
+        c.set(x, y, 0xFFFFFFFF);
     }
 }

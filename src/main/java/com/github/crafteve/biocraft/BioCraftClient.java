@@ -1,16 +1,18 @@
 package com.github.crafteve.biocraft;
 
+import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
 import com.github.crafteve.biocraft.gui.MachineScreen;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
 // This class will not load on dedicated servers. Accessing client side code from here is safe.
 @Mod(value = BioCraft.MODID, dist = Dist.CLIENT)
-// 客户端装配事件统一挂在 mod 总线上（菜单屏幕注册事件均在此总线派发）
+// 客户端装配事件统一挂在 mod 总线上（菜单屏幕注册/染色注册事件均在此总线派发）
 @EventBusSubscriber(modid = BioCraft.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 public class BioCraftClient {
 
@@ -19,5 +21,31 @@ public class BioCraftClient {
         // 将机器菜单类型与对应的屏幕类绑定，打开 GUI 时客户端按 MenuType 实例化屏幕
         // NeoForge 1.21.1 的 MenuScreens.register 为私有方法，必须经本事件注册
         event.register(ModBlocks.ENZYME_CHAMBER_MENU.get(), MachineScreen::new);
+    }
+
+    @SubscribeEvent
+    static void onRegisterBlockColors(RegisterColorHandlersEvent.Block event) {
+        // 酶反应腔方块主题色染色：贴片元素（tintindex 0=液体、1=灯）按方块实体
+        // 缓存的酶主题色上色——无酶时返回空机暗灰（窗/管"空的"、灯熄灭），
+        // 有酶时液体=酶数据表色、灯=提亮酶色；同一模型零 blockstate 表达状态
+        event.register((state, level, pos, tintIndex) -> {
+            if (level != null && pos != null
+                    && level.getBlockEntity(pos) instanceof EnzymeFactoryBlockEntity be) {
+                return tintIndex == 1 ? be.getThemeLampArgb() : be.getThemeLiquidArgb();
+            }
+            return tintIndex == 1
+                    ? EnzymeFactoryBlockEntity.EMPTY_LAMP_ARGB
+                    : EnzymeFactoryBlockEntity.EMPTY_LIQUID_ARGB;
+        }, ModBlocks.ENZYME_CHAMBER.get());
+    }
+
+    @SubscribeEvent
+    static void onRegisterItemColors(RegisterColorHandlersEvent.Item event) {
+        // 酶反应腔方块物品（无 BE，无法知道具体酶色）：固定呈现"空机"暗灰
+        // （物品 = 缩小版未装酶机器，与用户确认的默认 3D 方块模型渲染一致）
+        event.register((stack, tintIndex) -> tintIndex == 1
+                ? EnzymeFactoryBlockEntity.EMPTY_LAMP_ARGB
+                : EnzymeFactoryBlockEntity.EMPTY_LIQUID_ARGB,
+                ModBlocks.ENZYME_CHAMBER_ITEM.get());
     }
 }

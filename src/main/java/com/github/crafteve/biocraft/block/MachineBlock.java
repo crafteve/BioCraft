@@ -3,17 +3,24 @@ package com.github.crafteve.biocraft.block;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
 import com.github.crafteve.biocraft.blockentity.MachineBlockEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
 
@@ -32,13 +39,24 @@ import javax.annotation.Nullable;
 public class MachineBlock extends Block implements EntityBlock {
 
     /**
+     * 水平朝向属性：正面（大观察窗）放置时面向玩家（熔炉同款）
+     * <p>
+     * 方块贴图是有方向的六面设计（正面观察窗/侧面管道/背面法兰），
+     * 必须让玩家放置时正面朝向自己；旧存档方块无此属性自动取默认朝北
+     */
+    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
+
+    /**
      * 酶反应腔构造（唯一机器形态，无参数——酶数据来自 0 槽物品）
      * <p>
-     * 地图色统一取灰色（地图上不做区分）；贴图暂用纯色占位，
-     * 后续美化轮次替换为正式方块贴图
+     * 地图色统一取灰色（地图上不做区分）；贴图为六面机器模型
+     * （base 中性贴图 + 贴片元素 tint 分区，主题色随 0 槽酶动态变化）
+     *
+     * @param properties 方块属性
      */
     public MachineBlock(Properties properties) {
         super(properties);
+        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
     }
 
     /**
@@ -49,6 +67,52 @@ public class MachineBlock extends Block implements EntityBlock {
                 .mapColor(MapColor.COLOR_GRAY)
                 .strength(1.5F)
                 .sound(SoundType.METAL));
+    }
+
+    /**
+     * 声明方块状态属性（FACING 水平朝向）
+     *
+     * @param builder 状态定义构造器
+     */
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(FACING);
+    }
+
+    /**
+     * 放置时朝向：正面面向放置玩家（熔炉同款 getOpposite）
+     *
+     * @param context 放置上下文
+     * @return 含朝向的方块状态
+     */
+    @Nullable
+    @Override
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        return this.defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
+    }
+
+    /**
+     * 旋转支持（活塞/结构方块等），朝向随旋转角更新
+     *
+     * @param state    原方块状态
+     * @param rotation 旋转角
+     * @return 旋转后的方块状态
+     */
+    @Override
+    protected BlockState rotate(BlockState state, Rotation rotation) {
+        return state.setValue(FACING, rotation.rotate(state.getValue(FACING)));
+    }
+
+    /**
+     * 镜像支持，镜像转为等效旋转
+     *
+     * @param state  原方块状态
+     * @param mirror 镜像方向
+     * @return 镜像后的方块状态
+     */
+    @Override
+    protected BlockState mirror(BlockState state, Mirror mirror) {
+        return state.rotate(mirror.getRotation(state.getValue(FACING)));
     }
 
     /**

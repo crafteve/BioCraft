@@ -68,7 +68,8 @@
 - 已完成 DNA 编码器移除（破坏性）：方块/GUI/BE/网络包（ModNetwork/ServerboundDnaSequencePacket）/序列物品（SequenceItem/dna_template）/数据组件（ModDataComponents）/配方/贴图全部删除，`MachineType` 枚举与 `MachineSpec.Primitive` 一并移除，MachineBlock 只剩酶工厂形态；旧存档中 DNA 编码器方块与 DNA 模板物品丢失（既定破坏性更新）
 - 已完成 侧向 IO 模式按钮（防误塞/防误取）：GUI INPUT/OUTPUT 滚动槽下边界上抬 9px，底部各新增一个 56×11 IO 模式按钮（主题色边框 + 浅色填充 + 模式文字，下边界与中央反应速率区背景底齐平，悬停原版槽位高亮同款浅色遮罩脉动动画 + 说明 tooltip）；三态循环（仅输入 → 仅输出 → 输入输出），INPUT 默认仅输入、OUTPUT 默认仅输出，点击经网络包（ServerboundSetIoModePacket）写服务端并 ContainerData 回刷；门控覆盖玩家 GUI（Slot.mayPlace/mayPickup）、工业管道（ItemHandler insertItem/extractItem）、原版漏斗（容器 canPlaceItem/removeItem）三路——防玩家/管道把物品塞进产物槽导致容量冻结（TPI 满堆卡 0.00 的预防性设计），IO 模式随 NBT 存档（换酶不重置）
 - 已完成 酶容器方块视觉概念设计（Phase 1，贴图与渲染机制前置）：六视图 16×16 程序化概念稿（`tools/texturegen/ChamberAssets.java`，PixelCanvas 逐像素绘制：正面大观察窗 + 上排双灯、侧面竖直主题色管道 + 观察孔、背面大法兰 + 维护面板、顶面中央观察孔、底面金属底座）+ 展开图 + 8 倍预览；设计文档《酶容器方块概念设计_2026-08-16.md》定稿设计语言（五档金属色阶/玻璃色阶/统一左上光照/1px 像素语法/六面四角螺栓定位基准）、主题色槽位表（液体 0 号 tint + 灯 1 号 tint）、状态语义（无酶暗灰 / 有酶酶色，靠 BlockColor 动态实现无需 blockstate）；渲染机制方案：vanilla 多元素模型 + 贴片元素 tintindex 分区 + 灰度反照率贴图 + BlockColor 从 BE 缓存取酶色 + MachineBlock 新增水平 FACING；物品形态走默认 3D 方块模型（用户指定），ItemColor 返回无酶暗灰
-- 待开发 酶容器正式贴图与渲染机制（Phase 2）：base 5 张 + theme 2 张反照率贴图拷入 resources、MachineModelProvider 改多元素模型 JSON、BlockColor/ItemColor 注册 + BE 主题色缓存、MachineBlock FACING 属性、runClient 实测（旧存档两台 TPI 机）
+- 已完成 酶容器方块正式贴图与渲染机制（Phase 2）：12 张反照率贴图（base 5 张 + 西面 side 镜像 1 张 + theme 灰度 6 张 + lamp 1 张，`ChamberAssets textures` 模式生成后拷入 resources）；`MachineModelProvider` 改多元素模型（1 主元素六面 base 无 tint + 12 贴片元素凸出 0.001，BlockElement 校验 [-16,32] 已核对反编译源码，tintindex 0=液体/1=灯，UV 按各面 vanilla 约定（north u=x / south u=16−x / east u=z / west u=16−z / up-down u=x）裁剪 theme 内容区，东西两侧贴片块坐标一致 = 物理镜像对称）；BlockColor 从 BE 缓存取酶色（换酶更新 O(1)，无酶 = 空机暗灰）→ 同一模型零 blockstate 表达空机/有酶；ItemColor 物品固定空机暗灰（用户指定默认 3D 方块模型渲染）；`MachineBlock` 新增水平 FACING（放置正面朝玩家，旧存档回退朝北）；运行期验证待 runClient（旧存档两台 TPI 机）
+- 待开发 酶容器贴图 Phase 3（可选）：停摆红灯（stall 状态 tint）、自发光指示灯、气泡粒子、GUI 小模型图标
 - 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
 - 待开发 中心法则链（转录仪/翻译仪/内质网折叠器/高尔基体修饰仪，未实现；酶蛋白未来经中心法则产出后插入反应腔）
 - 待开发 糖酵解流水线搭建（14 步酶数据已齐含乳酸发酵线，机器布局与产线衔接待做；LDH/PDC/ADH 需供 H⁺、ATPase 需供水，产 H⁺ 机制待电解水补）
@@ -145,7 +146,7 @@
 ```
 com.github.crafteve.biocraft
 ├── BioCraft.java                 # 瘦身为纯装配：注册各 init 注册中心（无功能实现）
-├── BioCraftClient.java           # 客户端装配：菜单屏幕绑定 + 方块/物品染色（数据表 color 主题色 tint）
+├── BioCraftClient.java           # 客户端装配：菜单屏幕绑定 + 方块/物品染色（BlockColor 按 BE 缓存酶主题色给贴片元素 tint，ItemColor 物品固定空机暗灰）
 ├── init/
 │   ├── ModItems.java             # 读 substances.json → 动态注册 66 个 MoleculeItem；读 enzymes.json → 动态注册 14 个酶蛋白物品（enzyme_<酶id>，EnzymeItem）
 │   ├── ModBlocks.java            # 方块/BE 类型/MenuType/方块物品四件套：唯一酶反应腔 enzyme_chamber（方块/BE/菜单各一，酶由 0 槽动态解析）
@@ -172,10 +173,10 @@ com.github.crafteve.biocraft
 │   ├── MoleculeTooltipComponent.java # TooltipComponent+ClientTooltipComponent：blit 结构图
 │   ├── MoleculeTooltipLayout.java # 标签页标题移置 tooltip 末尾（GatherComponents 事件）
 │   └── MoleculeItemDecorator.java # 图标左上角缩写标注（IItemDecorator，白字黑阴影、z=200；超长缩写按可用宽度自适应缩小）
-├── block/MachineBlock.java       # 唯一机器方块类：统一酶反应腔形态（无酶数据字段——酶由 BE 从 0 槽物品动态解析）
+├── block/MachineBlock.java       # 唯一机器方块类：统一酶反应腔形态（无酶数据字段——酶由 BE 从 0 槽物品动态解析）+ 水平 FACING（放置正面朝玩家，4 向旋转/镜像支持）
 ├── blockentity/
 │   ├── MachineBlockEntity.java   # 机器 BE 基类：SimpleContainer（setChanged 转发 + getMaxStackSize 委托 slotStackLimit 钩子 + canPlaceItem/removeItem 门控钩子）+ NBT 存档 + MenuProvider + dropExtraContents 钩子
-│   ├── EnzymeFactoryBlockEntity.java # 酶反应腔：0 槽酶槽动态解析（换酶清空/同种增减只改活性）+ 浓度-槽位双向投影 + 每 tick 引擎步进 + 睡眠机制 + v-t 历史环形缓冲 + 定点存档 + 懒加载 IO 适配器单例 + fe 槽位映射/能量镜像结算 + 侧向 IO 模式（canInsertIntoSlot/canExtractFromSlot 三路门控统一入口）
+│   ├── EnzymeFactoryBlockEntity.java # 酶反应腔：0 槽酶槽动态解析（换酶清空/同种增减只改活性）+ 浓度-槽位双向投影 + 每 tick 引擎步进 + 睡眠机制 + v-t 历史环形缓冲 + 定点存档 + 懒加载 IO 适配器单例 + fe 槽位映射/能量镜像结算 + 侧向 IO 模式（canInsertIntoSlot/canExtractFromSlot 三路门控统一入口）+ 主题色缓存（液体/灯 ARGB，换酶更新，客户端 BlockColor 数据源）
 │   ├── EnzymeFactoryItemHandler.java # 工业 IO 适配器（IItemHandlerModifiable）：0 槽酶槽过滤/物种过滤/全槽位可进可出（受 IO 模式门控）/O(1) 索引，复用 setChanged 浓度回写链
 │   ├── IoMode.java               # 侧向 IO 模式枚举（仅输入/仅输出/双向，GUI 按钮/管道/漏斗三路门控共用）
 │   └── MachineEnergyStorage.java  # 能量存储适配器（IEnergyStorage）：产物侧 fe 只可抽/反应物侧只可充，懒加载单例
@@ -206,7 +207,7 @@ com.github.crafteve.biocraft
     ├── ModDataGen.java           # GatherDataEvent 装配
     ├── SubstanceModelProvider.java # 每物质两层模型 JSON（容器层 + 内容物层）
     ├── SubstanceLanguageProvider.java # en_us/zh_cn 语言生成（含类别/摩尔质量 key）
-    └── MachineModelProvider.java # 机器模型生成：酶工厂白底 cube tintindex 0 + 酶蛋白物品双层 generated（DNA 编码器与序列物品模型已随其移除）
+    └── MachineModelProvider.java # 机器模型生成：酶反应腔多元素模型（主元素六面 base + 12 贴片元素 tintindex 分区 0=液体/1=灯 + blockstate FACING 四向）+ 酶蛋白物品双层 generated（DNA 编码器与序列物品模型已随其移除）
 ```
 
 ### 2.5 其他环境

@@ -1,1 +1,1 @@
-{"variants":{"":{"model":"biocraft:block/enzyme_chamber"}}}
+{"variants":{"facing=north":{"model":"biocraft:block/enzyme_chamber","y":0},"facing=east":{"model":"biocraft:block/enzyme_chamber","y":90},"facing=south":{"model":"biocraft:block/enzyme_chamber","y":180},"facing=west":{"model":"biocraft:block/enzyme_chamber","y":270}}}
