@@ -1,19 +1,22 @@
 package com.github.crafteve.biocraft.client;
 
-import com.github.crafteve.biocraft.item.MoleculeItem;
+import com.github.crafteve.biocraft.item.AbbreviationProvider;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.IItemDecorator;
 
 /**
- * 分子物品图标缩写装饰器（Dist.CLIENT）
+ * 物品图标缩写装饰器（Dist.CLIENT）
  * <p>
- * 在物品图标左上角绘制物质缩写（如 ATP、GLUC、NAD+、H2O），
- * 便于在快捷栏/物品栏/创意标签页中快速分辨不同分子。
+ * 在物品图标左上角绘制物质/酶缩写（如 ATP、GLUC、HK、PGI），
+ * 便于在快捷栏/物品栏/创意标签页中快速分辨不同物品。
  * 绘制方式：白色文字 + 黑色阴影双写（先画阴影再画主文字，
  * 右偏下偏 1px），并以 0.55 倍缩放适配 16px 图标
  * （MC 字体原字号 9px 会溢出图标，最长 4 字符缩写缩放后约 13px）
+ * <p>
+ * 数据源为 AbbreviationProvider 接口：分子物品与酶蛋白物品共用本装饰器
+ * （原实现直接 instanceof MoleculeItem，酶物品无法复用，已抽接口）
  */
 public final class MoleculeItemDecorator implements IItemDecorator {
 
@@ -44,10 +47,10 @@ public final class MoleculeItemDecorator implements IItemDecorator {
      */
     @Override
     public boolean render(GuiGraphics guiGraphics, Font font, ItemStack stack, int x, int y) {
-        if (!(stack.getItem() instanceof MoleculeItem molecule)) {
+        if (!(stack.getItem() instanceof AbbreviationProvider provider)) {
             return false;
         }
-        String abbreviation = molecule.getAbbreviation();
+        String abbreviation = provider.getAbbreviation();
         if (abbreviation.isEmpty()) {
             return false;
         }

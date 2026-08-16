@@ -49,6 +49,16 @@ public class MoleculeColors {
         };
         event.register(colorHandler,
                 ModItems.all().values().stream().map(holder -> holder.get()).toArray(Item[]::new));
+
+        // 酶蛋白物品：layer0 内容物按 EC 类别主题色染色（与酶方块 tint 同色源，形色分离）
+        ItemColor enzymeColorHandler = (ItemStack stack, int layer) -> {
+            if (layer != 0 || !(stack.getItem() instanceof EnzymeItem enzyme)) {
+                return -1;
+            }
+            return enzyme.getTintColor();
+        };
+        event.register(enzymeColorHandler,
+                ModItems.enzymeAll().values().stream().map(holder -> holder.get()).toArray(Item[]::new));
     }
 
     /**
@@ -74,6 +84,8 @@ public class MoleculeColors {
     @SubscribeEvent
     public static void onRegisterItemDecorations(RegisterItemDecorationsEvent event) {
         ModItems.all().values().forEach(holder -> event.register(holder.get(), MoleculeItemDecorator.INSTANCE));
+        // 酶蛋白物品：缩写装饰器复用（数据源 AbbreviationProvider 接口）
+        ModItems.enzymeAll().values().forEach(holder -> event.register(holder.get(), MoleculeItemDecorator.INSTANCE));
     }
 }
 

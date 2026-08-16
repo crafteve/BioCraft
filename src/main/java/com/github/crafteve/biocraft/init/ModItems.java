@@ -2,9 +2,11 @@ package com.github.crafteve.biocraft.init;
 
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.data.SubstanceData;
+import com.github.crafteve.biocraft.item.EnzymeItem;
 import com.github.crafteve.biocraft.item.MoleculeCategory;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.item.SequenceItem;
+import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -38,6 +40,12 @@ public final class ModItems {
     /** 按 JSON 顺序排列的物品列表，供创意标签页展示 */
     private static final List<DeferredItem<MoleculeItem>> ORDERED = new ArrayList<>();
 
+    /** 酶 id -> 酶蛋白物品引用（新架构：酶 = 物品，数据驱动注册） */
+    private static final Map<String, DeferredItem<EnzymeItem>> ENZYMES = new LinkedHashMap<>();
+
+    /** 按酶数据表顺序排列的酶物品列表，供创意标签页展示 */
+    private static final List<DeferredItem<EnzymeItem>> ENZYME_ORDERED = new ArrayList<>();
+
     /** DNA模板：序列载体物品，由 DNA编码器产出，不走物质表（无固定化学结构） */
     public static final DeferredItem<SequenceItem> DNA_TEMPLATE = ITEMS.register(
             "dna_template",
@@ -45,6 +53,7 @@ public final class ModItems {
 
     static {
         loadSubstances();
+        loadEnzymes();
     }
 
     private ModItems() {
@@ -83,6 +92,53 @@ public final class ModItems {
      */
     public static DeferredItem<MoleculeItem> byId(String id) {
         return MOLECULES.get(id);
+    }
+
+    /**
+     * 解析酶数据表并注册全部酶蛋白物品
+     * <p>
+     * 注册名 = enzyme_&lt;酶id&gt;（前缀避免与过渡期仍存在的酶工厂方块物品
+     * id 冲突；未来方块删除后注册名保持稳定，存档物品 id 不迁移）。
+     * 堆叠数 = 酶浓度 [E]（stacksTo 64，速率线性倍率由反应腔引擎
+     * 活动通道实现，本类只承载物品形态）
+     */
+    private static void loadEnzymes() {
+        for (EnzymeFactoryData data : EnzymeFactoryRegistry.ordered()) {
+            DeferredItem<EnzymeItem> item = ITEMS.register(
+                    "enzyme_" + data.id(),
+                    () -> new EnzymeItem(new Item.Properties(), data));
+            ENZYMES.put(data.id(), item);
+            ENZYME_ORDERED.add(item);
+        }
+        BioCraft.LOGGER.info("Registered {} enzyme items from enzyme data table", ENZYMES.size());
+    }
+
+    /**
+     * 按酶 id 查找酶蛋白物品
+     *
+     * @param enzymeId 酶注册名（enzymes.json 的 id）
+     * @return 物品引用，不存在时返回 null
+     */
+    public static DeferredItem<EnzymeItem> enzymeById(String enzymeId) {
+        return ENZYMES.get(enzymeId);
+    }
+
+    /**
+     * 获取全部酶蛋白物品引用（按酶数据表顺序）
+     *
+     * @return 只读引用表
+     */
+    public static Map<String, DeferredItem<EnzymeItem>> enzymeAll() {
+        return Collections.unmodifiableMap(ENZYMES);
+    }
+
+    /**
+     * 获取按酶数据表顺序排列的酶物品列表（创意标签页展示用）
+     *
+     * @return 只读列表
+     */
+    public static List<DeferredItem<EnzymeItem>> enzymeOrdered() {
+        return Collections.unmodifiableList(ENZYME_ORDERED);
     }
 
     /**

@@ -4,6 +4,8 @@ import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.block.MachineBlock;
 import com.github.crafteve.biocraft.blockentity.MachineType;
 import com.github.crafteve.biocraft.init.ModBlocks;
+import com.github.crafteve.biocraft.init.ModItems;
+import com.github.crafteve.biocraft.item.EnzymeItem;
 import com.google.common.hash.HashCode;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -12,6 +14,7 @@ import net.minecraft.data.DataProvider;
 import net.minecraft.data.PackOutput;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.registries.DeferredBlock;
+import net.neoforged.neoforge.registries.DeferredItem;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -22,12 +25,14 @@ import java.util.concurrent.CompletableFuture;
 /**
  * 机器方块与序列物品模型生成器（datagen）
  * <p>
- * 生成三类资源：
+ * 生成四类资源：
  * <ul>
  *   <li>原始机器（MachineType 枚举）：方块状态 + 方块模型（cube_bottom_top
  *       三面分离贴图）+ 物品模型，每类型一份</li>
  *   <li>酶工厂（数据驱动）：方块状态 + 方块模型（简化白底 cube + tintindex
  *       按类别色染色）+ 物品模型，每实例一份</li>
+ *   <li>酶蛋白物品（数据驱动）：双层 generated 模型（layer0 内容物染色 +
+ *       layer1 烧杯瓶身），与分子物品同款视觉语言</li>
  *   <li>序列物品：item/generated 单层模型</li>
  * </ul>
  * 模型以手写 JsonObject 形式输出（与 SubstanceModelProvider 风格一致）
@@ -55,6 +60,7 @@ public class MachineModelProvider implements DataProvider {
             outputs.putAll(machineResources(type));
         }
         outputs.putAll(enzymeFactoryResources());
+        outputs.putAll(enzymeItemResources());
         outputs.putAll(sequenceItemResources());
 
         for (Map.Entry<Path, JsonObject> entry : outputs.entrySet()) {
@@ -66,6 +72,34 @@ public class MachineModelProvider implements DataProvider {
             }
         }
         return CompletableFuture.completedFuture(null);
+    }
+
+    /**
+     * 生成全部酶蛋白物品模型（与分子物品同款双层结构）
+     * <p>
+     * layer0 = 烧杯内容物贴图（按 EC 类别主题色 ItemColor 染色）、
+     * layer1 = 烧杯瓶身贴图——与分子的视觉语言完全一致，
+     * 复用现有 beaker 容器贴图（零新增贴图资源）；
+     * 父模型 generated 自带 layer0 tintindex，染色无需在 JSON 中声明
+     *
+     * @return 输出路径到 JSON 内容的映射
+     */
+    private Map<Path, JsonObject> enzymeItemResources() {
+        Map<Path, JsonObject> outputs = new HashMap<>();
+        for (DeferredItem<EnzymeItem> item : ModItems.enzymeOrdered()) {
+            String itemName = item.getId().getPath();
+            JsonObject model = new JsonObject();
+            model.addProperty("parent", "minecraft:item/generated");
+            JsonObject textures = new JsonObject();
+            textures.addProperty("layer0",
+                    ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "item/beaker_0").toString());
+            textures.addProperty("layer1",
+                    ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "item/beaker_1").toString());
+            model.add("textures", textures);
+            outputs.put(packOutput.getOutputFolder()
+                    .resolve("assets/biocraft/models/item/" + itemName + ".json"), model);
+        }
+        return outputs;
     }
 
     /**

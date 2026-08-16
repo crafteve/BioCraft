@@ -78,6 +78,8 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "生物工艺 · 分子" : "BioCraft: Molecules");
         translations.put("itemGroup.biocraft.machines",
                 zh ? "生物工艺 · 机器" : "BioCraft: Machines");
+        translations.put("itemGroup.biocraft.enzymes",
+                zh ? "生物工艺 · 酶" : "BioCraft: Enzymes");
         translations.put("tooltip.biocraft.molar_mass",
                 zh ? "摩尔质量 %s g/mol" : "Molar Mass %s g/mol");
         translations.put("tooltip.biocraft.smiles_error",
@@ -190,16 +192,21 @@ public class SubstanceLanguageProvider implements DataProvider {
     }
 
     /**
-     * 添加酶工厂方块翻译（数据驱动：酶数据表自带中文 name）
+     * 添加酶翻译（数据驱动：酶数据表自带中文 name）
      * <p>
-     * 酶方块显示名是权威数据（策略方提供的显示名），
-     * en_us 缺省回退为 id（英文命名后续本地化轮次补充）
+     * 酶显示名是权威数据（策略方提供的显示名），
+     * en_us 缺省回退为 id（英文命名后续本地化轮次补充）；
+     * 方块条目（block.biocraft.&lt;id&gt;）为过渡期保留（酶工厂方块仍在），
+     * 酶蛋白物品条目（item.biocraft.enzyme_&lt;id&gt;）为新架构物品
      */
     private void addEnzymeTranslations() {
         boolean zh = "zh_cn".equals(language);
-        com.github.crafteve.biocraft.init.EnzymeFactoryRegistry.ordered().forEach(data ->
-                translations.put("block.biocraft." + data.id(),
-                        zh ? data.nameZn() : data.nameEn()));
+        com.github.crafteve.biocraft.init.EnzymeFactoryRegistry.ordered().forEach(data -> {
+            translations.put("block.biocraft." + data.id(),
+                    zh ? data.nameZn() : data.nameEn());
+            translations.put("item.biocraft.enzyme_" + data.id(),
+                    zh ? data.nameZn() : data.nameEn());
+        });
     }
 
     /**

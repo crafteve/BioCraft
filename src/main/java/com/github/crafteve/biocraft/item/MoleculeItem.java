@@ -34,7 +34,7 @@ import java.util.Optional;
  * @param tintColor    内容物染色值（ARGB）
  * @param category     分子类别（tooltip 类别徽章）
  */
-public class MoleculeItem extends Item {
+public class MoleculeItem extends Item implements AbbreviationProvider {
     private final String smiles;
     private final String abbreviation;
     private final int tintColor;
@@ -142,6 +142,7 @@ public class MoleculeItem extends Item {
      *
      * @return 缩写字符串
      */
+    @Override
     public String getAbbreviation() {
         return abbreviation;
     }
