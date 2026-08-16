@@ -66,12 +66,13 @@ public class MachineMenu extends AbstractContainerMenu {
     public static final int OUTPUT_SCROLL_X = 193;
 
     /**
-     * IO 模式按钮：位于滚动槽正下方（y = 滚动区底 153，高 9px =
-     * 滚动槽下边界上抬的高度），宽 = 滚动槽宽 56；
+     * IO 模式按钮：位于滚动槽正下方（y = 滚动区底 153），宽 = 滚动槽宽 56；
+     * 高 11px——下边界向下延长至与中央反应速率区浅色背景底（164）齐平
+     * （原 9px 仅等于滚动槽下边界上抬的高度，用户定稿要求与速率区齐平）；
      * 按钮管理本区域（INPUT/OUTPUT）的 IO 模式，三态循环切换
      */
     public static final int IO_BUTTON_Y = SCROLL_Y + SCROLL_H;
-    public static final int IO_BUTTON_H = 9;
+    public static final int IO_BUTTON_H = 11;
 
     /** 卡片尺寸 56×28，间距 1，卡片色 #c6c6c6 */
     public static final int CARD_W = 56, CARD_H = 28, CARD_GAP = 1;
