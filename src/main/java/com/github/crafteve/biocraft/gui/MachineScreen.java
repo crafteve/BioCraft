@@ -2,10 +2,12 @@ package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
+import com.github.crafteve.biocraft.blockentity.IoMode;
 import com.github.crafteve.biocraft.compat.CompatRenderUtil;
 import com.github.crafteve.biocraft.compat.EnzymeEquation;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
+import com.github.crafteve.biocraft.network.ServerboundSetIoModePacket;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
 import com.github.crafteve.biocraft.reaction.ReactionDefinition;
@@ -13,6 +15,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
@@ -20,6 +23,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.ChatFormatting;
+import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,10 +41,15 @@ import java.util.List;
  *       8px 分段彩色（物品色加深 1/5 / 黑色符号），超宽在 +/箭头附近
  *       换行，浅色主题底随行数增高</li>
  *   <li>滚动卡片区（CardScrollArea 抽象，输入/输出各一实例）：视口
- *       (7,41)~(63,162) 与 (193,41)~(249,162)，卡片数 = JSON 物种条目数；
+ *       (7,41)~(63,153) 与 (193,41)~(249,153)（下边界上抬 9px，底部
+ *       9px 为 IO 模式按钮区），卡片数 = JSON 物种条目数；
  *       每卡含槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中，
  *       可交互受限槽位）、缩写、浓度进度条与读数；滚轮连续滚动 +
  *       平滑插值，视口 scissor 裁剪。
+ *       IO 模式按钮：滚动槽正下方 (7,153) 与 (193,153)，56×9px，
+ *       主题色边框 + 浅色填充 + 模式文字（仅输入/仅输出/输入输出），
+ *       点击循环切换本区域物品进出许可（GUI/管道/漏斗三路门控），
+ *       悬停有原版槽位高亮同款浅色遮罩动画反馈。
  *       槽位原版化（修复原版/模组快捷键兼容）：Access Transformer 拆掉
  *       1.21.1 的 Slot.x/y final（见 META-INF/accesstransformer.cfg），
  *       CardScrollArea.tick 每帧按滚动偏移写入物种槽坐标（未用槽位移
@@ -410,6 +419,146 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
         this.renderTooltip(graphics, mouseX, mouseY);
+        drawIoButtonTooltip(graphics, mouseX, mouseY);
+    }
+
+    /**
+     * 鼠标点击：INPUT/OUTPUT 的 IO 模式按钮左键点击 → 循环切换并发包
+     * <p>
+     * 按钮位于滚动槽正下方（不属于任何 Slot，vanilla 命中不到），
+     * 必须在这里手动命中；命中后消费事件（不穿透到下层）
+     *
+     * @param mouseX 鼠标 x（屏幕坐标）
+     * @param mouseY 鼠标 y（屏幕坐标）
+     * @param button 按键（0 = 左键）
+     * @return 是否消费事件
+     */
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0) {
+            if (isHoveringIoButton(MachineMenu.SCROLL_X, mouseX, mouseY)) {
+                cycleIoMode(0);
+                return true;
+            }
+            if (isHoveringIoButton(MachineMenu.OUTPUT_SCROLL_X, mouseX, mouseY)) {
+                cycleIoMode(1);
+                return true;
+            }
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    /**
+     * 循环切换指定区域的 IO 模式并发包到服务端
+     * <p>
+     * 客户端本地不直接改模式（服务端权威），发送后按钮显示随
+     * ContainerData 广播在下一 tick 回刷——点击瞬间有轻微延迟属正常
+     *
+     * @param area 区域编码（0 = INPUT、1 = OUTPUT）
+     */
+    private void cycleIoMode(int area) {
+        IoMode current = area == 0 ? menu.getInputIoMode() : menu.getOutputIoMode();
+        PacketDistributor.sendToServer(new ServerboundSetIoModePacket(
+                blockEntity.getBlockPos(), area, current.next().id()));
+    }
+
+    /**
+     * 绘制 INPUT/OUTPUT 两个 IO 模式按钮（滚动槽下边界上抬 9px 腾出的空间）
+     * <p>
+     * 视觉：主题色 1px 边框 + 浅色填充（与标题栏缩写框同款配色），
+     * 中央绘制模式文字（仅输入/仅输出/输入输出，加深主题色）；
+     * 悬停时叠加原版槽位高亮同款浅色遮罩（fillGradient 半透明白），
+     * 透明度随 guiTicks 正弦脉动形成动画反馈
+     *
+     * @param graphics 渲染器
+     * @param mouseX   鼠标 x（屏幕坐标，悬停判定）
+     * @param mouseY   鼠标 y（屏幕坐标，悬停判定）
+     */
+    private void drawIoButtons(GuiGraphics graphics, int mouseX, int mouseY) {
+        // 无酶态由 drawNoEnzymeArea 提前返回，按钮只在有酶态绘制
+        int theme = enzymeData.color();
+        drawIoButton(graphics, MachineMenu.SCROLL_X, menu.getInputIoMode(), theme,
+                isHoveringIoButton(MachineMenu.SCROLL_X, mouseX, mouseY));
+        drawIoButton(graphics, MachineMenu.OUTPUT_SCROLL_X, menu.getOutputIoMode(), theme,
+                isHoveringIoButton(MachineMenu.OUTPUT_SCROLL_X, mouseX, mouseY));
+    }
+
+    /**
+     * 绘制单个 IO 模式按钮（滚动槽底部 9px 高、56px 宽）
+     *
+     * @param graphics 渲染器
+     * @param areaX    本区域滚动容器 x（GUI 相对，输入 7 / 输出 193）
+     * @param mode     当前模式（决定文字）
+     * @param theme    主题色（ARGB）
+     * @param hovered  是否悬停（叠加遮罩动画）
+     */
+    private void drawIoButton(GuiGraphics graphics, int areaX, IoMode mode, int theme, boolean hovered) {
+        int x = this.leftPos + areaX;
+        int y = this.topPos + MachineMenu.IO_BUTTON_Y;
+        int w = MachineMenu.SCROLL_W;
+        int h = MachineMenu.IO_BUTTON_H;
+        // 1px 边框（主题色）+ 内部浅色填充（标题栏缩写框同款配色）
+        graphics.fill(x, y, x + w, y + h, theme | 0xFF000000);
+        graphics.fill(x + 1, y + 1, x + w - 1, y + h - 1, lighten(theme));
+        // 模式文字（加深主题色，水平垂直居中；8px 字在 9px 高内）
+        String label = switch (mode) {
+            case INPUT_ONLY -> "仅输入";
+            case OUTPUT_ONLY -> "仅输出";
+            case BOTH -> "输入输出";
+        };
+        int textW = this.font.width(label);
+        graphics.drawString(this.font, label,
+                x + (w - textW) / 2, y + (h - 8) / 2, darken(theme), false);
+        // 悬停遮罩：原版槽位高亮同款浅色遮罩（0x80FFFFFF 半透明白）+ 透明度脉动动画
+        if (hovered) {
+            double pulse = 0.5 + 0.5 * Math.sin(Minecraft.getInstance().gui.getGuiTicks() * 0.2);
+            int alpha = 0x40 + (int) Math.round(0x40 * pulse);
+            graphics.fillGradient(RenderType.guiOverlay(), x, y, x + w, y + h,
+                    (alpha << 24) | 0xFFFFFF, (alpha << 24) | 0xFFFFFF, 0);
+        }
+    }
+
+    /**
+     * 悬停判定：鼠标是否落在指定区域的 IO 模式按钮矩形内（屏幕坐标）
+     *
+     * @param areaX  本区域滚动容器 x（GUI 相对）
+     * @param mouseX 鼠标 x（屏幕坐标）
+     * @param mouseY 鼠标 y（屏幕坐标）
+     * @return true 表示悬停在按钮上
+     */
+    private boolean isHoveringIoButton(int areaX, double mouseX, double mouseY) {
+        int x = this.leftPos + areaX;
+        int y = this.topPos + MachineMenu.IO_BUTTON_Y;
+        return mouseX >= x && mouseX < x + MachineMenu.SCROLL_W
+                && mouseY >= y && mouseY < y + MachineMenu.IO_BUTTON_H;
+    }
+
+    /**
+     * 悬停按钮时的说明 tooltip：区域名 + 当前模式语义 + 切换提示
+     *
+     * @param graphics 渲染器
+     * @param mouseX   鼠标 x（屏幕坐标）
+     * @param mouseY   鼠标 y（屏幕坐标）
+     */
+    private void drawIoButtonTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        int area;
+        if (isHoveringIoButton(MachineMenu.SCROLL_X, mouseX, mouseY)) {
+            area = 0;
+        } else if (isHoveringIoButton(MachineMenu.OUTPUT_SCROLL_X, mouseX, mouseY)) {
+            area = 1;
+        } else {
+            return;
+        }
+        IoMode mode = area == 0 ? menu.getInputIoMode() : menu.getOutputIoMode();
+        String modeDesc = switch (mode) {
+            case INPUT_ONLY -> "仅允许物品输入（禁止抽出）";
+            case OUTPUT_ONLY -> "仅允许物品输出（禁止放入）";
+            case BOTH -> "允许输入与输出";
+        };
+        graphics.renderTooltip(this.font, List.of(
+                Component.literal((area == 0 ? "INPUT" : "OUTPUT") + " IO 模式：" + modeDesc),
+                Component.literal("点击切换：仅输入 → 仅输出 → 输入输出")),
+                java.util.Optional.empty(), mouseX, mouseY);
     }
 
     /**
@@ -565,6 +714,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         drawReactionArea(graphics);
         inputArea.draw(graphics);
         outputArea.draw(graphics);
+        drawIoButtons(graphics, mouseX, mouseY);
         drawVtChart(graphics);
         drawBalanceArea(graphics);
         drawRateArea(graphics);

@@ -94,6 +94,17 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     /** 工业 IO 适配器（懒加载单例：管道查询 capability 时复用同一实例，避免每 tick 分配） */
     private EnzymeFactoryItemHandler itemHandler;
 
+    /**
+     * INPUT 区域（反应物槽）IO 模式，默认仅输入（只允许物品进入）
+     * <p>
+     * 由 GUI 底部按钮点击切换（网络包写入），经 ContainerData 同步回客户端；
+     * 存档持久化；换酶不重置（机器级设置，反应物/产物侧语义随酶保持）
+     */
+    private IoMode inputIoMode = IoMode.INPUT_ONLY;
+
+    /** OUTPUT 区域（产物槽）IO 模式，默认仅输出（只允许物品抽出） */
+    private IoMode outputIoMode = IoMode.OUTPUT_ONLY;
+
     /** v-t 通量历史环形缓冲（200 tick = 10 秒，打开 GUI 时一次性下发，不存档） */
     private static final int HISTORY_LENGTH = 200;
     private final int[] fluxHistory = new int[HISTORY_LENGTH];
@@ -279,6 +290,106 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
+     * 获取 INPUT 区域（反应物侧）IO 模式
+     *
+     * @return 当前模式
+     */
+    public IoMode getInputIoMode() {
+        return inputIoMode;
+    }
+
+    /**
+     * 获取 OUTPUT 区域（产物侧）IO 模式
+     *
+     * @return 当前模式
+     */
+    public IoMode getOutputIoMode() {
+        return outputIoMode;
+    }
+
+    /**
+     * 设置指定区域的 IO 模式（服务端网络包入口）
+     * <p>
+     * 区域编码：0 = INPUT（反应物侧）、1 = OUTPUT（产物侧）；
+     * 变更触发 setChanged（Menu 数据刷新 + 存档脏标记）
+     *
+     * @param area 区域编码（0/1）
+     * @param mode 新模式
+     */
+    public void setIoMode(int area, IoMode mode) {
+        if (area == 0) {
+            inputIoMode = mode;
+        } else {
+            outputIoMode = mode;
+        }
+        setChanged();
+    }
+
+    /**
+     * 槽位所属 IO 区域：0 = INPUT（反应物侧）、1 = OUTPUT（产物侧）、-1 = 酶槽/未映射
+     * <p>
+     * 依据当前酶的酶数据表判定（反应物列表 = INPUT、产物列表 = OUTPUT），
+     * 与 GUI 滚动区布局同源；无酶时返回 -1（无门控）
+     *
+     * @param slot 容器槽位下标（0 = 酶槽）
+     * @return 区域编码（-1 = 无门控区域）
+     */
+    public int ioAreaOfSlot(int slot) {
+        if (slot == ENZYME_SLOT || enzymeData == null) {
+            return -1;
+        }
+        String speciesId = getSpeciesId(slot);
+        if (speciesId == null) {
+            return -1;
+        }
+        for (EnzymeFactoryData.SpeciesSpec spec : enzymeData.reactants()) {
+            if (spec.item().equals(speciesId)) {
+                return 0;
+            }
+        }
+        for (EnzymeFactoryData.SpeciesSpec spec : enzymeData.products()) {
+            if (spec.item().equals(speciesId)) {
+                return 1;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * 槽位是否允许物品插入（IO 门控：仅输入/双向允许，仅输出禁止）
+     * <p>
+     * 插入路径统一入口：GUI Slot.mayPlace、管道 isItemValid、
+     * 漏斗 canPlaceItem 三路都经本方法（酶槽/未映射槽恒允许）
+     *
+     * @param slot 容器槽位下标
+     * @return true 表示允许插入
+     */
+    public boolean canInsertIntoSlot(int slot) {
+        int area = ioAreaOfSlot(slot);
+        if (area < 0) {
+            return true;
+        }
+        return (area == 0 ? inputIoMode : outputIoMode).allowsInsert();
+    }
+
+    /**
+     * 槽位是否允许物品抽出（IO 门控：仅输出/双向允许，仅输入禁止）
+     * <p>
+     * 抽出路径统一入口：GUI Slot.mayPickup、管道 extractItem、
+     * 漏斗 removeItem 三路都经本方法（酶槽/未映射槽恒允许）
+     *
+     * @param slot 容器槽位下标
+     * @return true 表示允许抽出
+     */
+    public boolean canExtractFromSlot(int slot) {
+        int area = ioAreaOfSlot(slot);
+        if (area < 0) {
+            return true;
+        }
+        return (area == 0 ? inputIoMode : outputIoMode).allowsExtract();
+    }
+
+    /**
      * 获取能量 IO 适配器（懒加载单例）
      * <p>
      * 无 fe 物种的酶/未插入酶返回 null（ModCapabilities 不注册该面能力）；
@@ -407,6 +518,36 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     @Override
     protected int slotStackLimit() {
         return 64 * KineticConstants.SLOT_GROUPS;
+    }
+
+    /**
+     * 容器插入许可钩子（原版漏斗 canPlaceItem 路径）：IO 模式门控
+     * <p>
+     * 漏斗塞入前询问 canPlaceItem——模式禁止插入时直接拒绝，
+     * 与 GUI（mayPlace）/管道（isItemValid）同规则，避免非法物品
+     * 进槽后再由防呆弹出
+     *
+     * @param slot  目标槽位
+     * @param stack 待插入物品
+     * @return true 表示允许
+     */
+    @Override
+    protected boolean canPlaceItemInternal(int slot, ItemStack stack) {
+        return canInsertIntoSlot(slot);
+    }
+
+    /**
+     * 容器抽取许可钩子（原版漏斗 removeItem 路径）：IO 模式门控
+     * <p>
+     * 漏斗抽出走容器 removeItem 无任何权限询问——基类容器经本钩子
+     * 拦截，模式禁止抽出时返回空堆（物品原地不动）
+     *
+     * @param slot 源槽位
+     * @return true 表示允许
+     */
+    @Override
+    protected boolean canTakeItemInternal(int slot) {
+        return canExtractFromSlot(slot);
     }
 
     /**
@@ -727,6 +868,8 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     @Override
     public void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
+        tag.putByte("inputIoMode", (byte) inputIoMode.id());
+        tag.putByte("outputIoMode", (byte) outputIoMode.id());
         if (simulator != null) {
             double[] x = simulator.getState().getConcentrations();
             int[] fixed = new int[x.length];
@@ -752,6 +895,9 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     @Override
     public void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
+        // IO 模式恢复（旧存档无字段 → byId(0) 落回默认：INPUT 仅输入/OUTPUT 仅输出）
+        inputIoMode = IoMode.byId(tag.getByte("inputIoMode"));
+        outputIoMode = IoMode.byId(tag.getByte("outputIoMode"));
         rebuildFromEnzymeSlot();
         if (simulator != null && tag.contains("concentrations")) {
             int[] saved = tag.getIntArray("concentrations");

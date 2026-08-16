@@ -72,6 +72,36 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
             public int getMaxStackSize(ItemStack stack) {
                 return MachineBlockEntity.this.slotStackLimit();
             }
+
+            /**
+             * 槽位插入许可（原版漏斗 canPlaceItem 询问路径）：
+             * 委托子类钩子（酶工厂按 IO 模式门控，见 canPlaceItemInternal）
+             *
+             * @param index 目标槽位
+             * @param stack 待插入物品堆
+             * @return true 表示允许
+             */
+            @Override
+            public boolean canPlaceItem(int index, ItemStack stack) {
+                return MachineBlockEntity.this.canPlaceItemInternal(index, stack);
+            }
+
+            /**
+             * 槽位抽出执行（原版漏斗 removeItem 直接调用，无权限询问）：
+             * 委托子类钩子拦截（酶工厂按 IO 模式门控，见 canTakeItemInternal），
+             * 模式禁止抽出时返回空堆——物品原地不动，调用方视为无可抽
+             *
+             * @param index 源槽位
+             * @param count 请求抽出数量
+             * @return 抽出的物品堆（被门控拦截时为空堆）
+             */
+            @Override
+            public ItemStack removeItem(int index, int count) {
+                if (!MachineBlockEntity.this.canTakeItemInternal(index)) {
+                    return ItemStack.EMPTY;
+                }
+                return super.removeItem(index, count);
+            }
         };
     }
 
@@ -86,6 +116,32 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
      */
     protected int slotStackLimit() {
         return 64;
+    }
+
+    /**
+     * 容器插入许可钩子（子类覆写）：原版漏斗 canPlaceItem 的委托入口
+     * <p>
+     * 基类默认全允许；酶工厂按 IO 模式门控（仅输入/双向才允许插入），
+     * 与 GUI Slot.mayPlace、管道 isItemValid 同规则
+     *
+     * @param slot  目标槽位
+     * @param stack 待插入物品堆
+     * @return true 表示允许
+     */
+    protected boolean canPlaceItemInternal(int slot, ItemStack stack) {
+        return true;
+    }
+
+    /**
+     * 容器抽取许可钩子（子类覆写）：原版漏斗 removeItem 的委托入口
+     * <p>
+     * 基类默认全允许；酶工厂按 IO 模式门控（仅输出/双向才允许抽出）
+     *
+     * @param slot 源槽位
+     * @return true 表示允许
+     */
+    protected boolean canTakeItemInternal(int slot) {
+        return true;
     }
 
     /**

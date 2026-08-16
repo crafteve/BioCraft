@@ -1,11 +1,13 @@
 package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
+import com.github.crafteve.biocraft.blockentity.IoMode;
 import com.github.crafteve.biocraft.init.EnzymeFactoryRegistry;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.EnzymeItem;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
+import com.github.crafteve.biocraft.reaction.EnergyKinetics;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
@@ -54,11 +56,22 @@ public class MachineMenu extends AbstractContainerMenu {
     private static final int HOTBAR_Y = 232;
 
     // 滚动卡片容器布局常量（Menu 与 Screen 共享，全酶工厂统一写死）
-    /** 输入滚动容器左上角 (7,41)，区域 y 41~162，宽 56 */
-    public static final int SCROLL_X = 7, SCROLL_Y = 41, SCROLL_W = 56, SCROLL_H = 121;
+    /**
+     * 输入滚动容器左上角 (7,41)，区域 y 41~153（下边界上抬 9px，
+     * 底部 9px 让给 IO 模式按钮），宽 56
+     */
+    public static final int SCROLL_X = 7, SCROLL_Y = 41, SCROLL_W = 56, SCROLL_H = 112;
 
     /** 输出滚动容器左上角 (193,41)，其余约束与输入完全相同 */
     public static final int OUTPUT_SCROLL_X = 193;
+
+    /**
+     * IO 模式按钮：位于滚动槽正下方（y = 滚动区底 153，高 9px =
+     * 滚动槽下边界上抬的高度），宽 = 滚动槽宽 56；
+     * 按钮管理本区域（INPUT/OUTPUT）的 IO 模式，三态循环切换
+     */
+    public static final int IO_BUTTON_Y = SCROLL_Y + SCROLL_H;
+    public static final int IO_BUTTON_H = 9;
 
     /** 卡片尺寸 56×28，间距 1，卡片色 #c6c6c6 */
     public static final int CARD_W = 56, CARD_H = 28, CARD_GAP = 1;
@@ -142,7 +155,8 @@ public class MachineMenu extends AbstractContainerMenu {
         this.packetEnzymeId = packetEnzymeId;
         this.fluxHistory = fluxHistory == null ? new int[0] : fluxHistory;
         this.speciesSlotCount = EnzymeFactoryRegistry.maxNonFeSpeciesCount();
-        this.data = new SimpleContainerData(DATA_REMAINDER_BASE + speciesSlotCount + 2);
+        // 数据段：温度/通量/主产物浓度/酶索引 + 每物种槽余量 + 能量存量/产率 + 两个 IO 模式
+        this.data = new SimpleContainerData(DATA_REMAINDER_BASE + speciesSlotCount + 4);
         refreshData();
         // 客户端：用打开包酶 id 覆盖 DATA_ENZYME（服务端权威值），
         // 打开瞬间即有正确酶态，后续广播同步继续覆盖
@@ -222,7 +236,7 @@ public class MachineMenu extends AbstractContainerMenu {
      * 槽位背景贴图由 Screen 自绘（vanilla 不画槽位背景）
      */
     private void addEnzymeSlot() {
-        addSlot(new RestrictedSlot(blockEntity, EnzymeFactoryBlockEntity.ENZYME_SLOT,
+        addSlot(new RestrictedSlot(this, blockEntity, EnzymeFactoryBlockEntity.ENZYME_SLOT,
                 ENZYME_SLOT_X, ENZYME_SLOT_Y, 64, true));
     }
 
@@ -239,7 +253,7 @@ public class MachineMenu extends AbstractContainerMenu {
         int slotLimit = 64 * com.github.crafteve.biocraft.reaction.KineticConstants.SLOT_GROUPS;
         for (int slot = EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
              slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount; slot++) {
-            addSlot(new RestrictedSlot(blockEntity, slot, -100, -100, slotLimit, false));
+            addSlot(new RestrictedSlot(this, blockEntity, slot, -100, -100, slotLimit, false));
         }
     }
 
@@ -278,6 +292,8 @@ public class MachineMenu extends AbstractContainerMenu {
         }
         data.set(energyIndex(0), blockEntity.getEnergyStored());
         data.set(energyIndex(1), (int) Math.round(blockEntity.getCachedEnergyRate() * 10.0));
+        data.set(energyIndex(2), blockEntity.getInputIoMode().id());
+        data.set(energyIndex(3), blockEntity.getOutputIoMode().id());
     }
 
     /**
@@ -311,9 +327,10 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 能量数据下标：余量段之后（DATA_REMAINDER_BASE + 物种槽数 + 0/1）
+     * 能量/IO 数据下标：余量段之后（DATA_REMAINDER_BASE + 物种槽数 + 偏移）
      *
-     * @param offset 能量偏移（0 = 存量、1 = 产率）
+     * @param offset 偏移（0 = 能量存量、1 = 能量产率、2 = INPUT 区域 IO 模式、
+     *               3 = OUTPUT 区域 IO 模式）
      * @return 容器数据下标
      */
     private int energyIndex(int offset) {
@@ -336,6 +353,84 @@ public class MachineMenu extends AbstractContainerMenu {
      */
     public double getEnergyRate() {
         return data.get(energyIndex(1)) / 10.0;
+    }
+
+    /**
+     * 读取 INPUT 区域（反应物侧）IO 模式（ContainerData 同步值，
+     * 客户端按钮显示与门控判定的数据源；服务端权威值在 BE）
+     *
+     * @return 当前模式
+     */
+    public IoMode getInputIoMode() {
+        return IoMode.byId(data.get(energyIndex(2)));
+    }
+
+    /**
+     * 读取 OUTPUT 区域（产物侧）IO 模式（ContainerData 同步值）
+     *
+     * @return 当前模式
+     */
+    public IoMode getOutputIoMode() {
+        return IoMode.byId(data.get(energyIndex(3)));
+    }
+
+    /**
+     * 槽位所属 IO 区域：0 = INPUT（反应物侧）、1 = OUTPUT（产物侧）、-1 = 无门控
+     * <p>
+     * 按"反应物槽先、产物槽后"的槽位注册顺序由当前酶数据直接推算
+     * （客户端经 DATA_ENZYME 同步的酶数据，服务端直查 BE）——
+     * 不依赖客户端 BE 的物种映射（客户端 BE 换酶后可能滞后）
+     *
+     * @param slot 容器槽位下标（0 = 酶槽）
+     * @return 区域编码（-1 = 酶槽/无酶/未用槽位）
+     */
+    private int ioAreaOfSlot(int slot) {
+        if (slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
+                || slot >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
+            return -1;
+        }
+        EnzymeFactoryData data = getEnzymeData();
+        if (data == null) {
+            return -1;
+        }
+        int inputSlots = 0;
+        for (EnzymeFactoryData.SpeciesSpec spec : data.reactants()) {
+            if (!EnergyKinetics.isEnergySpecies(spec.item())) {
+                inputSlots++;
+            }
+        }
+        int offset = slot - EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+        return offset < inputSlots ? 0 : 1;
+    }
+
+    /**
+     * 槽位是否允许插入（GUI 门控，mayPlace 用）：
+     * 区域 IO 模式允许插入才放行（仅输入/双向），无门控区域恒允许
+     *
+     * @param slot 容器槽位下标
+     * @return true 表示允许
+     */
+    public boolean slotAllowsInsert(int slot) {
+        int area = ioAreaOfSlot(slot);
+        if (area < 0) {
+            return true;
+        }
+        return (area == 0 ? getInputIoMode() : getOutputIoMode()).allowsInsert();
+    }
+
+    /**
+     * 槽位是否允许抽出（GUI 门控，mayPickup 用）：
+     * 区域 IO 模式允许抽出才放行（仅输出/双向），无门控区域恒允许
+     *
+     * @param slot 容器槽位下标
+     * @return true 表示允许
+     */
+    public boolean slotAllowsExtract(int slot) {
+        int area = ioAreaOfSlot(slot);
+        if (area < 0) {
+            return true;
+        }
+        return (area == 0 ? getInputIoMode() : getOutputIoMode()).allowsExtract();
     }
 
     /**
@@ -471,16 +566,21 @@ public class MachineMenu extends AbstractContainerMenu {
      *       物品之上；滚动边缘高亮溢出 ≤9px 属可接受小瑕疵）</li>
      *   <li>remove 覆写限单次拿取 64（槽位容量 128 时防一次拿走全部，
      *       见 remove 说明）</li>
+     *   <li>IO 模式门控：mayPlace 查区域插入许可（仅输出禁止放入）、
+     *       mayPickup 查区域抽出许可（仅输入禁止取走）——与管道/
+     *       漏斗同规则（见 slotAllowsInsert/slotAllowsExtract）</li>
      * </ul>
      */
     private static class RestrictedSlot extends Slot {
+        private final MachineMenu menu;
         private final EnzymeFactoryBlockEntity blockEntity;
         private final int maxStack;
         private final boolean enzymeSlot;
 
-        RestrictedSlot(EnzymeFactoryBlockEntity blockEntity, int slot, int x, int y,
+        RestrictedSlot(MachineMenu menu, EnzymeFactoryBlockEntity blockEntity, int slot, int x, int y,
                        int maxStack, boolean enzymeSlot) {
             super(blockEntity.getContainer(), slot, x, y);
+            this.menu = menu;
             this.blockEntity = blockEntity;
             this.maxStack = maxStack;
             this.enzymeSlot = enzymeSlot;
@@ -488,12 +588,32 @@ public class MachineMenu extends AbstractContainerMenu {
 
         @Override
         public boolean mayPlace(ItemStack stack) {
+            // IO 模式门控：区域禁止插入时拒绝一切（防玩家把物品塞进
+            // 产物槽造成容量冻结，与管道 isItemValid/漏斗 canPlaceItem 同规则）
+            if (!menu.slotAllowsInsert(index)) {
+                return false;
+            }
             if (enzymeSlot) {
                 // 酶槽 tag 限制：只接受 biocraft:enzyme tag（含全部酶蛋白物品）
                 return stack.is(com.github.crafteve.biocraft.init.ModTags.ENZYME_ITEMS);
             }
             String speciesId = blockEntity.getSpeciesId(index);
             return speciesId != null && stack.is(ModItems.byId(speciesId).get());
+        }
+
+        /**
+         * 可否取走（IO 模式门控：仅输入时禁止抽出，与管道 extractItem/
+         * 漏斗 removeItem 同规则）
+         * <p>
+         * vanilla 的取走路径（点击拾取/双击收集/shift 转移）都会询问
+         * mayPickup——返回 false 时物品原地不动
+         *
+         * @param player 操作玩家
+         * @return true 表示允许取走
+         */
+        @Override
+        public boolean mayPickup(Player player) {
+            return menu.slotAllowsExtract(index);
         }
 
         /**

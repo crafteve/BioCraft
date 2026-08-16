@@ -102,6 +102,10 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
 
     /**
      * 抽取物品：全槽位可抽（不限物种），支持模拟
+     * <p>
+     * IO 模式门控：区域为"仅输入"时禁止抽出（INPUT_ONLY.allowsExtract=false），
+     * 与 GUI mayPickup/漏斗 removeItem 同规则；模拟与真实抽取同样门控
+     * （管道"模拟抽 1 探测"被拒 → 不会发起真实抽取）
      *
      * @param slot     槽位下标
      * @param amount   抽取数量
@@ -111,6 +115,9 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
     @Override
     public ItemStack extractItem(int slot, int amount, boolean simulate) {
         if (amount <= 0 || slot < 0 || slot >= getSlots()) {
+            return ItemStack.EMPTY;
+        }
+        if (!blockEntity.canExtractFromSlot(slot)) {
             return ItemStack.EMPTY;
         }
         SimpleContainer container = blockEntity.getContainer();
@@ -142,6 +149,8 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
     /**
      * 物种合法性校验（insertItem/setStackInSlot 共用）
      * <p>
+     * IO 模式门控在前：区域为"仅输出"时拒绝一切插入（与 GUI mayPlace/
+     * 漏斗 canPlaceItem 同规则，防管道把物品塞进产物槽造成容量冻结）；
      * 酶槽：只接受酶 tag 内物品（biocraft:enzyme，含全部酶蛋白物品；
      * 未来非酶催化剂物品加 tag 即可被接受）；
      * 物种槽：必须是当前酶对应物种（无酶/未用槽位拒绝一切）
@@ -153,6 +162,9 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
     @Override
     public boolean isItemValid(int slot, ItemStack stack) {
         if (slot < 0 || slot >= getSlots() || stack.isEmpty()) {
+            return false;
+        }
+        if (!blockEntity.canInsertIntoSlot(slot)) {
             return false;
         }
         if (slot == EnzymeFactoryBlockEntity.ENZYME_SLOT) {
