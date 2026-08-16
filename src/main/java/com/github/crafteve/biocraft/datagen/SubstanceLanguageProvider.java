@@ -154,10 +154,10 @@ public class SubstanceLanguageProvider implements DataProvider {
     }
 
     /**
-     * 添加酶工厂方块物品 tooltip 与 EC 类别名翻译
+     * 添加酶物品 tooltip 翻译
      * <p>
-     * tooltip.biocraft.enzyme.* 供 EnzymeBlockItem 数据摘要使用；
-     * machine.category.* 供 tooltip 缩写行与后续 GUI 图例复用
+     * tooltip.biocraft.enzyme.* 供 EnzymeItem/EnzymeBlockItem 数据摘要使用；
+     * 主题色已数据表化（enzymes.json color 字段），不再需要类别名条目
      */
     private void addEnzymeTooltipTranslations() {
         boolean zh = "zh_cn".equals(language);
@@ -175,20 +175,6 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "最适温度 %s K" : "Optimum Temp %s K");
         translations.put("tooltip.biocraft.enzyme.energy",
                 zh ? "能量 %s kFE/分子 · 容量 %s kFE" : "Energy %s kFE/mol · Capacity %s kFE");
-        translations.put("machine.category.EC1",
-                zh ? "氧化还原酶" : "Oxidoreductase");
-        translations.put("machine.category.EC2",
-                zh ? "转移酶" : "Transferase");
-        translations.put("machine.category.EC3",
-                zh ? "水解酶" : "Hydrolase");
-        translations.put("machine.category.EC4",
-                zh ? "裂合酶" : "Lyase");
-        translations.put("machine.category.EC5",
-                zh ? "异构酶" : "Isomerase");
-        translations.put("machine.category.EC6",
-                zh ? "连接酶" : "Ligase");
-        translations.put("machine.category.SPECIAL",
-                zh ? "中心法则机器" : "Central Dogma Machine");
     }
 
     /**

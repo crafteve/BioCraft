@@ -1,6 +1,5 @@
 package com.github.crafteve.biocraft.compat;
 
-import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.reaction.KineticConstants;
 
 import java.util.Locale;
@@ -29,18 +28,6 @@ public final class CompatRenderUtil {
      */
     public static boolean isFixedActivity(String itemId) {
         return KineticConstants.FIXED_ACTIVITY_SPECIES.contains(itemId);
-    }
-
-    /**
-     * 酶 EC 类别的主题色（ARGB）
-     * <p>
-     * 与方块 tint / GUI 图例同一色源（MachineCategory），保证全模组同类别同色相
-     *
-     * @param ecCategory EC 类别字符串（EC1~EC6）
-     * @return ARGB 主题色
-     */
-    public static int themeColor(String ecCategory) {
-        return MachineCategory.byId(ecCategory).getThemeColor() | 0xFF000000;
     }
 
     /**

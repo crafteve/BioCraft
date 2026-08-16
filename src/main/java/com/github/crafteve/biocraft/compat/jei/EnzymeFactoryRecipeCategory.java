@@ -240,7 +240,7 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
 
         // 行 2：酶信息块——酶槽由 setRecipe 布（CATALYST 可交互），
         // 右侧上部缩写（主题色+阴影）、下部显示名（白+阴影）
-        int theme = CompatRenderUtil.themeColor(recipe.ecCategory());
+        int theme = recipe.color();
         graphics.drawString(font, recipe.abbreviation(), ENZ_TEXT_X, ABBR_Y, theme, true);
         graphics.drawString(font, recipe.displayName(), ENZ_TEXT_X, NAME_Y, COLOR_WHITE, true);
 

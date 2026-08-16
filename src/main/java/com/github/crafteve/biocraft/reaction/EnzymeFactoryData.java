@@ -21,7 +21,9 @@ import java.util.List;
  * @param nameZn        中文显示名（GUI 标题用）
  * @param nameEn        英文显示名（GUI 副标题，M4 标题卡）
  * @param abbreviation  酶缩写（如 PGI/HK/GAPDH，M4 标题卡紫框）
- * @param category      EC 类别（EC1~EC6 字符串，决定方块形状与 GUI 结构，不决定颜色）
+ * @param category      EC 类别（EC1~EC6 字符串，酶学分类，不决定颜色）
+ * @param color         主题色（ARGB，数据表直填——同类别酶手动配同色系，
+ *                      物品染色/GUI/JEI/tooltip 统一取本值，不查表）
  * @param reactants     反应物条目列表（系数 + Km）
  * @param products      产物条目列表（系数 + Km，不可逆反应 km 填 0）
  * @param reversible    反应是否可逆
@@ -38,6 +40,7 @@ public record EnzymeFactoryData(
         String nameEn,
         String abbreviation,
         String category,
+        int color,
         List<SpeciesSpec> reactants,
         List<SpeciesSpec> products,
         boolean reversible,

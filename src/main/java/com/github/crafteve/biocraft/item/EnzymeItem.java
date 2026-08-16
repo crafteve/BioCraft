@@ -1,6 +1,5 @@
 package com.github.crafteve.biocraft.item;
 
-import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.compat.CompatRenderUtil;
 import com.github.crafteve.biocraft.compat.EnzymeEquation;
 import com.github.crafteve.biocraft.compat.EnzymeRecipeDisplay;
@@ -22,7 +21,7 @@ import java.util.Locale;
  * 过渡期与酶工厂方块物品并存，注册名前缀 enzyme_ 避免 id 冲突，
  * 未来方块删除后注册名保持稳定（存档物品 id 不随方块移除而变）
  * <p>
- * 视觉与分子物品一致：双层贴图（layer0 内容物按 EC 类别主题色染色 +
+ * 视觉与分子物品一致：双层贴图（layer0 内容物按数据表 color 字段染色 +
  * layer1 容器贴图）+ 图标左上角缩写标注（AbbreviationProvider 接口
  * 复用 MoleculeItemDecorator）
  * <p>
@@ -42,7 +41,7 @@ public class EnzymeItem extends Item implements AbbreviationProvider {
     /** 酶数据档案（tooltip 数据源，注册期绑定） */
     private final EnzymeFactoryData enzymeData;
 
-    /** 内容物染色值（EC 类别主题色，ARGB；双层贴图 layer0 用） */
+    /** 内容物染色值（数据表 color 字段，ARGB；双层贴图 layer0 用） */
     private final int tintColor;
 
     /**
@@ -52,7 +51,7 @@ public class EnzymeItem extends Item implements AbbreviationProvider {
     public EnzymeItem(Item.Properties properties, EnzymeFactoryData enzymeData) {
         super(properties);
         this.enzymeData = enzymeData;
-        this.tintColor = MachineCategory.byId(enzymeData.category()).getThemeColor() | 0xFF000000;
+        this.tintColor = enzymeData.color();
     }
 
     /**
@@ -72,14 +71,11 @@ public class EnzymeItem extends Item implements AbbreviationProvider {
      */
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag tooltipFlag) {
-        MachineCategory category = MachineCategory.byId(enzymeData.category());
-        int theme = category.getThemeColor() | 0xFF000000;
+        int theme = enzymeData.color();
 
-        // 行 1：缩写 + EC 类别名（主题色）+ 可逆性（灰）
+        // 行 1：缩写（主题色）+ 可逆性（灰）
         tooltip.add(Component.literal("[" + enzymeData.abbreviation() + "] ")
                 .withStyle(style -> style.withColor(theme))
-                .append(Component.translatable("machine.category." + category.getId())
-                        .withStyle(style -> style.withColor(theme)))
                 .append(Component.literal(" · ")
                         .withStyle(style -> style.withColor(COLOR_DIM)))
                 .append(Component.translatable(enzymeData.reversible()
@@ -135,7 +131,7 @@ public class EnzymeItem extends Item implements AbbreviationProvider {
     }
 
     /**
-     * 获取内容物染色值（双层贴图 layer0 用，EC 类别主题色）
+     * 获取内容物染色值（双层贴图 layer0 用，数据表 color 字段直取）
      *
      * @return ARGB 颜色值
      */

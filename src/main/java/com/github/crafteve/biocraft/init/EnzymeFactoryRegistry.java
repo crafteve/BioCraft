@@ -84,6 +84,8 @@ public final class EnzymeFactoryRegistry {
         String nameEn = enzyme.get("name_en").getAsString();
         String abbreviation = enzyme.get("abbreviation").getAsString();
         String category = enzyme.get("category").getAsString();
+        // 主题色（ARGB int，与 substances.json 的 color 字段同格式），缺失即快速失败
+        int color = enzyme.get("color").getAsInt();
 
         JsonObject reaction = enzyme.getAsJsonObject("reaction");
         boolean reversible = reaction.get("reversible").getAsBoolean();
@@ -96,7 +98,7 @@ public final class EnzymeFactoryRegistry {
         double kcat = enzyme.get("kcat").getAsDouble();
         double tempOptimum = enzyme.get("tempOptimum").getAsDouble();
 
-        return new EnzymeFactoryData(id, nameZn, nameEn, abbreviation, category,
+        return new EnzymeFactoryData(id, nameZn, nameEn, abbreviation, category, color,
                 reactants, products, reversible, keq, deltaH, kcat, tempOptimum,
                 reactants.size(), products.size());
     }

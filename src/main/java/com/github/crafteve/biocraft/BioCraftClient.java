@@ -1,7 +1,6 @@
 package com.github.crafteve.biocraft;
 
 import com.github.crafteve.biocraft.block.MachineBlock;
-import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.gui.DNAEncoderScreen;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import net.neoforged.api.distmarker.Dist;
@@ -28,7 +27,7 @@ public class BioCraftClient {
     /**
      * 酶工厂方块染色注册：按机器类别的主题色整块着色（形色分离的第一版实现）
      * <p>
-     * 方块模型为白底 cube + tintindex 0，本处按 MachineCategory 返回类别色；
+     * 方块模型为白底 cube + tintindex 0，本处按酶数据表 color 字段返回主题色；
      * 物品栏染色（ItemColors）同步注册，方块物品在手中/栏内与世界中颜色一致
      *
      * @param event 颜色处理器注册事件
@@ -37,8 +36,7 @@ public class BioCraftClient {
     static void onRegisterBlockColors(RegisterColorHandlersEvent.Block event) {
         event.register((state, level, pos, tintIndex) -> {
             if (state.getBlock() instanceof MachineBlock machine && machine.getEnzymeFactoryData() != null) {
-                MachineCategory category = MachineCategory.byId(machine.getEnzymeFactoryData().category());
-                return category.getThemeColor();
+                return machine.getEnzymeFactoryData().color();
             }
             return 0xFFFFFFFF;
         }, ModBlocks.enzymeBlocks().stream().map(b -> b.get()).toArray(net.minecraft.world.level.block.Block[]::new));
@@ -55,8 +53,7 @@ public class BioCraftClient {
             if (stack.getItem() instanceof net.minecraft.world.item.BlockItem blockItem
                     && blockItem.getBlock() instanceof MachineBlock machine
                     && machine.getEnzymeFactoryData() != null) {
-                MachineCategory category = MachineCategory.byId(machine.getEnzymeFactoryData().category());
-                return category.getThemeColor();
+                return machine.getEnzymeFactoryData().color();
             }
             return 0xFFFFFFFF;
         }, ModBlocks.enzymeItems().stream().map(i -> i.get()).toArray(net.minecraft.world.item.Item[]::new));

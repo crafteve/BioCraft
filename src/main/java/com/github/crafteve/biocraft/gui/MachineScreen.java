@@ -2,7 +2,6 @@ package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
-import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.compat.CompatRenderUtil;
 import com.github.crafteve.biocraft.compat.EnzymeEquation;
 import com.github.crafteve.biocraft.init.ModItems;
@@ -399,7 +398,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.pose().translate(this.leftPos + VT_BG_X0, this.topPos + balanceY(), 0);
         graphics.pose().scale(1.0F / ss, 1.0F / ss, 1.0F);
 
-        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
+        int theme = enzymeData.color();
         int areaH = 20;
         int bgRight = (VT_BG_X1 - VT_BG_X0 + 1) * ss;
 
@@ -464,7 +463,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private void drawRateArea(GuiGraphics graphics) {
         int y0 = this.topPos + rateY();
         int y1 = this.topPos + RATE_AREA_BOTTOM;
-        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
+        int theme = enzymeData.color();
         graphics.fill(this.leftPos + VT_BG_X0, y0,
                 this.leftPos + VT_BG_X1 + 1, y1, lighten(theme));
         int h = y1 - y0;
@@ -579,7 +578,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.pose().scale(1.0F / ss, 1.0F / ss, 1.0F);
 
         int bottomY = VT_H * ss;
-        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
+        int theme = enzymeData.color();
 
         // v 值域：[-vmaxR, vmaxF]（正向 kcat/TIME_SCALE；逆向 Haldane）
         ReactionDefinition definition = blockEntity.getSimulator().getDefinition();
@@ -624,8 +623,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int count = Math.min(vtSampleCount, VT_POINTS);
         if (count >= 2) {
             int lineColor = theme | 0xFF000000;
-            // 点色必须补 alpha：MachineCategory 主题色为 24 位 RGB，直接 fill
-            // 会画出全透明矩形（实测 bug：只画了线没画点，已修复）
+            // 点色必须补 alpha：数据表主题色为 ARGB 已含 alpha，
+            // 补位是保险（fill 全透明会画不出点，实测 bug 曾出现）
             int pointColor = theme | 0xFF000000;
             int latest = (vtIndex - 1 + VT_POINTS) % VT_POINTS;
             int prevX = 0, prevY = 0;
@@ -772,7 +771,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.drawString(this.font, "REACTION",
                 this.leftPos + REACTION_X, this.topPos + REACTION_Y, NAME_COLOR, false);
 
-        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
+        int theme = enzymeData.color();
 
         // 反应类型徽章：REV（可逆）/ IRR（不可逆），主题色加深文字，
         // y 与 REACTION 上顶面对齐，x 右对齐方程式框右缘
@@ -1252,8 +1251,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /**
      * 标题区：方块物品图标 + 缩写文本框 + displayname + INPUT/OUTPUT 标签
      * <p>
-     * 主题色取自酶类别（MachineCategory），加深/变浅由线性混合推导：
-     * 边框色 = 主题色原色（补 alpha，不加深）；缩写文字色 = 主题色 × 3/5；
+     * 主题色取自数据表 color 字段（ARGB），加深/变浅由线性混合推导：
+     * 边框色 = 主题色原色（补 alpha 保险）；缩写文字色 = 主题色 × 3/5；
      * 填充色 = 主题色向白色混合 4/5（浅）
      * <p>
      * 文本框：1px 矩形框架（不倒圆角），左上 (28,10)、下沿 y=21；
@@ -1269,9 +1268,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
         // 缩写文本框：1px 矩形框架（无圆角），y 范围 10~21
         String abbr = enzymeData.abbreviation();
-        int theme = MachineCategory.byId(enzymeData.category()).getThemeColor();
-        // 边框色必须补 alpha：MachineCategory 主题色是 24 位 RGB（alpha=0），
-        // 直接 fill 会画出全透明矩形导致边框"直接消失"（实测 bug，已修复）
+        int theme = enzymeData.color();
+        // 边框色补 alpha 保险：数据表主题色为 ARGB 已含 alpha，
+        // 直接 fill 全透明会"消失"（实测 bug，已修复）
         int borderColor = theme | 0xFF000000;
         int textColor = darken(theme);
         int fillColor = lighten(theme);

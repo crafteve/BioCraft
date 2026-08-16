@@ -26,7 +26,8 @@ import java.util.Map;
  * @param enzymeId     酶注册名（与方块注册名一致，调试定位用）
  * @param displayName  显示名（酶数据表中文名，与 GUI 标题一致）
  * @param abbreviation 酶缩写（如 PGI/HK/GAPDH，信息卡酶信息区主题色徽标）
- * @param ecCategory   EC 类别（EC1~EC6，决定主题色）
+ * @param ecCategory   EC 类别（EC1~EC6，酶学分类，不决定颜色）
+ * @param color        主题色（ARGB，数据表直填，信息卡主题色数据源）
  * @param reversible   反应是否可逆（决定箭头 ⇌/→）
  * @param keq          平衡常数（Keq 文本）
  * @param deltaG       ΔG°′（kJ/mol，由 Keq 换算：−RT·ln(Keq)）
@@ -45,6 +46,7 @@ public record EnzymeRecipeDisplay(
         String displayName,
         String abbreviation,
         String ecCategory,
+        int color,
         boolean reversible,
         double keq,
         double deltaG,
@@ -110,7 +112,7 @@ public record EnzymeRecipeDisplay(
 
         double deltaG = CompatRenderUtil.deltaGFromKeq(data.keq());
         return new EnzymeRecipeDisplay(data.id(), data.nameZn(), data.abbreviation(),
-                data.category(), data.reversible(), data.keq(), deltaG,
+                data.category(), data.color(), data.reversible(), data.keq(), deltaG,
                 data.kcat(), data.tempOptimum(),
                 machineStack(data.id()),
                 definition.forwardReachableFlux() * CompatRenderUtil.ITEMS_PER_TICK,

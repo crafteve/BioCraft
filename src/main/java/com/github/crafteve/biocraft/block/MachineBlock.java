@@ -2,7 +2,6 @@ package com.github.crafteve.biocraft.block;
 
 import com.github.crafteve.biocraft.blockentity.DNAEncoderBlockEntity;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
-import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.blockentity.MachineBlockEntity;
 import com.github.crafteve.biocraft.blockentity.MachineType;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;

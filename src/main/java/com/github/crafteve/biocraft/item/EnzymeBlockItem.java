@@ -1,6 +1,5 @@
 package com.github.crafteve.biocraft.item;
 
-import com.github.crafteve.biocraft.blockentity.MachineCategory;
 import com.github.crafteve.biocraft.compat.CompatRenderUtil;
 import com.github.crafteve.biocraft.compat.EnzymeEquation;
 import com.github.crafteve.biocraft.compat.EnzymeRecipeDisplay;
@@ -18,10 +17,10 @@ import java.util.Locale;
 /**
  * 酶工厂方块物品：手持/悬停时展示酶数据摘要 tooltip
  * <p>
- * 展示内容（自上而下）：缩写 + EC 类别 + 可逆性、反应方程式
+ * 展示内容（自上而下）：缩写 + 可逆性、反应方程式
  * （与 GUI 同一份 EnzymeEquation 分段逻辑，样式一致）、平衡常数、
  * 正逆向饱和可达最大速率（引擎通量 ×64×0.05，与 JEI/GUI 同口径）、
- * 最适温度
+ * 最适温度；主题色取自数据表 color 字段
  * <p>
  * 速率数据复用 {@link EnzymeRecipeDisplay}（JEI/EMI/GUI 共享只读 DTO），
  * 不在此处重写任何速率公式（AGENTS.md 2.6 欠账 23）
@@ -67,14 +66,11 @@ public class EnzymeBlockItem extends BlockItem {
      */
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag tooltipFlag) {
-        MachineCategory category = MachineCategory.byId(enzymeData.category());
-        int theme = category.getThemeColor() | 0xFF000000;
+        int theme = enzymeData.color();
 
-        // 行 1：缩写 + EC 类别名（主题色）+ 可逆性（灰）
+        // 行 1：缩写（主题色）+ 可逆性（灰）
         tooltip.add(Component.literal("[" + enzymeData.abbreviation() + "] ")
                 .withStyle(style -> style.withColor(theme))
-                .append(Component.translatable("machine.category." + category.getId())
-                        .withStyle(style -> style.withColor(theme)))
                 .append(Component.literal(" · ")
                         .withStyle(style -> style.withColor(COLOR_DIM)))
                 .append(Component.translatable(enzymeData.reversible()
