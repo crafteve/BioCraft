@@ -73,8 +73,11 @@ public class MachineMenu extends AbstractContainerMenu {
     /** 槽位物品缩写/浓度文字相对槽位贴图左侧：png 右侧 4px */
     public static final int NAME_DX = 18 + 4;
 
-    /** 酶槽（0 槽）固定位置：标题栏原方块图标位 (8,8)，16×16 */
-    public static final int ENZYME_SLOT_X = 8, ENZYME_SLOT_Y = 8;
+    /**
+     * 酶槽（0 槽）固定位置：标题栏 (7,7)——与 slot.png 背景 blit 位置完全重合，
+     * 消除"视觉槽位框与交互命中区错位 1px"（实测：点背景边缘命不中 Slot）
+     */
+    public static final int ENZYME_SLOT_X = 7, ENZYME_SLOT_Y = 7;
 
     /** 容器数据下标：温度×100 */
     public static final int DATA_TEMP = 0;
@@ -89,6 +92,15 @@ public class MachineMenu extends AbstractContainerMenu {
 
     /** 固定物种槽数（最大非 fe 物种数，注册期统计；未用槽位禁用） */
     private final int speciesSlotCount;
+
+    /**
+     * 客户端打开包中的酶 id（空串 = 无酶；服务端构造为 null 不使用）
+     * <p>
+     * 用于客户端 Menu 初始化 DATA_ENZYME：打开数据包已含服务端权威酶 id，
+     * 直接换算索引写入 data，打开瞬间 GUI 即有正确酶态——
+     * 不依赖 broadcastChanges 的首个同步 tick（实测打开瞬间恒为无酶告示态）
+     */
+    private final String packetEnzymeId;
 
     /** 方块实体引用，菜单生命周期内保持存活（stillValid 与物种槽用） */
     private final EnzymeFactoryBlockEntity blockEntity;
@@ -109,12 +121,32 @@ public class MachineMenu extends AbstractContainerMenu {
      */
     public MachineMenu(int containerId, Inventory playerInventory,
                        EnzymeFactoryBlockEntity blockEntity, int[] fluxHistory) {
+        this(containerId, playerInventory, blockEntity, fluxHistory, null);
+    }
+
+    /**
+     * 统一构造：packetEnzymeId 仅客户端传入（打开包解析），服务端为 null
+     *
+     * @param containerId     菜单容器编号
+     * @param playerInventory 玩家物品栏
+     * @param blockEntity     方块实体
+     * @param fluxHistory     v-t 历史快照
+     * @param packetEnzymeId  客户端打开包中的酶 id（空串 = 无酶，null = 服务端）
+     */
+    private MachineMenu(int containerId, Inventory playerInventory,
+                        EnzymeFactoryBlockEntity blockEntity, int[] fluxHistory, String packetEnzymeId) {
         super(ModBlocks.ENZYME_CHAMBER_MENU.get(), containerId);
         this.blockEntity = blockEntity;
+        this.packetEnzymeId = packetEnzymeId;
         this.fluxHistory = fluxHistory == null ? new int[0] : fluxHistory;
         this.speciesSlotCount = EnzymeFactoryRegistry.maxNonFeSpeciesCount();
         this.data = new SimpleContainerData(DATA_REMAINDER_BASE + speciesSlotCount + 2);
         refreshData();
+        // 客户端：用打开包酶 id 覆盖 DATA_ENZYME（服务端权威值），
+        // 打开瞬间即有正确酶态，后续广播同步继续覆盖
+        if (packetEnzymeId != null) {
+            data.set(DATA_ENZYME, enzymeIndexById(packetEnzymeId));
+        }
         addDataSlots(data);
         addEnzymeSlot();
         addSpeciesSlots();
@@ -138,10 +170,10 @@ public class MachineMenu extends AbstractContainerMenu {
      *
      * @param containerId     菜单容器编号
      * @param playerInventory 玩家物品栏
-     * @param initData        打开初始化数据（实体 + 历史）
+     * @param initData        打开初始化数据（实体 + 历史 + 酶 id）
      */
     private MachineMenu(int containerId, Inventory playerInventory, InitData initData) {
-        this(containerId, playerInventory, initData.blockEntity(), initData.fluxHistory());
+        this(containerId, playerInventory, initData.blockEntity(), initData.fluxHistory(), initData.enzymeId());
     }
 
     /**
@@ -156,7 +188,7 @@ public class MachineMenu extends AbstractContainerMenu {
      * @return 初始化数据（实体 + 历史快照）
      */
     private static InitData parseOpenBuffer(Inventory playerInventory, RegistryFriendlyByteBuf buffer) {
-        buffer.readUtf();
+        String enzymeId = buffer.readUtf();
         int historyLength = buffer.readVarInt();
         int[] history = new int[historyLength];
         for (int i = 0; i < historyLength; i++) {
@@ -168,16 +200,17 @@ public class MachineMenu extends AbstractContainerMenu {
         if (be == null) {
             be = new EnzymeFactoryBlockEntity(pos, Blocks.AIR.defaultBlockState());
         }
-        return new InitData(be, history);
+        return new InitData(be, history, enzymeId);
     }
 
     /**
-     * 打开初始化数据：方块实体 + v-t 历史快照
+     * 打开初始化数据：方块实体 + v-t 历史快照 + 服务端权威酶 id
      *
      * @param blockEntity 方块实体
      * @param fluxHistory 历史快照（旧→新）
+     * @param enzymeId    酶 id（空串 = 无酶）
      */
-    private record InitData(EnzymeFactoryBlockEntity blockEntity, int[] fluxHistory) {
+    private record InitData(EnzymeFactoryBlockEntity blockEntity, int[] fluxHistory, String enzymeId) {
     }
 
     /**
@@ -248,13 +281,23 @@ public class MachineMenu extends AbstractContainerMenu {
      * @return 索引值
      */
     private static int enzymeIndex(EnzymeFactoryData data) {
-        if (data == null) {
+        return data == null ? 0 : enzymeIndexById(data.id());
+    }
+
+    /**
+     * 酶 id → ContainerData 索引（registry 顺序索引 +1，未知/空串为 0）
+     *
+     * @param enzymeId 酶注册名（空串 = 无酶）
+     * @return 索引值
+     */
+    private static int enzymeIndexById(String enzymeId) {
+        if (enzymeId == null || enzymeId.isEmpty()) {
             return 0;
         }
         int index = 0;
         for (EnzymeFactoryData enzyme : EnzymeFactoryRegistry.ordered()) {
             index++;
-            if (enzyme.id().equals(data.id())) {
+            if (enzyme.id().equals(enzymeId)) {
                 return index;
             }
         }

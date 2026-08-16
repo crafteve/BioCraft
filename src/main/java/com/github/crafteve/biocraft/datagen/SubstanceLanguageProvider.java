@@ -81,8 +81,6 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "生物工艺 · 酶" : "BioCraft: Enzymes");
         translations.put("block.biocraft.enzyme_chamber",
                 zh ? "酶反应腔" : "Enzyme Chamber");
-        translations.put("gui.biocraft.enzyme_chamber.no_enzyme",
-                zh ? "放入酶蛋白以启动反应腔" : "Insert enzyme to start the chamber");
         translations.put("tooltip.biocraft.molar_mass",
                 zh ? "摩尔质量 %s g/mol" : "Molar Mass %s g/mol");
         translations.put("tooltip.biocraft.smiles_error",

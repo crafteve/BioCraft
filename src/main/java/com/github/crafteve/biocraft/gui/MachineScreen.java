@@ -61,9 +61,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** GUI 画布高 = 基底贴图高 */
     private static final int GUI_H = 256;
 
-    /** 方块物品图标左上角（16×16 标准物品图标） */
-    private static final int ITEM_X = 8, ITEM_Y = 8;
-
     /** 缩写文本框左上角 (28,10)，左下/右侧下沿 y=21（1px 矩形框架，不倒圆角） */
     private static final int ABBR_X = 28, ABBR_Y = 10;
 
@@ -416,8 +413,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.blit(GUI_BG, this.leftPos, this.topPos, 0, 0, GUI_W, GUI_H, GUI_W, GUI_H);
         drawEnzymeSlotBackground(graphics);
         if (enzymeData == null) {
-            // 无酶态：只画 0 槽背景（已画）+ 中央黑色告示，其余区域全部隐藏
-            drawNoEnzymeNotice(graphics);
+            // 无酶态：基底 + 0 槽 + 标题区 [unknown] 占位 + 三栏标签照常绘制，
+            // 卡片/图表/平衡/速率区留空（不画任何酶内容）
+            drawNoEnzymeArea(graphics);
             return;
         }
         drawTitleArea(graphics);
@@ -430,33 +428,31 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 0 槽（酶槽）背景：slot.png 18×18 绘制在标题栏原方块图标位 (8,8) 的 (7,7) 外扩 1px
-     * <p>
-     * 0 槽 isActive=true 由 vanilla 渲染物品图标/悬停高亮/点击命中，
-     * 背景贴图在此自绘（vanilla 不画槽位背景）
+     * 0 槽（酶槽）背景：slot.png 18×18 绘制位置与 Slot 交互位置完全重合
+     * (7,7)——标题栏原方块图标位；0 槽 isActive=true 由 vanilla 渲染物品
+     * 图标/悬停高亮/点击命中，背景贴图在此自绘（vanilla 不画槽位背景）
      */
     private void drawEnzymeSlotBackground(GuiGraphics graphics) {
-        graphics.blit(SLOT, this.leftPos + MachineMenu.ENZYME_SLOT_X - 1,
-                this.topPos + MachineMenu.ENZYME_SLOT_Y - 1, 0, 0, 18, 18, 18, 18);
+        graphics.blit(SLOT, this.leftPos + MachineMenu.ENZYME_SLOT_X,
+                this.topPos + MachineMenu.ENZYME_SLOT_Y, 0, 0, 18, 18, 18, 18);
     }
 
     /**
-     * 无酶告示：中央区域黑色告示块 + 居中提示文字（按语言提示放入酶启动机器）
+     * 无酶态绘制：标题区 [unknown] 占位缩写框 + INPUT/OUTPUT/REACTION 标签
      * <p>
-     * 覆盖范围 = 反应区/卡片区/图表区/平衡区/速率区的整体区域
-     * （x 67~249、y 30~142），完全遮住本应显示酶内容的区域
+     * 提示逻辑（玩家定稿）：无酶时三栏标签照样绘制，原先绘制酶缩写的位置
+     * 绘制 [unknown]（与酶工厂 title 缩写框同格式，灰色主题）；
+     * 卡片/图表/平衡/速率区不绘制（无酶数据），也不画黑色告示块
      */
-    private void drawNoEnzymeNotice(GuiGraphics graphics) {
-        int x0 = this.leftPos + 67;
-        int y0 = this.topPos + 30;
-        int x1 = this.leftPos + 249;
-        int y1 = this.topPos + 142;
-        graphics.fill(x0, y0, x1, y1, 0xFF1E1E1E);
-        Component notice = Component.translatable("gui.biocraft.enzyme_chamber.no_enzyme");
-        int textW = this.font.width(notice);
-        int textX = this.leftPos + (67 + 249 - textW) / 2;
-        int textY = this.topPos + (30 + 142 - 9) / 2;
-        graphics.drawString(this.font, notice, textX, textY, 0xFFFFFFFF, false);
+    private void drawNoEnzymeArea(GuiGraphics graphics) {
+        // 标题区：缩写文本框显示 [unknown]（灰色主题，格式与酶工厂 title 一致）
+        drawAbbreviationBox(graphics, "[unknown]", 0xFF9E9E9E);
+        // INPUT / OUTPUT 标签（与有酶态同位置）
+        graphics.drawString(this.font, "INPUT", this.leftPos + INPUT_X, this.topPos + INPUT_Y, NAME_COLOR, false);
+        graphics.drawString(this.font, "OUTPUT", this.leftPos + OUTPUT_X, this.topPos + OUTPUT_Y, NAME_COLOR, false);
+        // REACTION 标签（与有酶态同位置，无方程内容）
+        graphics.drawString(this.font, "REACTION",
+                this.leftPos + REACTION_X, this.topPos + REACTION_Y, NAME_COLOR, false);
     }
 
     /**
@@ -1352,15 +1348,47 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         // 背景贴图已在 renderBg 的 drawEnzymeSlotBackground 绘制，此处不再画方块
 
         // 缩写文本框：1px 矩形框架（无圆角），y 范围 10~21
-        String abbr = enzymeData.abbreviation();
-        int theme = enzymeData.color();
-        // 边框色补 alpha 保险：数据表主题色为 ARGB 已含 alpha，
-        // 直接 fill 全透明会"消失"（实测 bug，已修复）
+        drawAbbreviationBox(graphics, enzymeData.abbreviation(), enzymeData.color());
+
+        // displayname：文本框右缘 + 4px，纯黑文字，绝对定位：
+        // 中文与英文统一按 8px 处理（实测 MC 中文渲染也是 8px 高，非 16px），
+        // 与缩写文本同中轴且同步下移 1px（y = boxY + 3）
+        String language = Minecraft.getInstance().getLanguageManager().getSelected();
+        boolean chinese = language != null && language.startsWith("zh");
+        String name = chinese ? enzymeData.nameZn() : enzymeData.nameEn();
+        int nameX = this.leftPos + ABBR_X + abbreviationBoxWidth(enzymeData.abbreviation()) + NAME_GAP;
+        int nameY = this.topPos + ABBR_Y + 3;
+        graphics.drawString(this.font, name, nameX, nameY, NAME_COLOR, false);
+
+        // INPUT / OUTPUT 标签：英文大写，vanilla 8px 字体，纯黑
+        graphics.drawString(this.font, "INPUT", this.leftPos + INPUT_X, this.topPos + INPUT_Y, NAME_COLOR, false);
+        graphics.drawString(this.font, "OUTPUT", this.leftPos + OUTPUT_X, this.topPos + OUTPUT_Y, NAME_COLOR, false);
+    }
+
+    /**
+     * 缩写文本框宽度（文字宽 + 内边距 + 边框 ×2）
+     *
+     * @param text 框内文字
+     * @return 框宽像素
+     */
+    private int abbreviationBoxWidth(String text) {
+        return this.font.width(text) + (ABBR_PAD + ABBR_BORDER) * 2;
+    }
+
+    /**
+     * 绘制缩写文本框（1px 矩形框架 + 加深文字色）
+     * <p>
+     * 有酶态传酶缩写 + 主题色；无酶态传 [unknown] + 灰色——格式完全一致
+     *
+     * @param graphics 渲染器
+     * @param text     框内文字
+     * @param theme    主题色（边框补 alpha、文字加深、填充提亮）
+     */
+    private void drawAbbreviationBox(GuiGraphics graphics, String text, int theme) {
         int borderColor = theme | 0xFF000000;
         int textColor = darken(theme);
         int fillColor = lighten(theme);
-        int textW = this.font.width(abbr);
-        int boxW = textW + (ABBR_PAD + ABBR_BORDER) * 2;
+        int boxW = abbreviationBoxWidth(text);
         int boxX = this.leftPos + ABBR_X;
         int boxY = this.topPos + ABBR_Y;
         int boxY2 = this.topPos + ABBR_Y_BOTTOM + 1;
@@ -1372,23 +1400,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         // 中轴线 15.5（y 范围 10~21），8px 字形中心 = y+3.5 → y = boxY + 2；
         // 实测文字整体向上偏移 1px，故下移 1px → y = boxY + 3
         // 左右于边框+内边距之后（x+3），文字色用加深主题色
-        graphics.drawString(this.font, abbr,
+        graphics.drawString(this.font, text,
                 boxX + ABBR_BORDER + ABBR_PAD,
                 boxY + 3, textColor, false);
-
-        // displayname：文本框右缘 + 4px，纯黑文字，绝对定位：
-        // 中文与英文统一按 8px 处理（实测 MC 中文渲染也是 8px 高，非 16px），
-        // 与缩写文本同中轴且同步下移 1px（y = boxY + 3）
-        String language = Minecraft.getInstance().getLanguageManager().getSelected();
-        boolean chinese = language != null && language.startsWith("zh");
-        String name = chinese ? enzymeData.nameZn() : enzymeData.nameEn();
-        int nameX = boxX + boxW + NAME_GAP;
-        int nameY = boxY + 3;
-        graphics.drawString(this.font, name, nameX, nameY, NAME_COLOR, false);
-
-        // INPUT / OUTPUT 标签：英文大写，vanilla 8px 字体，纯黑
-        graphics.drawString(this.font, "INPUT", this.leftPos + INPUT_X, this.topPos + INPUT_Y, NAME_COLOR, false);
-        graphics.drawString(this.font, "OUTPUT", this.leftPos + OUTPUT_X, this.topPos + OUTPUT_Y, NAME_COLOR, false);
     }
 
     /**
