@@ -124,21 +124,6 @@ public class ChamberAssets {
     }
 
     /**
-     * 4×4 指示灯（正面大灯，主题槽位，灰度）：左上 2×2 高光 + 基色
-     * <p>
-     * 放大设计：指示灯区域整体承载主题色（运行=提亮酶色/停摆=红/无酶=灭），
-     * 避免小灯芯被深色灯座视觉吞没（实测反馈"大空穴黑色"）
-     *
-     * @param c 目标画布
-     * @param x 灯左上角横坐标
-     * @param y 灯左上角纵坐标
-     */
-    static void lampBig(PixelCanvas c, int x, int y) {
-        c.rect(x, y, x + 3, y + 3, LAMP);
-        c.rect(x, y, x + 1, y + 1, 0xFFFFFFFF);
-    }
-
-    /**
      * 2×2 金属接口环：暗底 + 左上高光 + 右下内孔暗点
      *
      * @param c 目标画布
@@ -152,12 +137,13 @@ public class ChamberAssets {
     }
 
     /**
-     * 正面：中央大观察窗（主要主题色载体）+ 上排双大灯（4×4，整体随酶
-     * 变色）+ 底部双接口环 + 中央铭牌条
+     * 正面：凸字形观察窗（主要主题色载体）+ 两侧 2×2 指示灯 + 底部双接口环 + 中央铭牌条
      * <p>
-     * 窗口 12×7 外框 + 玻璃底 10×5 + 液体 8×3（受光→背光渐变），
-     * 双灯为 1px 深色外框 + 4×4 灯芯——灯芯足够大才能让"指示灯"的
-     * 三态（灭/运行/停摆红）一眼可辨
+     * 布局按用户新设计（2026-08-16 实测反馈重绘）：
+     * 指示灯 2×2 at (3,4)-(4,5) 与 (11,4)-(12,5)（窗口横条两侧，状态灯：
+     * 黄=等料/红=停摆/绿=运行，由方块实体状态通道染色）；
+     * 窗口为凸字形——上横条 (6,4)-(9,6) + 下主体 (3,7)-(12,10)，
+     * 玻璃底 + 液体各按上亮下暗渐变
      *
      * @return 正面 16×16 画布
      */
@@ -167,26 +153,48 @@ public class ChamberAssets {
         c.set(5, 2, FRAME_DARK);
         c.set(10, 2, FRAME_DARK);
         c.hline(6, 9, 2, METAL_HI);
-        // 双灯：1px 深色外框 + 4×4 灯芯（指示灯整体随酶变色，黑框只留
-        // 1px 描边——旧设计 2×2 灯芯被 4×4 凹槽圈包裹，视觉上"黑空穴"
-        // 盖过灯色（实测反馈），灯芯必须大到足以承载主题色
-        c.outline(2, 1, 7, 6, FRAME_DARK);
-        c.outline(9, 1, 14, 6, FRAME_DARK);
-        lampBig(c, 3, 2);
-        lampBig(c, 9, 2);
-        // 观察窗：窗框 + 玻璃底 + 内侧左上高光
-        c.outline(2, 5, 13, 11, FRAME_DARK);
-        c.rect(3, 6, 12, 10, GLASS);
-        c.hline(4, 11, 6, GLASS_HI);
-        c.vline(6, 10, 3, GLASS_HI);
-        // 窗内液体 8×3：顶行受光、底行背光
-        c.hline(4, 11, 7, LIQ_HI);
-        c.hline(4, 11, 8, LIQ);
-        c.hline(4, 11, 9, LIQ_DARK);
+        // 凸字形窗口：先玻璃后外框（框线盖在玻璃边缘）
+        // 上横条 (6,4)-(9,6)，外框 (5,3)-(10,7)
+        // 下主体 (3,7)-(12,10)，外框 (2,6)-(13,11)——两框肩部重叠成凸字轮廓
+        c.rect(6, 4, 9, 6, GLASS);
+        c.rect(3, 7, 12, 10, GLASS);
+        c.outline(2, 6, 13, 11, FRAME_DARK);
+        c.outline(5, 3, 10, 7, FRAME_DARK);
+        // 玻璃内侧左上高光（上横条与下主体各一组）
+        c.hline(7, 8, 4, GLASS_HI);
+        c.vline(4, 6, 6, GLASS_HI);
+        c.hline(4, 11, 7, GLASS_HI);
+        c.vline(7, 10, 3, GLASS_HI);
+        // 窗内液体（凸字两段，顶行受光、底行背光）
+        windowLiquidContent(c, 6, 4, 9, 6);
+        windowLiquidContent(c, 3, 7, 12, 10);
+        // 两侧指示灯 2×2（用户指定位置，状态灯由 tint 承载三态色）
+        lamp(c, 3, 4);
+        lamp(c, 11, 4);
         // 底部双接口环
         ring(c, 4, 13);
         ring(c, 10, 13);
         return c;
+    }
+
+    /**
+     * 液体内容填充：矩形区域内按"顶行受光、底行背光"逐行渐变
+     * <p>
+     * 概念稿与 theme 贴图共用（内容坐标 = UV 裁剪区，采样 1:1）
+     *
+     * @param c  目标画布
+     * @param x0 矩形左上角横坐标
+     * @param y0 矩形左上角纵坐标
+     * @param x1 矩形右下角横坐标
+     * @param y1 矩形右下角纵坐标
+     */
+    static void windowLiquidContent(PixelCanvas c, int x0, int y0, int x1, int y1) {
+        for (int y = y0; y <= y1; y++) {
+            int col = y == y0 ? 0xFFFFFFFF : (y == y1 ? LIQ_DARK : LIQ);
+            for (int x = x0; x <= x1; x++) {
+                c.set(x, y, col);
+            }
+        }
     }
 
     /**
@@ -395,7 +403,8 @@ public class ChamberAssets {
     }
 
     /**
-     * 正面基底：概念稿去掉全部主题区（液体→玻璃底、灯→凹槽色）
+     * 正面基底：概念稿去掉全部主题区（凸字窗口液体→玻璃底；灯区为金属，
+     * 由贴片覆盖——灯芯 2×2 无灯座黑框，避免旧版"黑空穴"观感）
      * <p>
      * 主题区保留基底材质的原因：贴片元素（tint 分区 quad）覆盖其上，
      * 基底只负责"贴片没盖到的边框/玻璃"，防止 UV 缝隙露出异常色
@@ -404,9 +413,8 @@ public class ChamberAssets {
      */
     static PixelCanvas baseFront() {
         PixelCanvas c = front();
-        c.rect(4, 7, 11, 9, GLASS);
-        c.rect(3, 2, 6, 5, FRAME_DARK);
-        c.rect(9, 2, 12, 5, FRAME_DARK);
+        c.rect(6, 4, 9, 6, GLASS);
+        c.rect(3, 7, 12, 10, GLASS);
         return c;
     }
 
@@ -475,18 +483,18 @@ public class ChamberAssets {
     }
 
     /**
-     * 正面观察窗液体反照率（内容在 (4,7)-(11,9)，顶行受光底行背光）
+     * 正面凸字形观察窗液体反照率：上横条 (6,4)-(9,6) + 下主体 (3,7)-(12,10)，
+     * 各按顶行受光底行背光渐变
      * <p>
-     * 内容坐标 = 贴片元素在正面（north，u=x、v=y）的 UV 裁剪区，
-     * 采样 1:1 无拉伸
+     * 内容坐标 = 贴片元素在正面（north，u=x、v=y）的 UV 裁剪区（两个
+     * 贴片元素对应两段窗口），采样 1:1 无拉伸
      *
      * @return theme_window 16×16 画布
      */
     static PixelCanvas themeWindow() {
         PixelCanvas c = new PixelCanvas(16, 16);
-        c.hline(4, 11, 7, LIQ_HI);
-        c.hline(4, 11, 8, LIQ);
-        c.hline(4, 11, 9, LIQ_DARK);
+        windowLiquidContent(c, 6, 4, 9, 6);
+        windowLiquidContent(c, 3, 7, 12, 10);
         return c;
     }
 
@@ -570,30 +578,19 @@ public class ChamberAssets {
     }
 
     /**
-     * 指示灯反照率：正面两个 4×4 大灯 at (3,2)/(9,2)（UV 与贴片元素一致）、
-     * 东面 2×2 at (11,12)、西面 2×2 at (3,12)（西面 u=16−z 的镜像采样区）
+     * 指示灯反照率：正面两个 2×2 状态灯 at (3,4)/(11,4)（用户指定位置，
+     * UV 与贴片元素一致）、东面 2×2 at (11,12)、西面 2×2 at (3,12)
+     * （西面 u=16−z 的镜像采样区）
      *
      * @return theme_lamp 16×16 画布
      */
     static PixelCanvas themeLamp() {
         PixelCanvas c = new PixelCanvas(16, 16);
-        lampBigContent(c, 3, 2);
-        lampBigContent(c, 9, 2);
+        lampContent(c, 3, 4);
+        lampContent(c, 11, 4);
         lampContent(c, 11, 12);
         lampContent(c, 3, 12);
         return c;
-    }
-
-    /**
-     * 单个 4×4 灯内容：基色 + 左上 2×2 灯芯高光
-     *
-     * @param c 目标画布
-     * @param x 内容左上角横坐标
-     * @param y 内容左上角纵坐标
-     */
-    static void lampBigContent(PixelCanvas c, int x, int y) {
-        c.rect(x, y, x + 3, y + 3, LAMP);
-        c.rect(x, y, x + 1, y + 1, 0xFFFFFFFF);
     }
 
     /**

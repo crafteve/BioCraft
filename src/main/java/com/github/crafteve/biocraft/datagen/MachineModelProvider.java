@@ -260,7 +260,8 @@ public class MachineModelProvider implements DataProvider {
      * 面 UV 按该面 vanilla 约定映射到 theme 贴图内容区（内容坐标 = 概念稿
      * 主题区坐标，见 ChamberAssets.theme* 系列），采样 1:1 无拉伸：
      * <ul>
-     *   <li>正面（north，u=x/v=y）：观察窗液体 (4,7)-(11,9)、双灯 (4,3)/(10,3)</li>
+     *   <li>正面（north，u=x/v=y）：凸字形窗口液体两段（上横条 (6,4)-(9,6)、
+     *       下主体 (3,7)-(12,10)）、两侧状态灯 2×2 (3,4)/(11,4)</li>
      *   <li>背面（south，u=16−x）：大法兰内环 (6,7)-(9,8)</li>
      *   <li>东面（east，u=z）：管道 (4,2)-(4,13)、观察孔 (10,6)-(12,8)、灯 (11,12)</li>
      *   <li>西面（west，u=16−z）：管道 (11,2)-(11,13)、观察孔 (3,6)-(5,8)、灯 (3,12)
@@ -274,12 +275,14 @@ public class MachineModelProvider implements DataProvider {
      */
     private JsonArray patchElements() {
         JsonArray patches = new JsonArray();
-        // 正面观察窗液体（tint0）
-        patches.add(patch(4, 7, -0.001f, 12, 10, 0, "north", 4, 7, 12, 10, "#theme_window", 0));
-        // 正面双大灯（tint1）：4×4 灯芯（放大设计——2×2 灯芯被深色凹槽圈
-        // 视觉吞没，实测反馈"上方大空穴黑色"；现灯芯整体承载三态灯色）
-        patches.add(patch(3, 2, -0.001f, 7, 6, 0, "north", 3, 2, 7, 6, "#theme_lamp", 1));
-        patches.add(patch(9, 2, -0.001f, 13, 6, 0, "north", 9, 2, 13, 6, "#theme_lamp", 1));
+        // 正面凸字形窗口液体（tint0）：上横条 (6,4)-(9,6) + 下主体 (3,7)-(12,10)
+        // 两个贴片元素（凸字非矩形，拆两段 UV 各自裁剪 theme_window 对应区）
+        patches.add(patch(6, 4, -0.001f, 10, 7, 0, "north", 6, 4, 10, 7, "#theme_window", 0));
+        patches.add(patch(3, 7, -0.001f, 13, 11, 0, "north", 3, 7, 13, 11, "#theme_window", 0));
+        // 正面两侧指示灯（tint1）：2×2 at (3,4)-(4,5) / (11,4)-(12,5)，
+        // 用户指定位置；状态灯（黄=等料/红=停摆/绿=运行）由 BE 状态通道染色
+        patches.add(patch(3, 4, -0.001f, 5, 6, 0, "north", 3, 4, 5, 6, "#theme_lamp", 1));
+        patches.add(patch(11, 4, -0.001f, 13, 6, 0, "north", 11, 4, 13, 6, "#theme_lamp", 1));
         // 背面大法兰内环（tint0）
         patches.add(patch(6, 7, 16, 10, 9, 16.001f, "south", 6, 7, 10, 9, "#theme_flange", 0));
         // 东面：管道/观察孔/灯
