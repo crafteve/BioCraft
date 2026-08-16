@@ -74,10 +74,10 @@ public class MachineMenu extends AbstractContainerMenu {
     public static final int NAME_DX = 18 + 4;
 
     /**
-     * 酶槽（0 槽）固定位置：标题栏 (7,7)——与 slot.png 背景 blit 位置完全重合，
-     * 消除"视觉槽位框与交互命中区错位 1px"（实测：点背景边缘命不中 Slot）
+     * 酶槽（0 槽）硬编码位置 (9,8)（实测微调：相对初始位右移 2px、下移 1px）；
+     * slot.png 背景 18×18 画在 (8,7)（右移 1px，与 Slot 中心对齐）
      */
-    public static final int ENZYME_SLOT_X = 7, ENZYME_SLOT_Y = 7;
+    public static final int ENZYME_SLOT_X = 9, ENZYME_SLOT_Y = 8;
 
     /** 容器数据下标：温度×100 */
     public static final int DATA_TEMP = 0;

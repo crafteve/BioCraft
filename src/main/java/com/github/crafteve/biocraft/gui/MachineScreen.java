@@ -441,13 +441,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 0 槽（酶槽）背景：slot.png 18×18 绘制在 Slot 位置 (7,7)（原版 Slot
-     * 模式：物品图标/数量/hover 高亮由 vanilla renderSlot 渲染，
-     * JEI U/R 快捷键经 hoveredSlot 机制可用；vanilla 不画槽位背景故此处自绘）
+     * 0 槽（酶槽）背景：slot.png 18×18 绘制在 Slot 位置左上方 (Slot-1)——
+     * 背景 (8,7)、Slot (9,8) 中心对齐（实测微调：背景相对初始位右移 1px）；
+     * 物品图标/数量/hover 高亮由 vanilla renderSlot 渲染（原版 Slot 模式，
+     * JEI U/R 快捷键经 hoveredSlot 机制可用）
      */
     private void drawEnzymeSlot(GuiGraphics graphics) {
-        graphics.blit(SLOT, this.leftPos + MachineMenu.ENZYME_SLOT_X,
-                this.topPos + MachineMenu.ENZYME_SLOT_Y, 0, 0, 18, 18, 18, 18);
+        graphics.blit(SLOT, this.leftPos + MachineMenu.ENZYME_SLOT_X - 1,
+                this.topPos + MachineMenu.ENZYME_SLOT_Y - 1, 0, 0, 18, 18, 18, 18);
     }
 
     /**
@@ -676,12 +677,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
         // v 值域：[-vmaxR, vmaxF]（正向 kcat/TIME_SCALE；逆向 Haldane）
         ReactionDefinition definition = clientDefinition;
-        // 满刻度用引擎可达通量：速率方程代入满堆浓度（浓度 = 槽位组数 SLOT_GROUPS）
-        // 算出的最大通量，即"游戏内可达上限"——Vmax 本身是浓度趋无穷的数学极限，
-        // 满堆只能逼近其一部分（可逆共享分母约 0.7 倍、不可逆米氏积更低），
-        // 引擎直接给出，显示层不再标定
-        double vmaxFShow = definition.forwardReachableFlux();
-        double vmaxRShow = definition.reverseReachableFlux();
+        // 满刻度用引擎可达通量（[E]=1 口径）：速率方程代入满堆浓度算出的
+        // 最大通量，即"游戏内可达上限"——引擎直接给出，显示层只做 ×[E]
+        // 线性倍率（Vmax = kcat × [E]，活性通道），随酶堆叠数动态缩放；
+        // [E] 从 0 槽物品堆叠数取（经槽位广播同步，客户端可用）
+        double enzymeCount = Math.max(1.0,
+                menu.getSlot(EnzymeFactoryBlockEntity.ENZYME_SLOT).getItem().getCount());
+        double vmaxFShow = definition.forwardReachableFlux() * enzymeCount;
+        double vmaxRShow = definition.reverseReachableFlux() * enzymeCount;
         double span = Math.max(vmaxFShow + vmaxRShow, 1e-9);
 
         // Y 轴 x 按刻度文字最大宽度自动缩放（右移）：

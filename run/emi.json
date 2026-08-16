@@ -1,6 +1,17 @@
 {
   "favorites": [],
   "lookup_history": [
+    {
+      "type": "item",
+      "id": "biocraft:enzyme_phosphoglucose_isomerase",
+      "amount": 64
+    },
+    "item:minecraft:acacia_fence_gate",
+    {
+      "type": "item",
+      "id": "biocraft:fructose_1_6_bisphosphate",
+      "amount": 64
+    },
     "item:biocraft:acetaldehyde",
     "item:biocraft:pyruvate",
     "item:biocraft:phosphoenolpyruvate",
@@ -9,14 +20,9 @@
     "item:biocraft:1_3_bisphosphoglycerate",
     "item:biocraft:glyceraldehyde_3_phosphate",
     "item:biocraft:dihydroxyacetone_phosphate",
-    "item:biocraft:fructose_1_6_bisphosphate",
     "item:biocraft:fructose_6_phosphate",
     "item:biocraft:glucose_6_phosphate",
     "item:biocraft:glucose",
-    "item:biocraft:atp_hydrolase",
-    "item:biocraft:aldolase",
-    "item:biocraft:hexokinase",
-    "item:biocraft:phosphoglucose_isomerase",
     "item:biocraft:atp",
     "item:minecraft:iron_block"
   ],

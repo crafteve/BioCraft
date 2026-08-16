@@ -55,6 +55,7 @@ public final class EngineSelfTest {
         run("21 ATPase 满能量镜像停转（边界缩放回压）", EngineSelfTest::test21AtpaseFullEnergyStall);
         run("22 LDH 平衡收敛至 Keq 判决点（乳酸线可逆酶）", EngineSelfTest::test22LdhConvergence);
         run("23 RK4 刚性自适应：TPI kcat=9000 数据浓度正常推进", EngineSelfTest::test23RigidAdaptive);
+        run("24 ALDO 64 活性强刚性：Vmax_b≈19200 正常推进并收敛 Keq", EngineSelfTest::test24AlodoHighActivity);
 
         if (failures > 0) {
             System.err.println("引擎单测失败: " + failures + "/" + total);
@@ -633,6 +634,35 @@ public final class EngineSelfTest {
         StepResult r = sim.step(KineticConstants.TICK_SECONDS);
         check(Math.abs(r.fluxNet()) < 0.01,
                 String.format("平衡后净通量应趋近 0（实测 %.6f）", r.fluxNet()));
+    }
+
+    /**
+     * ALDO 64 活性强刚性回归：64 个酶（[E]=64）放大特征速率
+     * <p>
+     * 场景（用户实测）：64 个 ALDO + 满堆 F16P（浓度 2.0 = 128 个物品）+ 0 产物。
+     * ALDO Keq=1.456e-4 → Vmax_b = Vmax_f·∏KmP/(∏KmS·Keq) ≈ 300，×64 = 19200；
+     * RK4 稳定条件 h·λ < 2.8 需要子步 > 343——旧 64 子步上限下数值震荡
+     * （浓度几乎不推进），MAX_SUBSTEPS 提到 512 后应正常推进并收敛
+     * （引擎测试用例 23 的强刚性延伸）
+     */
+    private static void test24AlodoHighActivity() {
+        EnzymeSimulator sim = TestEnzymes.aldo().buildSimulator();
+        sim.getState().setActivity(64.0);
+        double[] x = sim.getState().getConcentrations();
+        x[idx(sim, "fructose_1_6_bisphosphate")] = 2.0;
+        // 收敛过程快速检查：前 10 tick 产物必须显著推进（证明未卡死）
+        runTicks(sim, 10);
+        double products = x[idx(sim, "dihydroxyacetone_phosphate")]
+                + x[idx(sim, "glyceraldehyde_3_phosphate")];
+        check(products > 1e-4,
+                String.format("ALDO 64 活性前 10 tick 产物应推进（实测 %.8f，疑似数值卡死）", products));
+        // 平衡收敛：Q = [DHAP][G3P]/[F16P] → Keq（高刚性收敛慢，2000 tick + 10% 容差）
+        runTicks(sim, 2000);
+        double dhap = x[idx(sim, "dihydroxyacetone_phosphate")];
+        double g3p = x[idx(sim, "glyceraldehyde_3_phosphate")];
+        double f16p = x[idx(sim, "fructose_1_6_bisphosphate")];
+        double q = dhap * g3p / f16p;
+        checkNear(q, 1.456e-4, 0.10 * 1.456e-4, "ALDO 高活性平衡商 Q 未收敛到 Keq（10% 容差）");
     }
 
     private EngineSelfTest() {

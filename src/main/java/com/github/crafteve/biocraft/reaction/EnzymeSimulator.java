@@ -21,8 +21,20 @@ package com.github.crafteve.biocraft.reaction;
  * 终值做边界缩放保证守恒与 [0,1] 钳制
  */
 public final class EnzymeSimulator {
-    /** 刚性自适应最大子步数（dt 细分上限，防极端情况死循环） */
-    private static final int MAX_SUBSTEPS = 64;
+    /**
+     * 刚性自适应最大子步数（dt 细分上限，防极端情况死循环）
+     * <p>
+     * 64 曾不够：64 个 ALDO（[E]=64）时 activity 放大特征速率，
+     * Vmax_b ≈ Vmax_f·∏KmP/(∏KmS·Keq) ≈ 300 × 64 = 19200，RK4 稳定条件
+     * h·λ < 2.8：平衡点附近 λ ≈ activity×Vmax_b×∂f(P)/∂x ≈ 29500，
+     * 需要 h < 9.5e-5 → 子步 > 526——1024 留足裕量（实测 512 时 Q 在
+     * 平衡点两侧极限环振荡，不收敛到 Keq；1024 后收敛正常）。
+     * 正常酶（非刚性）子步数恒为 1，本上限只在极端数据下生效；
+     * 每 tick 开销 = 子步×4 次速率计算（纯浮点，极端场景仍远小于
+     * 1ms 预算），未来更高活性（一厂多酶）若再现振荡需再评估上限
+     * 或调整 TIME_SCALE 节奏旋钮
+     */
+    private static final int MAX_SUBSTEPS = 1024;
 
     /**
      * 刚性自抵消判据阈值：RK4 增量小于欧拉预测的此比例即视为步长过大
@@ -32,6 +44,14 @@ public final class EnzymeSimulator {
      * 比值低于 0.25 即触发步长细分
      */
     private static final double RIGID_SELF_CANCEL_RATIO = 0.25;
+
+    /**
+     * 单调大消耗判据阈值：欧拉单步吃掉物种过半存量/余量即视为步长过大
+     * <p>
+     * 覆盖"Vmax_b &gt;&gt; Vmax_f"型刚性（ALDO 等 Keq 极小酶 + 高活性），
+     * 该场景不自抵消、原判据漏检导致"产-吃光"极限环（实测 Q 周期振荡）
+     */
+    private static final double RIGID_CONSUME_RATIO = 0.5;
 
     /** 不可变反应网络档案（构造期装配，全程只读） */
     private final ReactionDefinition definition;
@@ -146,14 +166,23 @@ public final class EnzymeSimulator {
 
     /**
      * 刚性探测：从当前浓度执行一次完整 RK4 采样（不修改浓度），
-     * 检查任一物种出现"高阶项自抵消"——RK4 增量远小于欧拉预测
-     * 意味着步长内通量剧烈往返（采样点震荡），显式积分不可信
+     * 检查两类步长过大信号：
+     * <ol>
+     *   <li>高阶项自抵消（振荡型刚性）：RK4 增量远小于欧拉预测——
+     *       步长内通量剧烈往返（采样点震荡），显式积分不可信</li>
+     *   <li>单调大消耗（Vmax_b &gt;&gt; Vmax_f 型刚性）：欧拉单步吃掉
+     *       物种过半存量/余量——ALDO 类 Keq 极小酶的逆向 Vmax 巨大
+     *       （Vmax_b ≈ 300，64 活性时 ≈ 19200），单步把产物直接
+     *       吃光并钳 0，逆向项消失后下 tick 重新积累——形成
+     *       "产-吃光"极限环（实测 Q 在平衡点两侧周期振荡不收敛）；
+     *       此场景不自抵消，原判据漏检，必须按"单步变化量占比"细分</li>
+     * </ol>
      *
      * @param x        当前浓度（只读）
      * @param vmaxB    当前温度逆向 Vmax
      * @param activity 活性因子
      * @param h        待探测的步长
-     * @return true 表示该步长刚性震荡，应细分
+     * @return true 表示该步长过大，应细分
      */
     private boolean isRigid(double[] x, double vmaxB, double activity, double h) {
         double[] k1 = derivatives(x, vmaxB, activity, h);
@@ -163,8 +192,20 @@ public final class EnzymeSimulator {
         for (int i = 0; i < x.length; i++) {
             double euler = k1[i];
             double rk4 = (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]) / 6.0;
+            // 判据 1：高阶项自抵消（振荡型刚性）
             if (Math.abs(euler) > 1e-12 && Math.abs(rk4) < RIGID_SELF_CANCEL_RATIO * Math.abs(euler)) {
                 return true;
+            }
+            // 判据 2：单调大消耗——欧拉单步变化量过大
+            // 无论方向：吃掉物种过半存量（步长内采样点严重失真，正常系统
+            // 单步变化远小于存量不会误触发）；正方向同时查过半余量（撞上限）
+            if (Math.abs(euler) > 1e-12) {
+                if (x[i] > 1e-9 && Math.abs(euler) > x[i] * RIGID_CONSUME_RATIO) {
+                    return true;
+                }
+                if (euler > 0 && euler > (KineticConstants.MAX_CONCENTRATION - x[i]) * RIGID_CONSUME_RATIO) {
+                    return true;
+                }
             }
         }
         return false;
