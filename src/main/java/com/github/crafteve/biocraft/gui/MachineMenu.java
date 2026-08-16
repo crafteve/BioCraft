@@ -214,12 +214,13 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 添加 0 槽（酶槽）：固定位置 (8,8)，isActive=true 由 vanilla 渲染/命中，
-     * mayPlace 只接受酶蛋白物品；堆叠上限 64（[E]）
+     * 添加 0 槽（酶槽）：固定位置 (7,7)，mayPlace 只接受酶蛋白物品；
+     * isActive=false 由 Screen 全接管绘制与命中（与物种槽同款模式，
+     * 绕开 vanilla active-slot 渲染的坐标异常，实测槽位对象定位失效）
      */
     private void addEnzymeSlot() {
         addSlot(new RestrictedSlot(blockEntity, EnzymeFactoryBlockEntity.ENZYME_SLOT,
-                ENZYME_SLOT_X, ENZYME_SLOT_Y, 64, true));
+                ENZYME_SLOT_X, ENZYME_SLOT_Y, 64, false, true));
     }
 
     /**
@@ -233,7 +234,7 @@ public class MachineMenu extends AbstractContainerMenu {
         int slotLimit = 64 * com.github.crafteve.biocraft.reaction.KineticConstants.SLOT_GROUPS;
         for (int slot = EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
              slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount; slot++) {
-            addSlot(new RestrictedSlot(blockEntity, slot, 0, 0, slotLimit, false));
+            addSlot(new RestrictedSlot(blockEntity, slot, 0, 0, slotLimit, false, false));
         }
     }
 
@@ -452,8 +453,8 @@ public class MachineMenu extends AbstractContainerMenu {
     /**
      * 受限槽位：酶槽只接受酶蛋白物品；物种槽只接受当前酶的对应物种
      * <p>
-     * 物种槽 isActive 恒 false：vanilla 的槽位遍历（渲染/hover/点击命中）全部跳过，
-     * 其滚动位置由 Screen 手动计算；酶槽 isActive=true（固定位置，vanilla 全权处理）
+     * 全部 isActive=false：vanilla 的槽位遍历（渲染/hover/点击命中）完全跳过，
+     * 0 槽固定位置与物种槽滚动位置均由 Screen 手动计算绘制与命中
      */
     private static class RestrictedSlot extends Slot {
         private final EnzymeFactoryBlockEntity blockEntity;
@@ -462,12 +463,12 @@ public class MachineMenu extends AbstractContainerMenu {
         private final boolean enzymeSlot;
 
         RestrictedSlot(EnzymeFactoryBlockEntity blockEntity, int slot, int x, int y,
-                       int maxStack, boolean enzymeSlot) {
+                       int maxStack, boolean active, boolean enzymeSlot) {
             super(blockEntity.getContainer(), slot, x, y);
             this.blockEntity = blockEntity;
             this.maxStack = maxStack;
+            this.active = active;
             this.enzymeSlot = enzymeSlot;
-            this.active = !enzymeSlot;
         }
 
         @Override

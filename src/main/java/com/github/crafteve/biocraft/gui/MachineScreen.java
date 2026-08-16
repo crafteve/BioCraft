@@ -195,6 +195,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private String currentEnzymeId = "";
 
     /**
+     * 客户端只读引擎定义（有酶时由 enzymeData 构建，重建卡片区时刷新）
+     * <p>
+     * 客户端 BE 的 simulator 恒为 null（引擎只在服务端步进，客户端无浓度状态），
+     * 渲染层需要速率项条目/可达通量等引擎只读信息时必须用本缓存——
+     * 直接调 blockEntity.getSimulator() 会 NPE（实测"打开 GUI 崩溃"根因）
+     */
+    private com.github.crafteve.biocraft.reaction.ReactionDefinition clientDefinition;
+
+    /**
      * 引擎物种下标 → 菜单槽位映射（fe 能量物种为 -1）
      * <p>
      * fe 加入后引擎物种表与菜单槽位不再 1:1（fe 无槽位），
@@ -270,10 +279,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private void rebuildEnzymeAreas() {
         if (enzymeData == null) {
             this.speciesToMenuSlot = new int[0];
+            this.clientDefinition = null;
             this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, java.util.Collections.emptyList());
             this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X, java.util.Collections.emptyList());
             return;
         }
+        // 客户端只读定义：由酶数据临时构建（纯数据无状态，仅用于显示层
+        // 取速率项条目与可达通量；服务端引擎实例不受影响）
+        this.clientDefinition = enzymeData.buildSimulator().getDefinition();
         this.speciesToMenuSlot = buildSpeciesToMenuSlot(enzymeData);
         int inputSlots = nonEnergyCount(enzymeData.reactants());
         int speciesBase = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
@@ -411,7 +424,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         graphics.blit(GUI_BG, this.leftPos, this.topPos, 0, 0, GUI_W, GUI_H, GUI_W, GUI_H);
-        drawEnzymeSlotBackground(graphics);
+        drawEnzymeSlot(graphics);
         if (enzymeData == null) {
             // 无酶态：基底 + 0 槽 + 标题区 [unknown] 占位 + 三栏标签照常绘制，
             // 卡片/图表/平衡/速率区留空（不画任何酶内容）
@@ -428,13 +441,29 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 0 槽（酶槽）背景：slot.png 18×18 绘制位置与 Slot 交互位置完全重合
-     * (7,7)——标题栏原方块图标位；0 槽 isActive=true 由 vanilla 渲染物品
-     * 图标/悬停高亮/点击命中，背景贴图在此自绘（vanilla 不画槽位背景）
+     * 0 槽（酶槽）全自绘：slot.png 18×18 背景 + 物品图标/数量 + hover 高亮
+     * <p>
+     * 0 槽 isActive=false（与物种槽同款模式）：vanilla 完全不渲染/命中，
+     * 背景与物品在此绘制（背景 (7,7) 18×18、物品 (8,8) 16×16 中心对齐），
+     * 命中与 tooltip 由 findDynamicSlot 手动处理——彻底绕开 vanilla
+     * active-slot 渲染的坐标异常（实测槽位对象定位偏左上角失效）
      */
-    private void drawEnzymeSlotBackground(GuiGraphics graphics) {
-        graphics.blit(SLOT, this.leftPos + MachineMenu.ENZYME_SLOT_X,
-                this.topPos + MachineMenu.ENZYME_SLOT_Y, 0, 0, 18, 18, 18, 18);
+    private void drawEnzymeSlot(GuiGraphics graphics) {
+        int x = this.leftPos + MachineMenu.ENZYME_SLOT_X;
+        int y = this.topPos + MachineMenu.ENZYME_SLOT_Y;
+        graphics.blit(SLOT, x, y, 0, 0, 18, 18, 18, 18);
+        Slot slot = menu.getSlot(EnzymeFactoryBlockEntity.ENZYME_SLOT);
+        ItemStack stack = slot.getItem();
+        if (!stack.isEmpty()) {
+            graphics.renderItem(stack, x + 1, y + 1, (x + 1) + (y + 1) * imageWidth);
+            graphics.renderItemDecorations(font, stack, x + 1, y + 1, null);
+        }
+        // hover 高亮（半透明白，与物种卡同款）
+        int mx = (int) Minecraft.getInstance().mouseHandler.xpos() - leftPos;
+        int my = (int) Minecraft.getInstance().mouseHandler.ypos() - topPos;
+        if (mx >= x + 1 && mx < x + 17 && my >= y + 1 && my < y + 17) {
+            graphics.fill(x + 1, y + 1, x + 17, y + 17, 0x80FFFFFF);
+        }
     }
 
     /**
@@ -578,7 +607,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * @return 浓度商 Q（>0）
      */
     private double computeQ() {
-        ReactionDefinition definition = blockEntity.getSimulator().getDefinition();
+        ReactionDefinition definition = clientDefinition;
         double numerator = 1.0;
         for (ReactionDefinition.SpeciesEntry entry : definition.getRateProducts()) {
             numerator *= Math.pow(Math.max(concentrationOf(entry.index()), 1e-9), entry.coeff());
@@ -662,7 +691,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int theme = enzymeData.color();
 
         // v 值域：[-vmaxR, vmaxF]（正向 kcat/TIME_SCALE；逆向 Haldane）
-        ReactionDefinition definition = blockEntity.getSimulator().getDefinition();
+        ReactionDefinition definition = clientDefinition;
         // 满刻度用引擎可达通量：速率方程代入满堆浓度（浓度 = 槽位组数 SLOT_GROUPS）
         // 算出的最大通量，即"游戏内可达上限"——Vmax 本身是浓度趋无穷的数学极限，
         // 满堆只能逼近其一部分（可逆共享分母约 0.7 倍、不可逆米氏积更低），
@@ -1034,18 +1063,25 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 按滚动偏移计算鼠标命中的动态槽位（输入区与输出区都查，无命中返回 null）
+     * 按滚动偏移计算鼠标命中的动态槽位（0 槽 + 输入区 + 输出区，无命中返回 null）
      * <p>
-     * 槽位位置 = 卡片位置 + 卡片内相对 (2,3)，命中区域 16×16；
-     * 与 CardScrollArea.draw 的绘制位置严格一致（同一公式）
+     * 0 槽固定位置 (7,7)（isActive=false 全自绘，命中区 16×16 与渲染中心对齐）；
+     * 物种槽位置 = 卡片位置 + 卡片内相对 (2,3)，命中区域 16×16；
+     * 与绘制位置严格一致（同一公式）
      *
      * @param mouseX 鼠标 x（屏幕坐标）
      * @param mouseY 鼠标 y（屏幕坐标）
-     * @return 命中的物种槽，未命中为 null
+     * @return 命中的槽位，未命中为 null
      */
     private Slot findDynamicSlot(double mouseX, double mouseY) {
         int localX = (int) mouseX - this.leftPos;
         int localY = (int) mouseY - this.topPos;
+        // 0 槽（酶槽）：固定位置，命中区 = 渲染物品区（背景内 16×16）
+        int ezX = MachineMenu.ENZYME_SLOT_X + 1;
+        int ezY = MachineMenu.ENZYME_SLOT_Y + 1;
+        if (localX >= ezX && localX < ezX + 16 && localY >= ezY && localY < ezY + 16) {
+            return menu.getSlot(EnzymeFactoryBlockEntity.ENZYME_SLOT);
+        }
         Slot slot = inputArea.findSlot(localX, localY);
         if (slot != null) {
             return slot;
