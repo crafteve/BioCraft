@@ -474,7 +474,8 @@ public class MachineMenu extends AbstractContainerMenu {
         @Override
         public boolean mayPlace(ItemStack stack) {
             if (enzymeSlot) {
-                return stack.getItem() instanceof EnzymeItem;
+                // 酶槽 tag 限制：只接受 biocraft:enzyme tag（含全部酶蛋白物品）
+                return stack.is(com.github.crafteve.biocraft.init.ModTags.ENZYME_ITEMS);
             }
             String speciesId = blockEntity.getSpeciesId(index);
             return speciesId != null && stack.is(ModItems.byId(speciesId).get());

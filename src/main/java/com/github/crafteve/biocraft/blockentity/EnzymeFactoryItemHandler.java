@@ -142,7 +142,8 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
     /**
      * 物种合法性校验（insertItem/setStackInSlot 共用）
      * <p>
-     * 酶槽：必须是酶蛋白物品（任意酶种，BE 动态解析）；
+     * 酶槽：只接受酶 tag 内物品（biocraft:enzyme，含全部酶蛋白物品；
+     * 未来非酶催化剂物品加 tag 即可被接受）；
      * 物种槽：必须是当前酶对应物种（无酶/未用槽位拒绝一切）
      *
      * @param slot  槽位下标
@@ -155,7 +156,7 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
             return false;
         }
         if (slot == EnzymeFactoryBlockEntity.ENZYME_SLOT) {
-            return stack.getItem() instanceof EnzymeItem;
+            return stack.is(com.github.crafteve.biocraft.init.ModTags.ENZYME_ITEMS);
         }
         String speciesId = blockEntity.getSpeciesId(slot);
         if (speciesId == null) {

@@ -111,6 +111,10 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
 
     /**
      * 从 0 槽解析酶数据档案（防御查表：物品存在但注册表查无 → 停摆态）
+     * <p>
+     * 未来"酶插件"NBT 修饰变体（耐温/增效位点）的解析预留点：
+     * 此处可读 enzymeStack 的 NBT 修饰字段并映射为引擎参数，
+     * 当前酶物品无修饰组件（v1 未启用）
      *
      * @return 酶数据档案，无酶/非法酶为 null
      */
@@ -159,13 +163,37 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
-     * 换酶流程：弹出全部物种槽内容（1..n）+ 重建 + 能力失效通知
+     * 酶槽变动事件处理（事件驱动初始化）：解析 0 槽 → 快照对比 →
+     * 变化则立即执行初始化/回收，不等下一 tick
      * <p>
-     * 酶种变更（含取空）规则：反应态全清空（既定设计，GUI 有提示），
-     * 同种酶数量增减不触发（活动通道实时缩放）
+     * 由 setChanged（容器内容变化回调，拖入/取走/换酶瞬间触发）调用，
+     * tick 流水线保留同款兜底（漏斗等外部路径保险）：
+     * <ul>
+     *   <li>解析：读 0 槽酶物品 → registry 查酶档案（防呆：非法物品由
+     *       ejectIllegalItems 弹出）；此处预留未来酶插件 NBT 修饰解析点</li>
+     *   <li>有酶（新酶 id ≠ 快照）→ 构建引擎模拟器 + 槽位映射 + fe 定位，
+     *       能量适配器缓存置空（懒加载按新酶重建）</li>
+     *   <li>无酶（取空）→ 物种槽全部弹出世界 + 引擎删除（结束生命周期）→
+     *       回到初始状态（enzymeData/simulator = null，GUI 显示 [unknown]）</li>
+     *   <li>同种酶数量增减（[E] 缩放）不触发（快照只记 id）</li>
+     * </ul>
+     * 弹出物种槽时容器 setItem 会再次触发 setChanged——快照已更新使
+     * 本方法幂等返回，无递归
      */
-    private void switchEnzyme() {
-        ejectSpeciesContents();
+    private void handleEnzymeSlotChanged() {
+        if (level == null || level.isClientSide) {
+            return;
+        }
+        EnzymeFactoryData newData = resolveEnzyme();
+        String newId = newData == null ? "" : newData.id();
+        if (newId.equals(enzymeSnapshot)) {
+            return;
+        }
+        enzymeSnapshot = newId;
+        if (newData == null) {
+            // 酶被取走/换空：弹出物种槽内容（掉落物形式）后回收引擎
+            ejectSpeciesContents();
+        }
         rebuildFromEnzymeSlot();
         notifyEnergyCapabilityChange();
     }
@@ -338,16 +366,18 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
-     * 容器内容变化回调：槽位 IO 事件 → 浓度回写
+     * 容器内容变化回调：槽位 IO 事件 → 浓度回写 + 酶槽变动事件驱动
      * <p>
-     * 玩家/漏斗改动槽位后（如取走 3 个物品），把引擎浓度同步为
+     * 玩家/漏斗/管道改动槽位后（如取走 3 个物品），把引擎浓度同步为
      * (新槽位数量 + 保留余量)/64——余量不变，只损失取走的整数物品，
-     * 引擎与槽位在连续值上永不分叉；0 槽（酶）不参与浓度投影
+     * 引擎与槽位在连续值上永不分叉；0 槽（酶）不参与浓度投影，
+     * 但每次变动都触发酶槽检查——放入酶立即初始化、取走酶立即回收
      */
     @Override
     public void setChanged() {
         super.setChanged();
         syncFromSlots();
+        handleEnzymeSlotChanged();
     }
 
     /**
@@ -386,8 +416,11 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
 
     /**
      * 单 tick 完整流水线（仅服务端）：
-     * 槽位合法性防呆 → 事件回写兜底 → 换酶检测 → 引擎 step →
+     * 槽位合法性防呆 → 事件回写兜底 → 酶槽检查兜底 → 引擎 step →
      * 浓度投影回槽位 → 观测数据缓存
+     * <p>
+     * 酶槽变动主要由 setChanged 事件驱动立即初始化（handleEnzymeSlotChanged），
+     * 本处保留同款检查作为兜底（任何绕过 setChanged 的路径保险）
      * <p>
      * 活性 = 酶堆叠数 [E]（0 = 无酶停摆，64 = 64 倍速），由引擎
      * 活动通道实现 Vmax = kcat × [E] 严格线性，平衡位置不受影响
@@ -398,7 +431,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         }
         ejectIllegalItems();
         syncFromSlots();
-        checkEnzymeChange();
+        handleEnzymeSlotChanged();
         if (simulator == null) {
             cachedFluxX1000 = 0;
         } else {
@@ -444,21 +477,6 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
                     enzymeData == null ? "none" : enzymeData.id(), slotSummary(), concentrationSummary(), cachedFluxX1000,
                     energyStored, getEnergyCapacity());
         }
-    }
-
-    /**
-     * 换酶检测：0 槽解析出的酶 id 与快照不一致 → 换酶流程
-     * <p>
-     * 快照只记录酶种 id：同种酶数量增减（[E] 缩放）不触发重建；
-     * 首次放入（"" → id）与取空（id → ""）同样走换酶流程
-     */
-    private void checkEnzymeChange() {
-        String current = enzymeData == null ? "" : enzymeData.id();
-        if (current.equals(enzymeSnapshot)) {
-            return;
-        }
-        enzymeSnapshot = current;
-        switchEnzyme();
     }
 
     /**

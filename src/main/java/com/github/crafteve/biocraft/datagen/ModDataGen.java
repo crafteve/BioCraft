@@ -32,5 +32,8 @@ public class ModDataGen {
         generator.addProvider(true, new SubstanceLanguageProvider(packOutput, "en_us"));
         generator.addProvider(true, new SubstanceLanguageProvider(packOutput, "zh_cn"));
         generator.addProvider(true, new MachineModelProvider(packOutput));
+        // 方块 tag 查找器传"已完成空 future"（vanilla 构造要求非 null，本 provider 不使用方块 tag）
+        generator.addProvider(true, new EnzymeTagProvider(packOutput, event.getLookupProvider(),
+                java.util.concurrent.CompletableFuture.completedFuture(null)));
     }
 }

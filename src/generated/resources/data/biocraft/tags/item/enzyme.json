@@ -1,0 +1,18 @@
+{
+  "values": [
+    "biocraft:enzyme_hexokinase",
+    "biocraft:enzyme_phosphoglucose_isomerase",
+    "biocraft:enzyme_phosphofructokinase",
+    "biocraft:enzyme_aldolase",
+    "biocraft:enzyme_triose_phosphate_isomerase",
+    "biocraft:enzyme_glyceraldehyde_3_phosphate_dehydrogenase",
+    "biocraft:enzyme_phosphoglycerate_kinase",
+    "biocraft:enzyme_phosphoglycerate_mutase",
+    "biocraft:enzyme_enolase",
+    "biocraft:enzyme_pyruvate_kinase",
+    "biocraft:enzyme_lactate_dehydrogenase",
+    "biocraft:enzyme_pyruvate_decarboxylase",
+    "biocraft:enzyme_alcohol_dehydrogenase",
+    "biocraft:enzyme_atp_hydrolase"
+  ]
+}
