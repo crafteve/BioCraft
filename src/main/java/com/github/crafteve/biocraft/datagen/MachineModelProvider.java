@@ -276,9 +276,10 @@ public class MachineModelProvider implements DataProvider {
         JsonArray patches = new JsonArray();
         // 正面观察窗液体（tint0）
         patches.add(patch(4, 7, -0.001f, 12, 10, 0, "north", 4, 7, 12, 10, "#theme_window", 0));
-        // 正面双灯（tint1）
-        patches.add(patch(4, 3, -0.001f, 6, 5, 0, "north", 4, 3, 6, 5, "#theme_lamp", 1));
-        patches.add(patch(10, 3, -0.001f, 12, 5, 0, "north", 10, 3, 12, 5, "#theme_lamp", 1));
+        // 正面双大灯（tint1）：4×4 灯芯（放大设计——2×2 灯芯被深色凹槽圈
+        // 视觉吞没，实测反馈"上方大空穴黑色"；现灯芯整体承载三态灯色）
+        patches.add(patch(3, 2, -0.001f, 7, 6, 0, "north", 3, 2, 7, 6, "#theme_lamp", 1));
+        patches.add(patch(9, 2, -0.001f, 13, 6, 0, "north", 9, 2, 13, 6, "#theme_lamp", 1));
         // 背面大法兰内环（tint0）
         patches.add(patch(6, 7, 16, 10, 9, 16.001f, "south", 6, 7, 10, 9, "#theme_flange", 0));
         // 东面：管道/观察孔/灯

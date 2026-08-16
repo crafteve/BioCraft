@@ -35,10 +35,13 @@ public class BioCraftClient {
         // EmissiveLampBakedModel（灯贴片 quad 光照强制全亮，夜晚真实发光）——
         // vanilla 方块模型无自发光属性，烘焙后包装是标准做法；物品模型
         // key 路径为 item/ 前缀不命中，物品栏/手持不受影响
+        // key 格式实证（BlockModelShaper.stateToModelLocation）：id =
+        // 方块注册名（biocraft:enzyme_chamber，无 block/ 前缀），variant =
+        // "facing=north" 等——路径匹配必须用注册名而非模型路径
         for (Map.Entry<ModelResourceLocation, BakedModel> entry : event.getModels().entrySet()) {
             ModelResourceLocation key = entry.getKey();
             if (key.id().getNamespace().equals(BioCraft.MODID)
-                    && key.id().getPath().equals("block/enzyme_chamber")) {
+                    && key.id().getPath().equals("enzyme_chamber")) {
                 entry.setValue(new EmissiveLampBakedModel(entry.getValue()));
             }
         }

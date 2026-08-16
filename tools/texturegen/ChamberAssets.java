@@ -111,6 +111,8 @@ public class ChamberAssets {
 
     /**
      * 2×2 指示灯（主题槽位，灰度）：左上角 1px 最亮模拟灯芯高光
+     * <p>
+     * 侧面/背面小灯用（正面灯已放大为 4×4 lampBig，见 front）
      *
      * @param c 目标画布
      * @param x 灯左上角横坐标
@@ -119,6 +121,21 @@ public class ChamberAssets {
     static void lamp(PixelCanvas c, int x, int y) {
         c.rect(x, y, x + 1, y + 1, LAMP);
         c.set(x, y, 0xFFFFFFFF);
+    }
+
+    /**
+     * 4×4 指示灯（正面大灯，主题槽位，灰度）：左上 2×2 高光 + 基色
+     * <p>
+     * 放大设计：指示灯区域整体承载主题色（运行=提亮酶色/停摆=红/无酶=灭），
+     * 避免小灯芯被深色灯座视觉吞没（实测反馈"大空穴黑色"）
+     *
+     * @param c 目标画布
+     * @param x 灯左上角横坐标
+     * @param y 灯左上角纵坐标
+     */
+    static void lampBig(PixelCanvas c, int x, int y) {
+        c.rect(x, y, x + 3, y + 3, LAMP);
+        c.rect(x, y, x + 1, y + 1, 0xFFFFFFFF);
     }
 
     /**
@@ -135,10 +152,12 @@ public class ChamberAssets {
     }
 
     /**
-     * 正面：中央大观察窗（主要主题色载体）+ 上排双指示灯 + 底部双接口环 + 中央铭牌条
+     * 正面：中央大观察窗（主要主题色载体）+ 上排双大灯（4×4，整体随酶
+     * 变色）+ 底部双接口环 + 中央铭牌条
      * <p>
      * 窗口 12×7 外框 + 玻璃底 10×5 + 液体 8×3（受光→背光渐变），
-     * 双灯凹槽圈 4×4（frameDark）包裹 2×2 灯芯，灭灯时只见凹槽
+     * 双灯为 1px 深色外框 + 4×4 灯芯——灯芯足够大才能让"指示灯"的
+     * 三态（灭/运行/停摆红）一眼可辨
      *
      * @return 正面 16×16 画布
      */
@@ -148,11 +167,13 @@ public class ChamberAssets {
         c.set(5, 2, FRAME_DARK);
         c.set(10, 2, FRAME_DARK);
         c.hline(6, 9, 2, METAL_HI);
-        // 双灯凹槽圈（y2..5）与灯芯（y3..4）
-        c.outline(3, 2, 6, 5, FRAME_DARK);
-        c.outline(9, 2, 12, 5, FRAME_DARK);
-        lamp(c, 4, 3);
-        lamp(c, 10, 3);
+        // 双灯：1px 深色外框 + 4×4 灯芯（指示灯整体随酶变色，黑框只留
+        // 1px 描边——旧设计 2×2 灯芯被 4×4 凹槽圈包裹，视觉上"黑空穴"
+        // 盖过灯色（实测反馈），灯芯必须大到足以承载主题色
+        c.outline(2, 1, 7, 6, FRAME_DARK);
+        c.outline(9, 1, 14, 6, FRAME_DARK);
+        lampBig(c, 3, 2);
+        lampBig(c, 9, 2);
         // 观察窗：窗框 + 玻璃底 + 内侧左上高光
         c.outline(2, 5, 13, 11, FRAME_DARK);
         c.rect(3, 6, 12, 10, GLASS);
@@ -384,8 +405,8 @@ public class ChamberAssets {
     static PixelCanvas baseFront() {
         PixelCanvas c = front();
         c.rect(4, 7, 11, 9, GLASS);
-        c.rect(4, 3, 5, 4, FRAME_DARK);
-        c.rect(10, 3, 11, 4, FRAME_DARK);
+        c.rect(3, 2, 6, 5, FRAME_DARK);
+        c.rect(9, 2, 12, 5, FRAME_DARK);
         return c;
     }
 
@@ -549,18 +570,30 @@ public class ChamberAssets {
     }
 
     /**
-     * 指示灯反照率：2×2 内容画四处——(4,3)/(10,3)（正面双灯）、
-     * (11,12)（东面灯）、(3,12)（西面镜像区，西面 u=16−z 的镜像采样区）
+     * 指示灯反照率：正面两个 4×4 大灯 at (3,2)/(9,2)（UV 与贴片元素一致）、
+     * 东面 2×2 at (11,12)、西面 2×2 at (3,12)（西面 u=16−z 的镜像采样区）
      *
      * @return theme_lamp 16×16 画布
      */
     static PixelCanvas themeLamp() {
         PixelCanvas c = new PixelCanvas(16, 16);
-        lampContent(c, 4, 3);
-        lampContent(c, 10, 3);
+        lampBigContent(c, 3, 2);
+        lampBigContent(c, 9, 2);
         lampContent(c, 11, 12);
         lampContent(c, 3, 12);
         return c;
+    }
+
+    /**
+     * 单个 4×4 灯内容：基色 + 左上 2×2 灯芯高光
+     *
+     * @param c 目标画布
+     * @param x 内容左上角横坐标
+     * @param y 内容左上角纵坐标
+     */
+    static void lampBigContent(PixelCanvas c, int x, int y) {
+        c.rect(x, y, x + 3, y + 3, LAMP);
+        c.rect(x, y, x + 1, y + 1, 0xFFFFFFFF);
     }
 
     /**
