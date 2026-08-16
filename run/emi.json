@@ -1,10 +1,15 @@
 {
   "favorites": [],
   "lookup_history": [
+    "item:biocraft:enzyme_chamber",
+    {
+      "type": "item",
+      "id": "biocraft:fructose_1_6_bisphosphate",
+      "amount": 127
+    },
     "item:biocraft:atp",
     "item:biocraft:water",
     "item:biocraft:enzyme_atp_hydrolase",
-    "item:biocraft:enzyme_chamber",
     {
       "type": "item",
       "id": "biocraft:glucose_6_phosphate",
@@ -14,11 +19,6 @@
       "type": "item",
       "id": "biocraft:dihydroxyacetone_phosphate",
       "amount": 35
-    },
-    {
-      "type": "item",
-      "id": "biocraft:fructose_1_6_bisphosphate",
-      "amount": 128
     },
     {
       "type": "item",

@@ -588,8 +588,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * 速率实时显示区：平衡区下方 1px 间隔，浅色底画到 y=164，
      * 居中显示 v=xxx（/tick，8px 黑色字体，不超采样）
      * <p>
-     * 数值 = 引擎净通量（堆叠分数/s）× 64 × 0.05s = ×3.2（/tick）；
-     * 2 位有效数字，|v| < 0.05 显示 "0.0"（接近 0 判定）；
+     * 数值 = 反应速率（反应次数/tick，主产物槽位投影增量/系数，
+     * BE 每 tick 统计，1 tick 实时——引擎瞬时净通量在平衡区/抽取
+     * 工况无法反映实际吞吐，已弃用）；2 位有效数字，
+     * |v| < 0.05 显示 "0.0"（接近 0 判定）；
      * 区高不足 8px（多行方程式挤压）时跳过文字避免重叠
      *
      * @param graphics 渲染器
@@ -604,7 +606,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         if (h < 8) {
             return;
         }
-        double v = menu.getFlux() * 3.2;
+        double v = menu.getFlux();
         String vs = Math.abs(v) < 0.05 ? "0.0" : formatTickValue(v);
         String text = "v=" + vs + " /tick";
         int textW = this.font.width(text);
@@ -756,6 +758,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         // 避免折线遮挡单位等标记——原顺序折线最后绘制盖住"/tick"）
         // 从左往右滚动——最新点在左端（Y 轴处），旧点逐格右移，
         // 最右点恰好落在 X 轴箭头屁股（消失处）
+        // 数据点 = 主产物增量（物品/tick，BE 投影统计）；y 轴基准（span/
+        // vmaxRShow）是引擎可达通量（浓度/秒）——绘制时换算同口径：
+        // 物品/tick / 3.2 = 浓度/秒（1 tick = 64 个 × 0.05s）
         int count = Math.min(vtSampleCount, VT_POINTS);
         if (count >= 2) {
             int lineColor = theme | 0xFF000000;
@@ -765,7 +770,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             int latest = (vtIndex - 1 + VT_POINTS) % VT_POINTS;
             int prevX = 0, prevY = 0;
             for (int i = 0; i < count; i++) {
-                double v = vtFlux[(latest - i + VT_POINTS) % VT_POINTS];
+                double v = vtFlux[(latest - i + VT_POINTS) % VT_POINTS] / 3.2;
                 int x = axisX + i * VT_GRID_W * ss;
                 int y = bottomY - (int) Math.round((v + vmaxRShow) / span * VT_H * ss);
                 y = Math.max(0, Math.min(bottomY, y));

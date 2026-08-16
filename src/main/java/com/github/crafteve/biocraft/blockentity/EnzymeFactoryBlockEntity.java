@@ -82,6 +82,11 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     private boolean projecting;
 
     /** 观测数据缓存（Menu ContainerData 读取，每 tick 更新） */
+    /**
+     * 反应速率缓存（×1000 定点）：主产物槽位投影增量 / 主产物系数
+     * （反应次数/tick，1 tick 实时）——替代引擎瞬时净通量（瞬时值在
+     * 平衡区/抽取工况无法反映实际吞吐，实测 TPI"显示 0.0 但管道飞快"）
+     */
     private int cachedFluxX1000;
     private int cachedTempX100;
     private int cachedProgressX1000;
@@ -96,6 +101,19 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
 
     /** 酶槽当前酶 id 快照（换酶检测：对比本值与 0 槽解析结果） */
     private String enzymeSnapshot = "";
+
+    /**
+     * 主产物引擎物种下标（-1 = 无）与化学计量系数
+     * <p>
+     * 主产物 = 产物列表中第一个"非 fe 且非固定活性"物种（避开 fe/水/H⁺）；
+     * GUI 反应速率 = 主产物槽位投影增量 / 主产物系数（反应进度变化率，
+     * 反应次数/tick，1 tick 实时）——玩家视角的"反应速度"，替代引擎
+     * 瞬时净通量（瞬时值在平衡区/抽取工况下无法反映实际吞吐）
+     */
+    private int mainProductSpeciesIndex = -1;
+
+    /** 主产物化学计量系数（反应进度换算：速率 = 增量/系数） */
+    private int mainProductStoich = 1;
 
     /**
      * @param pos   方块位置
@@ -168,6 +186,23 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
                 }
                 slot++;
             }
+        }
+        // 主产物定位：产物列表中第一个非 fe 非固定活性物种（速率显示口径）
+        this.mainProductSpeciesIndex = -1;
+        this.mainProductStoich = 1;
+        for (EnzymeFactoryData.SpeciesSpec spec : data.products()) {
+            if (EnergyKinetics.isEnergySpecies(spec.item())
+                    || KineticConstants.FIXED_ACTIVITY_SPECIES.contains(spec.item())) {
+                continue;
+            }
+            for (int i = 0; i < speciesIds.length; i++) {
+                if (speciesIds[i].equals(spec.item())) {
+                    mainProductSpeciesIndex = i;
+                    break;
+                }
+            }
+            mainProductStoich = spec.count();
+            break;
         }
     }
 
@@ -467,7 +502,6 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             ItemStack enzymeStack = inventory.getItem(ENZYME_SLOT);
             simulator.getState().setActivity(enzymeStack.isEmpty() ? 0.0 : enzymeStack.getCount());
             var result = simulator.step(KineticConstants.TICK_SECONDS);
-            cachedFluxX1000 = (int) Math.round(result.fluxNet() * 1000.0);
             settleEnergy(result.fluxNet());
             projectToSlots();
         }
@@ -510,6 +544,11 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      * <p>
      * 槽位数量 = floor(浓度×64)，钳制到槽位物理容量（64×n 组），
      * 余量 = 浓度×64 − 数量（0~1 个物品的积累进度）
+     * <p>
+     * 每 tick 顺带统计反应速率：主产物槽位增量 / 主产物化学计量系数
+     * （反应进度变化率，反应次数/tick）——引擎投影是"实际落到槽位的
+     * 变化"（外部抽取不干扰，抽取发生在投影之后），1 tick 实时，
+     * 替代引擎瞬时净通量（瞬时值在平衡区/抽取工况无法反映实际吞吐）
      */
     private void projectToSlots() {
         if (simulator == null) {
@@ -519,6 +558,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         try {
             double[] x = simulator.getState().getConcentrations();
             int slotLimit = slotStackLimit();
+            double rateDelta = 0.0;
             for (int slot = SPECIES_SLOT_BASE; slot < slotToSpeciesIndex.length; slot++) {
                 int speciesIndex = slotToSpeciesIndex[slot];
                 if (speciesIndex < 0) {
@@ -528,7 +568,8 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
                 int count = Math.min((int) Math.floor(total), slotLimit);
                 remainder[slot] = total - count;
                 ItemStack stack = inventory.getItem(slot);
-                if (stack.getCount() == count) {
+                int oldCount = stack.getCount();
+                if (oldCount == count) {
                     continue;
                 }
                 if (count <= 0) {
@@ -538,7 +579,13 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
                 } else {
                     stack.setCount(count);
                 }
+                if (speciesIndex == mainProductSpeciesIndex) {
+                    rateDelta = (count - oldCount) / (double) mainProductStoich;
+                }
             }
+            // 1 tick 实时反应速率（反应次数/tick ×1000 定点）；
+            // 睡眠态（浓度全 0）由 tickServer 提前置 0，此处恒有引擎步进
+            cachedFluxX1000 = (int) Math.round(rateDelta * 1000.0);
         } finally {
             projecting = false;
         }

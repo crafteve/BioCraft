@@ -81,7 +81,7 @@ public class MachineMenu extends AbstractContainerMenu {
 
     /** 容器数据下标：温度×100 */
     public static final int DATA_TEMP = 0;
-    /** 容器数据下标：净通量×1000 */
+    /** 容器数据下标：反应速率×1000（反应次数/tick = 主产物槽位投影增量/系数，1 tick 实时） */
     public static final int DATA_FLUX = 1;
     /** 容器数据下标：主产物浓度×1000 */
     public static final int DATA_PROGRESS = 2;
@@ -374,7 +374,7 @@ public class MachineMenu extends AbstractContainerMenu {
     /**
      * 读取当前净通量（ContainerData 同步值，v-t 折线图数据源）
      *
-     * @return 净通量（堆叠分数/s，负值为逆向）
+     * @return 反应速率（反应次数/tick = 主产物槽位投影增量/系数，负值为逆向）
      */
     public double getFlux() {
         return data.get(DATA_FLUX) / 1000.0;
@@ -383,7 +383,7 @@ public class MachineMenu extends AbstractContainerMenu {
     /**
      * 获取 v-t 通量历史（打开时服务端下发，Screen 初始化折线图用）
      *
-     * @return 历史快照（旧→新，每 tick 通量×1000）
+     * @return 历史快照（旧→新，每 tick 反应速率×1000）
      */
     public int[] getFluxHistory() {
         return fluxHistory;
