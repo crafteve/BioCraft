@@ -48,6 +48,16 @@ public final class EnzymeSimulator {
     private static final double RIGID_SELF_CANCEL_RATIO = 0.25;
 
     /**
+     * 刚性过冲判据阈值：RK4 增量超过欧拉预测的此倍数即视为步长过大
+     * <p>
+     * 与自抵消判据互补：判据 1 只覆盖"RK4 大幅抵消"（|rk4| &lt;&lt; |euler|），
+     * 而"RK4 与欧拉方向相反或幅度远超欧拉"同样说明步长内采样点失真
+     * （采样点越界被钳制后导数信息错误，见 isRigid 判据 4 说明）。
+     * 正常系统比值 0.4~1.0，2 倍留足裕量不误伤
+     */
+    private static final double RIGID_OVERSHOOT_RATIO = 2.0;
+
+    /**
      * 单调大消耗判据阈值：欧拉单步吃掉物种过半存量/余量即视为步长过大
      * <p>
      * 覆盖"Vmax_b &gt;&gt; Vmax_f"型刚性（ALDO 等 Keq 极小酶 + 高活性），
@@ -198,6 +208,10 @@ public final class EnzymeSimulator {
      * <ol>
      *   <li>高阶项自抵消（振荡型刚性）：RK4 增量远小于欧拉预测——
      *       步长内通量剧烈往返（采样点震荡），显式积分不可信</li>
+     *   <li>方向矛盾 / 幅度过冲（采样点越界钳制型刚性）：RK4 与欧拉
+     *       符号相反或 RK4 幅度远超欧拉——步长内采样点越出 [0, MAX]
+     *       被钳制，导数信息失真（满堆反应物 + 空产物的 TPI 冻结根因，
+     *       见判据 4 的详细说明）</li>
      *   <li>单调大消耗（Vmax_b &gt;&gt; Vmax_f 型刚性）：欧拉单步吃掉
      *       物种过半存量/余量——ALDO 类 Keq 极小酶的逆向 Vmax 巨大
      *       （Vmax_b ≈ 300，64 活性时 ≈ 19200），单步把产物直接
@@ -223,6 +237,23 @@ public final class EnzymeSimulator {
             // 判据 1：高阶项自抵消（振荡型刚性）
             if (Math.abs(euler) > 1e-12 && Math.abs(rk4) < RIGID_SELF_CANCEL_RATIO * Math.abs(euler)) {
                 return true;
+            }
+            // 判据 4：方向矛盾 / 幅度过冲（采样点越界钳制型刚性）
+            // 判据 1 只覆盖"RK4 大幅抵消"，而 RK4 与欧拉符号相反（或 RK4
+            // 幅度远超欧拉）说明步长内采样点已越出 [0, MAX] 被钳制，导数
+            // 信息失真——实测根因（用户 TPI×3 满堆 DHAP + G3P=0 卡 0.00）：
+            // 单步 RK4 的 k2~k4 采样把产物 G3P 抬到高位（k2 采样点 G3P≈0.94
+            // 时逆向通量 13.2 &gt; 正向 4.7），加权平均预测"逆向净流 +1.30"
+            // 与欧拉的正向 −0.94 完全相反——真实系统应正向消耗反应物；
+            // 反应物恰在浓度上限时边界缩放把该错误步骤压成 scale=0，
+            // 引擎永久冻结（v=0.00、产物恒 0，槽位投影永远写不出物品）。
+            // 细分后采样点不出界、方向恢复正确（2 子步即解冻，逐子步
+            // ΔDHAP≈0.106 → 单 tick 产出 G3P≈13 个物品，与用户"取下
+            // 64 input 恢复、output 变 13"的实测一致）
+            if (Math.abs(euler) > 1e-12) {
+                if (rk4 * euler < 0.0 || Math.abs(rk4) > RIGID_OVERSHOOT_RATIO * Math.abs(euler)) {
+                    return true;
+                }
             }
             // 判据 2：单调大消耗——欧拉单步变化量过大
             // 无论方向：吃掉物种过半存量（步长内采样点严重失真，正常系统

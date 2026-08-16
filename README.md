@@ -99,13 +99,14 @@
 ## 技术信息
 
 - **环境**：Minecraft 1.21.1 / NeoForge 21.1.248 / Java 21 / Gradle 9.2.1 / ModDevGradle 2.0.143 / Parchment 2024.11.17
-- **构建**：`gradlew build`（产物 `build/libs/biocraft-1.0.0.jar`）；进游戏 `gradlew runClient`；datagen `gradlew runData`；引擎单测见 `tools/engineTest/`（22 用例，先 `gradlew build` 再 javac 编译运行）
+- **构建**：`gradlew build`（产物 `build/libs/biocraft-1.0.0.jar`）；进游戏 `gradlew runClient`；datagen `gradlew runData`；引擎单测见 `tools/engineTest/`（26 用例，先 `gradlew build` 再 javac 编译运行）
 - **架构**：唯一 `MachineBlock`（统一酶反应腔，酶由 0 槽物品动态解析）；`enzymes.json` 数据驱动配方；事件驱动 + 睡眠性能模型；CDK 化学库（合并单 jar 嵌入）；FE 为固定活性物种（满能量自动停转回压）；细胞器相邻检测（规划中）
 
 ## 更新日志
 
 ### 2026-08-16
 
+- **fix** 修复 TPI 多酶（堆叠 3）+ 输入满堆（129）时引擎永久卡死（输出恒 0.00、v=0.00）：单步 RK4 在"反应物满堆 + 产物为 0"时中间采样点越界被钳制，积分方向与真实反应完全相反（预测逆向净流），边界缩放把错误步骤压成 0 导致机器永久冻结——新增"方向矛盾/过冲"细分判据（RK4 与欧拉符号相反或幅度超过 2 倍即细分步长），细分后方向恢复正确，1 tick 即产出并收敛至平衡（单 tick 产出约 13 个，与实测"取下 64 输入恢复"一致）；同时修复同根因的高活性近平衡振荡（[E]=3 时产物在平衡点附近以 3 tick 周期来回跳、Q 偏离 Keq 达 60% 不收敛，修复后 2 tick 收敛且 Q 锁定）（引擎测试 26 用例含冻结回归）
 - **fix** GUI 拿取限制：槽位容量 128 时左键点击会一次拿走全部物品（与原版"一次一组"不兼容）——Slot.remove 覆写限单次拿取 64，分两次拿完；双击收集与 shift 转移不受影响
 - **feat** 堆叠数自动缩小：槽位堆叠超过 100 时（如 128）堆叠数字自动缩小（3 位 0.75、4 位及以上 0.55，右下角锚点缩放），不再大面积遮挡分子贴图；拖拽分裂的选取预览保持原生效果（复刻 vanilla quickCraft 分支）
 - **fix** 速率/Keq 显示精度提升：2 位有效数字 + 0.05 显示阈值改为 3 位有效数字（小速率不再恒显示 0.0，可分辨 0.01 与 0.049）

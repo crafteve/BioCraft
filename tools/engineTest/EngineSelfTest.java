@@ -57,6 +57,7 @@ public final class EngineSelfTest {
         run("23 RK4 刚性自适应：TPI kcat=9000 数据浓度正常推进", EngineSelfTest::test23RigidAdaptive);
         run("24 ALDO 64 活性强刚性：Vmax_b≈19200 正常推进并收敛 Keq", EngineSelfTest::test24AlodoHighActivity);
         run("25 ALDO 64 活性长周期：平衡区驻留 10000 tick Q 锁定 Keq 零漂移", EngineSelfTest::test25AlodoEquilibriumDrift);
+        run("26 TPI [E]=3 满堆反应物冻结回归：方向矛盾细分 + 近平衡无极限环", EngineSelfTest::test26TpiFullReactantFreeze);
 
         if (failures > 0) {
             System.err.println("引擎单测失败: " + failures + "/" + total);
@@ -707,6 +708,65 @@ public final class EngineSelfTest {
                 String.format("ALDO 平衡区产物浓度漂移（窗口 [%.7f, %.7f]）", minDhap, maxDhap));
         // 平衡点正确：DHAP ≈ sqrt(Keq×F16P) ≈ 0.0170（产物恒投影 1 个物品）
         checkNear(dhap, 0.01699, 0.001, "ALDO 平衡区 DHAP 应稳定在平衡点（约 0.0170）");
+    }
+
+    /**
+     * TPI [E]=3 满堆反应物冻结回归（判据 4：方向矛盾/过冲细分）
+     * <p>
+     * 场景（用户实测 + 游戏日志实证）：TPI×3（[E]=3，kcat=9000 真实数据）
+     * 反应物 DHAP 满堆（浓度 2.015625 = 槽位 128 + 余量 1.0，卡片读数 129.0）
+     * 且产物 G3P 为 0 时，旧引擎单步 RK4 的 k2~k4 采样点把 G3P 抬到高位
+     * 使逆向通量主导，加权平均预测"逆向净流"（与欧拉的正向完全相反），
+     * 反应物恰在浓度上限 → 边界缩放 scale=0 → 引擎永久冻结
+     * （v=0.00、产物恒 0.00——日志实测 DHAP=128 G3P=0 fluxX1000=0）。
+     * 判据 1（自抵消）只覆盖 |rk4|&lt;&lt;|euler|，漏检"方向相反/幅度过冲"，
+     * 判据 4 补上后细分至采样点不出界，方向恢复正确
+     * <p>
+     * 另覆盖同根因的近平衡极限环：修复前 [E]=3 真实数据在平衡点附近
+     * 以 3 tick 周期振荡（G3P 0.199↔0.303 不收敛，Q 偏离 Keq 达 60%），
+     * 修复后应快速收敛且 Q 锁定 Keq
+     */
+    private static void test26TpiFullReactantFreeze() {
+        // 与 enzymes.json 的 triose_phosphate_isomerase 完全一致的真实数据
+        EnzymeFactoryData realTpi = new EnzymeFactoryData(
+                "triose_phosphate_isomerase", "磷酸丙糖异构酶", "Triosephosphate Isomerase", "TPI", "EC5", 0xFFFFD966,
+                List.of(new EnzymeFactoryData.SpeciesSpec("dihydroxyacetone_phosphate", 1, 0.88)),
+                List.of(new EnzymeFactoryData.SpeciesSpec("glyceraldehyde_3_phosphate", 1, 0.79)),
+                true, 0.10874, null, 9000.0, 298.15,
+                1, 1);
+        double keq = 0.10874;
+        // 阶段 1：满堆反应物 + 空产物（用户冻结状态）必须产出并收敛
+        EnzymeSimulator sim = realTpi.buildSimulator();
+        sim.getState().setActivity(3.0);
+        double[] x = sim.getState().getConcentrations();
+        int dhap = idx(sim, "dihydroxyacetone_phosphate");
+        int g3p = idx(sim, "glyceraldehyde_3_phosphate");
+        x[dhap] = KineticConstants.MAX_CONCENTRATION;
+        x[g3p] = 0.0;
+        // 前 3 tick 产物必须显著推进（修复前恒 0.0000，永久冻结）
+        runTicks(sim, 3);
+        check(x[g3p] > 0.05,
+                String.format("满堆反应物 + 空产物前 3 tick G3P 应产出（实测 %.6f，疑似冻结）", x[g3p]));
+        // 200 tick 收敛到 Keq 判决点（G3P = total×Keq/(1+Keq)，2% 容差）
+        runTicks(sim, 200);
+        double total = KineticConstants.MAX_CONCENTRATION;
+        double expectedG3p = total * keq / (1.0 + keq);
+        checkNear(x[g3p], expectedG3p, 0.02 * expectedG3p,
+                "满堆反应物场景 200 tick 未收敛到 Keq 判决点");
+        // 阶段 2：近平衡极限环回归——修复前以 3 tick 周期振荡不收敛
+        sim = realTpi.buildSimulator();
+        sim.getState().setActivity(3.0);
+        x = sim.getState().getConcentrations();
+        x[dhap] = 1.8004;
+        x[g3p] = 0.2152;
+        // 30 tick 内 Q 必须锁定 Keq（修复前振荡窗口 [0.109, 0.174] 偏差 60%）
+        runTicks(sim, 30);
+        double q = x[g3p] / x[dhap];
+        checkNear(q, keq, 0.02 * keq, "近平衡极限环场景 Q 未锁定 Keq");
+        // 再跑 200 tick 验证零漂移（修复前周期振荡持续存在）
+        runTicks(sim, 200);
+        double q2 = x[g3p] / x[dhap];
+        checkNear(q2, keq, 0.001 * keq, "近平衡场景 200 tick 后 Q 漂移");
     }
 
     private EngineSelfTest() {
