@@ -20,42 +20,58 @@
         {
             "id":  "ion",
             "name_zn":  "离子",
-            "name_en":  "Ion"
+            "name_en":  "Ion",
+            "color":  "#B0C4DE",
+            "structure":  false
         },
         {
             "id":  "base",
             "name_zn":  "碱基",
-            "name_en":  "Nucleobase"
+            "name_en":  "Nucleobase",
+            "color":  "#4FC3F7",
+            "structure":  true
         },
         {
             "id":  "nucleotide",
             "name_zn":  "核苷酸",
-            "name_en":  "Nucleotide"
+            "name_en":  "Nucleotide",
+            "color":  "#E74C3C",
+            "structure":  true
         },
         {
             "id":  "coenzyme",
             "name_zn":  "辅酶",
-            "name_en":  "Coenzyme"
+            "name_en":  "Coenzyme",
+            "color":  "#FF8C00",
+            "structure":  true
         },
         {
             "id":  "glycolysis",
             "name_zn":  "糖酵解中间体",
-            "name_en":  "Glycolysis Intermediate"
+            "name_en":  "Glycolysis Intermediate",
+            "color":  "#FFB300",
+            "structure":  true
         },
         {
             "id":  "inorganic",
             "name_zn":  "无机物",
-            "name_en":  "Inorganic Compound"
+            "name_en":  "Inorganic Compound",
+            "color":  "#87CEEB",
+            "structure":  false
         },
         {
             "id":  "atom",
             "name_zn":  "原子",
-            "name_en":  "Atom"
+            "name_en":  "Atom",
+            "color":  "#C0C0C0",
+            "structure":  false
         },
         {
             "id":  "amino_acid",
             "name_zn":  "氨基酸",
-            "name_en":  "Amino Acid"
+            "name_en":  "Amino Acid",
+            "color":  "#7CFC00",
+            "structure":  true
         }
     ],
     "substances":  [

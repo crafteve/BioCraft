@@ -15,6 +15,7 @@ import java.util.Optional;
  * <p>
  * 承载物质的化学属性：SMILES 结构式（驱动分子图渲染与分子式计算）、
  * 内容物染色值（双层贴图 layer0 的 ItemColor 着色）、缩写与所属类别
+ * （类别数据全部来自 substances.json 的 categories 段，MoleculeCategoryData）
  * <p>
  * 堆叠上限保持 vanilla 默认 64（玩家背包/箱子与普通容器一致）；
  * 酶工厂槽位的多组容量（128）由容器 slotStackLimit + GUI Slot 覆写 +
@@ -32,20 +33,25 @@ import java.util.Optional;
  * @param smiles       SMILES 结构式
  * @param abbreviation 物质缩写（如 G6P、NAD+）
  * @param tintColor    内容物染色值（ARGB）
- * @param category     分子类别（tooltip 类别徽章）
+ * @param category     分子类别数据（id/主题色/结构式可用性，数据表驱动）
  */
 public class MoleculeItem extends Item implements AbbreviationProvider {
     private final String smiles;
     private final String abbreviation;
     private final int tintColor;
-    private final MoleculeCategory category;
+    private final String categoryId;
+    private final int categoryColor;
+    private final boolean hasStructure;
 
-    public MoleculeItem(Properties properties, String smiles, String abbreviation, int tintColor, MoleculeCategory category) {
+    public MoleculeItem(Properties properties, String smiles, String abbreviation, int tintColor,
+                        MoleculeCategoryData category) {
         super(properties);
         this.smiles = smiles;
         this.abbreviation = abbreviation;
         this.tintColor = tintColor;
-        this.category = category;
+        this.categoryId = category.id();
+        this.categoryColor = category.color();
+        this.hasStructure = category.structure();
     }
 
     /**
@@ -73,32 +79,20 @@ public class MoleculeItem extends Item implements AbbreviationProvider {
                     .withStyle(style -> style.withColor(0xFFD700)));
 
             // 类别徽章：纯类别色文本（无符号前缀，避免 Unicode 符号渲染错位）
-            tooltip.add(Component.translatable("category.biocraft." + category.getId())
-                    .withStyle(style -> style.withColor(category.getColor())));
+            tooltip.add(Component.translatable("category.biocraft." + categoryId)
+                    .withStyle(style -> style.withColor(categoryColor)));
 
             // 摩尔质量：精确质量 4 位小数
             tooltip.add(Component.translatable("tooltip.biocraft.molar_mass",
                             String.format(Locale.ROOT, "%.4f", data.mass()))
                     .withStyle(style -> style.withColor(0xB57EDC)));
 
-            // 结构式按 Shift 展示：未按时提示（离子/原子/无机物无结构式，不提示）
-            if (hasStructureImage() && !net.minecraft.client.gui.screens.Screen.hasShiftDown()) {
+            // 结构式按 Shift 展示：未按时提示（structure=false 的类别无结构式，不提示）
+            if (hasStructure && !net.minecraft.client.gui.screens.Screen.hasShiftDown()) {
                 tooltip.add(Component.translatable("tooltip.biocraft.show_structure")
                         .withStyle(style -> style.withColor(0x9E9E9E)));
             }
         }
-    }
-
-    /**
-     * 该分子类别是否有结构式可展示
-     * <p>
-     * 离子/原子/无机物（如 Na⁺、C、H₂O、CO₂）无结构式展示意义
-     *
-     * @return true 表示可展示结构式
-     */
-    private boolean hasStructureImage() {
-        return category != MoleculeCategory.ION && category != MoleculeCategory.ATOM
-                && category != MoleculeCategory.INORGANIC;
     }
 
     /**
@@ -109,14 +103,14 @@ public class MoleculeItem extends Item implements AbbreviationProvider {
      * （返回类型为 common 的 TooltipComponent，组件类本身仅客户端加载）
      * <p>
      * 仅当按住 Shift 时返回结构图（减少信息噪音，按需查看）；
-     * 离子、原子与无机物类别无结构式，恒返回空
+     * 数据表 structure=false 的类别（离子/原子/无机物）无结构式，恒返回空
      *
      * @param stack 当前物品堆
-     * @return 结构图组件（未按 Shift 或离子/原子/无机物类别返回空）
+     * @return 结构图组件（未按 Shift 或 structure=false 类别返回空）
      */
     @Override
     public Optional<TooltipComponent> getTooltipImage(ItemStack stack) {
-        if (!hasStructureImage()) {
+        if (!hasStructure) {
             return Optional.empty();
         }
         if (!net.minecraft.client.gui.screens.Screen.hasShiftDown()) {
@@ -145,14 +139,5 @@ public class MoleculeItem extends Item implements AbbreviationProvider {
     @Override
     public String getAbbreviation() {
         return abbreviation;
-    }
-
-    /**
-     * 获取分子类别
-     *
-     * @return 类别枚举
-     */
-    public MoleculeCategory getCategory() {
-        return category;
     }
 }

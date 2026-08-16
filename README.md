@@ -109,6 +109,7 @@
 
 ### 2026-08-16
 
+- **fix** 分子类别数据表化：`MoleculeCategory` 枚举移除，类别 id/主题色/结构式可用性（`structure` 字段）全部改由 `substances.json` categories 段驱动——新增分子类别只改 JSON，与酶体系同构对称
 - **fix** 颜色数据表格式：`substances.json`/`enzymes.json` 的 `color` 字段从 ARGB 整数改为 `#RRGGBB` 色号（肉眼可读可调，如 `#FFA94D`），`SubstanceData.parseColor` 解析补 alpha；顺带清理 2 个无引用贴图（enzyme_background/dna_template）与 categories 段死数据 color 字段
 - **feat** 移除 DNA 编码器全部内容（机器/GUI/序列物品/配方/网络代码）：破坏性更新——旧存档中的 DNA 编码器方块与 DNA 模板物品将消失；机器体系只保留酶工厂，为统一酶反应腔重构铺路
 - **feat** 酶主题色数据表化：`enzymes.json` 新增 `color` 字段（同类别酶配同色系），取代原枚举查表——酶物品染色/GUI/JEI/tooltip 统一取数据表色；tooltip 移除 EC 类别名段（缩写 + 可逆性）

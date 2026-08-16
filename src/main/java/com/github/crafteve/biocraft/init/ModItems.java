@@ -3,7 +3,7 @@ package com.github.crafteve.biocraft.init;
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.data.SubstanceData;
 import com.github.crafteve.biocraft.item.EnzymeItem;
-import com.github.crafteve.biocraft.item.MoleculeCategory;
+import com.github.crafteve.biocraft.item.MoleculeCategoryData;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.google.gson.JsonArray;
@@ -62,6 +62,13 @@ public final class ModItems {
      */
     private static void loadSubstances() {
         JsonObject root = SubstanceData.loadRoot();
+        // 先建立类别索引（categories 段 → MoleculeCategoryData），
+        // 物质条目经 category 字段查表获取类别数据（id/主题色/结构式可用性）
+        Map<String, MoleculeCategoryData> categories = new LinkedHashMap<>();
+        for (JsonElement categoryElement : root.getAsJsonArray("categories")) {
+            MoleculeCategoryData category = MoleculeCategoryData.parse(categoryElement.getAsJsonObject());
+            categories.put(category.id(), category);
+        }
         JsonArray substances = root.getAsJsonArray("substances");
         for (JsonElement element : substances) {
             JsonObject substance = element.getAsJsonObject();
@@ -69,7 +76,10 @@ public final class ModItems {
             String smiles = substance.get("smiles").getAsString();
             String abbreviation = substance.get("abbreviation").getAsString();
             int color = SubstanceData.parseColor(substance.get("color").getAsString());
-            MoleculeCategory category = MoleculeCategory.byId(substance.get("category").getAsString());
+            MoleculeCategoryData category = categories.get(substance.get("category").getAsString());
+            if (category == null) {
+                throw new IllegalArgumentException("物质 " + id + " 引用了未定义的类别: " + substance.get("category").getAsString());
+            }
             DeferredItem<MoleculeItem> item = ITEMS.register(id, () -> new MoleculeItem(
                     new Item.Properties(), smiles, abbreviation, color, category));
             MOLECULES.put(id, item);

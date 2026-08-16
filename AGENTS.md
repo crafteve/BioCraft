@@ -63,6 +63,7 @@
 - 已完成 FE 能量卡片 GUI：滚动卡片区泛化（`CardSpec` 物种卡/能量卡，能量卡按 JSON 原顺序与 input/output 卡片同滚动区），绿色进度条（存量/容量 kFE）+ 产率读数；BE 槽位↔物种映射（fe 无槽位，`slotToSpeciesIndex`），`MachineEnergyStorage` capability（产物侧只可抽/反应物侧只可充），能量存量 NBT 存档，满能量引擎边界缩放停转回压；JEI/tooltip 绿色能量行（每分子 kFE + 容量）
 - 已完成 酶蛋白物品（新架构"酶 = 物品"重构第一步）：14 种酶蛋白物品由 enzymes.json 数据驱动注册（注册名 `enzyme_<酶id>` 与过渡期方块物品 id 区分），堆叠 64 = [E]（速率线性倍率待反应腔接入）；视觉与分子同款——双层烧杯贴图（layer0 按数据表 color 字段染色）+ 图标左上角缩写标注（`MoleculeItemDecorator` 泛化为 `AbbreviationProvider` 接口，MoleculeItem/EnzymeItem 共用）；tooltip 沿用酶方块摘要（EnzymeRecipeDisplay + EnzymeEquation）；新增"生物工艺 · 酶"创意标签页；**重构剩余步骤（统一酶反应腔、酶槽、换酶清空、方块废弃）在 feature/enzyme-chamber 分支进行中**
 - 已完成 酶主题色数据表化：`MachineCategory` 枚举整体删除，`enzymes.json` 每条酶新增 `color` 字段（`#RRGGBB` 色号，同类别酶手动配同色系；`SubstanceData.parseColor` 解析补 alpha），物品染色/GUI/JEI/tooltip 统一直取数据表色；tooltip 移除 EC 类别名段（缩写 + 可逆性）
+- 已完成 分子类别数据表化：`MoleculeCategory` 枚举整体删除，`substances.json` categories 段补 `color`（#色号）+ `structure`（结构式可用性）字段，新建 `MoleculeCategoryData` record 注册期解析——类别 id/主题色/结构语义单一事实源，新增类别改 JSON 即可（与酶体系同构对称）
 - 已完成 DNA 编码器移除（破坏性）：方块/GUI/BE/网络包（ModNetwork/ServerboundDnaSequencePacket）/序列物品（SequenceItem/dna_template）/数据组件（ModDataComponents）/配方/贴图全部删除，`MachineType` 枚举与 `MachineSpec.Primitive` 一并移除，MachineBlock 只剩酶工厂形态；旧存档中 DNA 编码器方块与 DNA 模板物品丢失（既定破坏性更新）
 - 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
 - 待开发 中心法则链（转录仪/翻译仪/内质网折叠器/高尔基体修饰仪，未实现；酶蛋白未来经中心法则产出后插入反应腔）
@@ -151,7 +152,7 @@ com.github.crafteve.biocraft
 ├── item/
 │   ├── AbbreviationProvider.java # 图标缩写标注数据源接口（MoleculeItem 与 EnzymeItem 共用装饰器的契约）
 │   ├── MoleculeItem.java         # 分子基类：SMILES/缩写/染色/类别 + tooltip 布局（Shift 展示结构式）
-│   ├── MoleculeCategory.java     # 8 类分子类别枚举（主题色）
+│   ├── MoleculeCategoryData.java # 分子类别数据档案（substances.json categories 段驱动：id/#色号/结构式可用性）
 │   ├── MoleculeDataCalculator.java # CDK 计算分子式（Hill 排序）与摩尔质量，缓存+防御降级
 │   ├── MoleculeColors.java       # ItemColor 染色 + TooltipComponent 工厂 + 装饰器注册（Dist.CLIENT，含酶物品染色/装饰器）
 │   ├── EnzymeBlockItem.java      # 酶工厂方块物品：缩写/可逆性/方程式/Keq/Vmax/最适温度 tooltip（数据源 EnzymeFactoryData + EnzymeRecipeDisplay，过渡期保留）
