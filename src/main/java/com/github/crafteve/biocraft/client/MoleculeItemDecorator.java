@@ -9,11 +9,16 @@ import net.neoforged.neoforge.client.IItemDecorator;
 /**
  * 物品图标缩写装饰器（Dist.CLIENT）
  * <p>
- * 在物品图标左上角绘制物质/酶缩写（如 ATP、GLUC、HK、PGI），
+ * 在物品图标左上角绘制物质/酶缩写（如 ATP、GLUC、HK、PGI、ATPase），
  * 便于在快捷栏/物品栏/创意标签页中快速分辨不同物品。
  * 绘制方式：白色文字 + 黑色阴影双写（先画阴影再画主文字，
  * 右偏下偏 1px），并以 0.55 倍缩放适配 16px 图标
  * （MC 字体原字号 9px 会溢出图标，最长 4 字符缩写缩放后约 13px）
+ * <p>
+ * 缩放自适应：短缩写（≤4 字符）保持 0.55 基准缩放；超长缩写
+ * （如 ATPase 6 字符）按图标可用宽度（14px）动态缩小字号，
+ * 保证任何长度缩写都不溢出图标——单行等比例缩小，
+ * 不换行（换行会侵入图标中心，缩小更保可读性）
  * <p>
  * 数据源为 AbbreviationProvider 接口：分子物品与酶蛋白物品共用本装饰器
  * （原实现直接 instanceof MoleculeItem，酶物品无法复用，已抽接口）
@@ -28,6 +33,8 @@ public final class MoleculeItemDecorator implements IItemDecorator {
     /** 图标左上角偏移（px，未缩放坐标系） */
     private static final int OFFSET_X = 1;
     private static final int OFFSET_Y = 1;
+    /** 图标内可用文字宽度（px，未缩放坐标系）：16px 图标减去左右各 1px 偏移 */
+    private static final int MAX_TEXT_WIDTH = 16 - OFFSET_X * 2;
 
     private MoleculeItemDecorator() {
     }
@@ -37,6 +44,9 @@ public final class MoleculeItemDecorator implements IItemDecorator {
      * <p>
      * 双写阴影保证在各种染色内容物上均可读：
      * 先画黑色阴影（右偏下偏 1px），再画白色主文字
+     * <p>
+     * 缩放 = min(基准 0.55, 可用宽度/文字实际宽度)：缩写越长字号越小，
+     * 短缩写视觉与原先完全一致，长缩写自动收窄不溢出图标
      *
      * @param guiGraphics 渲染上下文
      * @param font        MC 字体
@@ -54,12 +64,14 @@ public final class MoleculeItemDecorator implements IItemDecorator {
         if (abbreviation.isEmpty()) {
             return false;
         }
+        float textWidth = font.width(abbreviation);
+        float scale = Math.min(TEXT_SCALE, MAX_TEXT_WIDTH / textWidth);
 
         guiGraphics.pose().pushPose();
         // z 提升到 200 层（与 vanilla 堆叠数 ITEM_COUNT_BLIT_OFFSET 同级）：
         // 物品模型贴图渲染在 z=0 且可能覆盖后绘制的文字，必须提升 z 才能显示在贴图之上
         guiGraphics.pose().translate(x + OFFSET_X, y + OFFSET_Y, 200.0);
-        guiGraphics.pose().scale(TEXT_SCALE, TEXT_SCALE, 1.0F);
+        guiGraphics.pose().scale(scale, scale, 1.0F);
         // 阴影（黑色，右偏下偏 1px，未缩放坐标）
         guiGraphics.drawString(font, abbreviation, 1, 1, 0xFF000000, false);
         // 主文字（白色）
