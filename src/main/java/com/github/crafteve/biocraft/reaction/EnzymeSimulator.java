@@ -1,4 +1,4 @@
-﻿package com.github.crafteve.biocraft.reaction;
+package com.github.crafteve.biocraft.reaction;
 
 /**
  * 酶促反应模拟器：每台机器一个实例，引擎的唯一对外入口
