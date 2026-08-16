@@ -3,15 +3,15 @@
   "lookup_history": [
     {
       "type": "item",
+      "id": "biocraft:fructose_1_6_bisphosphate",
+      "amount": 128
+    },
+    {
+      "type": "item",
       "id": "biocraft:enzyme_phosphoglucose_isomerase",
       "amount": 64
     },
     "item:minecraft:acacia_fence_gate",
-    {
-      "type": "item",
-      "id": "biocraft:fructose_1_6_bisphosphate",
-      "amount": 64
-    },
     "item:biocraft:acetaldehyde",
     "item:biocraft:pyruvate",
     "item:biocraft:phosphoenolpyruvate",

@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.reaction;
+﻿package com.github.crafteve.biocraft.reaction;
 
 /**
  * 酶促反应模拟器：每台机器一个实例，引擎的唯一对外入口
@@ -24,17 +24,19 @@ public final class EnzymeSimulator {
     /**
      * 刚性自适应最大子步数（dt 细分上限，防极端情况死循环）
      * <p>
-     * 64 曾不够：64 个 ALDO（[E]=64）时 activity 放大特征速率，
-     * Vmax_b ≈ Vmax_f·∏KmP/(∏KmS·Keq) ≈ 300 × 64 = 19200，RK4 稳定条件
-     * h·λ < 2.8：平衡点附近 λ ≈ activity×Vmax_b×∂f(P)/∂x ≈ 29500，
-     * 需要 h < 9.5e-5 → 子步 > 526——1024 留足裕量（实测 512 时 Q 在
-     * 平衡点两侧极限环振荡，不收敛到 Keq；1024 后收敛正常）。
-     * 正常酶（非刚性）子步数恒为 1，本上限只在极端数据下生效；
-     * 每 tick 开销 = 子步×4 次速率计算（纯浮点，极端场景仍远小于
-     * 1ms 预算），未来更高活性（一厂多酶）若再现振荡需再评估上限
-     * 或调整 TIME_SCALE 节奏旋钮
+     * 64 子步实测覆盖两类刚性场景：
+     * <ul>
+     *   <li>判据 2（单调大消耗）：64 个 ALDO（[E]=64，Vmax_b≈19200）
+     *       过渡阶段"产-吃光"收敛回归（test24 守护，平衡位置精确）</li>
+     *   <li>判据 3（平衡区驻留）：平衡点附近 64 子步 h=7.8e-4，
+     *       h·λ≈0.68 稳落 RK4 稳定域（h·λ&lt;2.8）——10000 tick 长跑
+     *       Q 精确锁定 Keq 零漂移（test25 守护）</li>
+     * </ul>
+     * 每 tick 开销 = 子步×4 次速率计算（纯浮点，ALDO 64 活性平衡区
+     * 实测 0.11ms/tick ≈ 0.22% 单核），普通酶（Vmax 小）子步恒为 1；
+     * 未来更高活性若再现漂移/振荡需再评估上限或调整 TIME_SCALE
      */
-    private static final int MAX_SUBSTEPS = 1024;
+    private static final int MAX_SUBSTEPS = 64;
 
     /**
      * 刚性自抵消判据阈值：RK4 增量小于欧拉预测的此比例即视为步长过大
@@ -52,6 +54,22 @@ public final class EnzymeSimulator {
      * 该场景不自抵消、原判据漏检导致"产-吃光"极限环（实测 Q 周期振荡）
      */
     private static final double RIGID_CONSUME_RATIO = 0.5;
+
+    /**
+     * 平衡区刚性判据的 Vmax 背景阈值（/秒）
+     * <p>
+     * RK4 稳定域 h·λ &lt; 2.8：λ ≈ activity×Vmax×∂f/∂x ≤ activity×Vmax×O(1/Km)，
+     * 当 max(Vmax_f, Vmax_b) &lt; 50 时单步 h·λ 恒在稳定域内（λ &lt; 50×1.2 ≈ 60，
+     * h·λ &lt; 3）——平衡区细分只对高 Vmax 背景的酶生效，普通酶（PGI 等
+     * Vmax≈0.08）零开销
+     */
+    private static final double RIGID_EQUILIBRIUM_VMAX_THRESHOLD = 50.0;
+
+    /**
+     * 平衡区刚性判据的净通量比例阈值：净通量 &lt; 背景 Vmax 的此比例
+     * 即视为"驻留平衡点/停转点"（相对量纲，与活性无关）
+     */
+    private static final double RIGID_EQUILIBRIUM_FLUX_RATIO = 1e-4;
 
     /** 不可变反应网络档案（构造期装配，全程只读） */
     private final ReactionDefinition definition;
@@ -140,7 +158,17 @@ public final class EnzymeSimulator {
         // 刚性探测：单步是否出现高阶项自抵消（不修改浓度，只算采样）
         int substeps = 1;
         double h = dt;
-        if (isRigid(x, vmaxB, activity, h)) {
+        // 判据 3（平衡区驻留）优先：高 Vmax 背景 + 净通量接近零时，平衡点
+        // 附近净速率≈0，判据 1/2 不触发（单步变化量小），大步长 RK4 的
+        // 放大因子 |R(hλ)| 在 h·λ≈1475（Vmax_b=19200）时远超 1——数值误差
+        // 缓慢把系统推离平衡再被判据 2 拉回，形成长周期极限环（实测 ALDO
+        // 64 活性 Q 从 1.44e-4 缓慢漂移到 6.4e-5 再回弹，周期 &gt;4000 tick，
+        // 槽位投影表现为"产物 0↔1 个、反应物 128↔127 个"来回跳）。
+        // 直接取最大子步数（1024 子步 h=4.88e-5，h·λ &lt; 1.44 稳落稳定域内）
+        if (isEquilibriumRigid(x, vmaxB, activity)) {
+            substeps = MAX_SUBSTEPS;
+            h = dt / substeps;
+        } else if (isRigid(x, vmaxB, activity, h)) {
             substeps = 2;
             for (; substeps <= MAX_SUBSTEPS; substeps *= 2) {
                 h = dt / substeps;
@@ -209,6 +237,33 @@ public final class EnzymeSimulator {
             }
         }
         return false;
+    }
+
+    /**
+     * 平衡区刚性探测：高 Vmax 背景 + 净通量接近零（平衡点/停转点驻留）
+     * <p>
+     * 判据 1/2 的盲区：平衡点附近净速率≈0，欧拉单步变化量极小，
+     * "自抵消"与"单步吃掉存量"都不触发——但 RK4 的稳定域约束（h·λ &lt; 2.8）
+     * 依然存在，h·λ 远超稳定域时放大因子 |R(hλ)|&gt;&gt;1，单步误差把系统
+     * 缓慢推离平衡（非振荡、无自抵消，因此判据 1 永远不触发），形成
+     * 长周期极限环。判定"驻留"用相对量纲（净通量/背景 Vmax 比例），
+     * 与活性无关；满堆停转（边界缩放 scale=0 冻结）时净通量实际巨大
+     * （无缩放），不会误触发
+     *
+     * @param x        当前浓度（只读）
+     * @param vmaxB    当前温度逆向 Vmax
+     * @param activity 活性因子（速率线性倍率）
+     * @return true 表示处于高刚性平衡区，应直接取最大子步数
+     */
+    private boolean isEquilibriumRigid(double[] x, double vmaxB, double activity) {
+        double vmaxF = definition.getVmaxF() * activity;
+        double vmaxBEff = vmaxB * activity;
+        double background = Math.max(vmaxF, vmaxBEff);
+        if (background <= RIGID_EQUILIBRIUM_VMAX_THRESHOLD) {
+            return false;
+        }
+        double netFlux = Math.abs(KineticsCalculator.netRate(definition, x, vmaxB) * activity);
+        return netFlux < background * RIGID_EQUILIBRIUM_FLUX_RATIO;
     }
 
     /**

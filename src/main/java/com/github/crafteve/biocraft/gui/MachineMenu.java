@@ -227,12 +227,11 @@ public class MachineMenu extends AbstractContainerMenu {
     /**
      * 添加物种槽（1..maxSpecies，固定最大容量）
      * <p>
-     * 槽位原版化：isActive=true（vanilla 渲染循环/命中逻辑参与），但
-     * 1.21.1 的 Slot.x/y 是 final 无法改坐标——物种槽固定构造于屏外
-     * (-100,-100)，vanilla findSlot/hoveredSlot 永不命中它们（点击与
-     * 悬停由 Screen 手动计算滚动位置，见 MachineScreen.findDynamicSlot
-     * 与 render 的 hoveredSlot 覆写说明）；mayPlace 查 BE 当前酶的
-     * 槽位映射（无酶/未用槽位拒绝一切）
+     * 槽位原版化：isActive=true + AT 拆掉 Slot.x/y 的 final（见
+     * META-INF/accesstransformer.cfg）——坐标由 Screen 的
+     * CardScrollArea.tick 每帧按滚动偏移写入（初始屏外 (-100,-100)
+     * 只是构造期占位，首帧 containerTick 前即被覆盖）；
+     * mayPlace 查 BE 当前酶的槽位映射（无酶/未用槽位拒绝一切）
      */
     private void addSpeciesSlots() {
         int slotLimit = 64 * com.github.crafteve.biocraft.reaction.KineticConstants.SLOT_GROUPS;
@@ -459,11 +458,10 @@ public class MachineMenu extends AbstractContainerMenu {
      * <p>
      * 槽位原版化（修复原版/模组快捷键兼容）：
      * <ul>
-     *   <li>isActive 恒 true——进入 vanilla 渲染/命中/拖拽状态机；但
-     *       1.21.1 的 Slot.x/y 是 final（构造后不可改），物种槽固定构造
-     *       于屏外 (-100,-100)，vanilla findSlot/hoveredSlot 按固定坐标
-     *       永不命中——滚动位置的点击与悬停由 Screen 手动计算
-     *       （findDynamicSlot + render 尾部覆写 hoveredSlot）</li>
+     *   <li>isActive 恒 true + AT 拆掉 Slot.x/y 的 final（见
+     *       src/main/resources/META-INF/accesstransformer.cfg）——
+     *       Screen 的 CardScrollArea 每 tick 按滚动偏移写入坐标，
+     *       vanilla 的 findSlot/hoveredSlot/点击/双击/拖拽全部原生生效</li>
      *   <li>isHighlightable 物种槽返回 false——vanilla 的 hover 高亮
      *       （renderSlotHighlight 是 static 且渲染循环不可注入裁剪）无法
      *       裁剪滚动视口，会溢出到图表区；关闭后由 Screen 自绘高亮

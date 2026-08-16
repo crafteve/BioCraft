@@ -56,6 +56,7 @@ public final class EngineSelfTest {
         run("22 LDH 平衡收敛至 Keq 判决点（乳酸线可逆酶）", EngineSelfTest::test22LdhConvergence);
         run("23 RK4 刚性自适应：TPI kcat=9000 数据浓度正常推进", EngineSelfTest::test23RigidAdaptive);
         run("24 ALDO 64 活性强刚性：Vmax_b≈19200 正常推进并收敛 Keq", EngineSelfTest::test24AlodoHighActivity);
+        run("25 ALDO 64 活性长周期：平衡区驻留 10000 tick Q 锁定 Keq 零漂移", EngineSelfTest::test25AlodoEquilibriumDrift);
 
         if (failures > 0) {
             System.err.println("引擎单测失败: " + failures + "/" + total);
@@ -663,6 +664,49 @@ public final class EngineSelfTest {
         double f16p = x[idx(sim, "fructose_1_6_bisphosphate")];
         double q = dhap * g3p / f16p;
         checkNear(q, 1.456e-4, 0.10 * 1.456e-4, "ALDO 高活性平衡商 Q 未收敛到 Keq（10% 容差）");
+    }
+
+    /**
+     * ALDO 64 活性长周期漂移回归（判据 3：平衡区驻留细分）
+     * <p>
+     * 场景（用户实测）：64 个 ALDO 满堆 F16P 长时间运转，槽位数量在
+     * "产物 0↔1 个、反应物 128↔127 个"之间来回跳。
+     * 根因（已定位）：判据 1/2 的盲区——平衡点附近净速率≈0，单步变化量
+     * 极小不触发细分，大步长 RK4 放大因子 |R(h·λ)|（h·λ≈1475）远超 1，
+     * 数值误差缓慢把系统推离平衡形成长周期极限环（实测 Q 从 1.44e-4
+     * 漂移到 6.4e-5 再回弹，周期 &gt;4000 tick——旧 2000 tick 测试"恰好落在
+     * 高位"是收敛假象）；判据 3 按"高 Vmax 背景 + 净通量≈0"直接细到
+     * 最大子步数（64 子步 h·λ≈0.68 落稳定域），平衡区 Q 应锁定 Keq 零漂移
+     */
+    private static void test25AlodoEquilibriumDrift() {
+        EnzymeSimulator sim = TestEnzymes.aldo().buildSimulator();
+        sim.getState().setActivity(64.0);
+        double[] x = sim.getState().getConcentrations();
+        x[idx(sim, "fructose_1_6_bisphosphate")] = 2.0;
+        // 长周期窗口内 Q 与产物浓度必须完全稳定（零漂移）
+        runTicks(sim, 1000);
+        double dhap = x[idx(sim, "dihydroxyacetone_phosphate")];
+        double q = dhap * x[idx(sim, "glyceraldehyde_3_phosphate")]
+                / x[idx(sim, "fructose_1_6_bisphosphate")];
+        double minQ = q, maxQ = q, minDhap = dhap, maxDhap = dhap;
+        for (int t = 0; t < 9000; t++) {
+            sim.step(KineticConstants.TICK_SECONDS);
+            dhap = x[idx(sim, "dihydroxyacetone_phosphate")];
+            double qi = dhap * x[idx(sim, "glyceraldehyde_3_phosphate")]
+                    / x[idx(sim, "fructose_1_6_bisphosphate")];
+            minQ = Math.min(minQ, qi);
+            maxQ = Math.max(maxQ, qi);
+            minDhap = Math.min(minDhap, dhap);
+            maxDhap = Math.max(maxDhap, dhap);
+        }
+        // Q 全程锁定 Keq：漂移幅度 &lt;1e-6 相对容差（修复前实测漂移到 6.4e-5 ≈ 56% 偏差）
+        checkNear(maxQ - minQ, 0.0, 1e-6,
+                String.format("ALDO 平衡区 Q 漂移（窗口 [%.3e, %.3e]，应锁定 Keq=1.456e-4）", minQ, maxQ));
+        // 产物浓度稳定在平衡点：槽位投影（floor(浓度×64)）不来回跳
+        check(maxDhap - minDhap < 1e-6,
+                String.format("ALDO 平衡区产物浓度漂移（窗口 [%.7f, %.7f]）", minDhap, maxDhap));
+        // 平衡点正确：DHAP ≈ sqrt(Keq×F16P) ≈ 0.0170（产物恒投影 1 个物品）
+        checkNear(dhap, 0.01699, 0.001, "ALDO 平衡区 DHAP 应稳定在平衡点（约 0.0170）");
     }
 
     private EngineSelfTest() {
