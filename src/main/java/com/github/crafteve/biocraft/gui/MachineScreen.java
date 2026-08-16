@@ -441,29 +441,13 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 0 槽（酶槽）全自绘：slot.png 18×18 背景 + 物品图标/数量 + hover 高亮
-     * <p>
-     * 0 槽 isActive=false（与物种槽同款模式）：vanilla 完全不渲染/命中，
-     * 背景与物品在此绘制（背景 (7,7) 18×18、物品 (8,8) 16×16 中心对齐），
-     * 命中与 tooltip 由 findDynamicSlot 手动处理——彻底绕开 vanilla
-     * active-slot 渲染的坐标异常（实测槽位对象定位偏左上角失效）
+     * 0 槽（酶槽）背景：slot.png 18×18 绘制在 Slot 位置 (7,7)（原版 Slot
+     * 模式：物品图标/数量/hover 高亮由 vanilla renderSlot 渲染，
+     * JEI U/R 快捷键经 hoveredSlot 机制可用；vanilla 不画槽位背景故此处自绘）
      */
     private void drawEnzymeSlot(GuiGraphics graphics) {
-        int x = this.leftPos + MachineMenu.ENZYME_SLOT_X;
-        int y = this.topPos + MachineMenu.ENZYME_SLOT_Y;
-        graphics.blit(SLOT, x, y, 0, 0, 18, 18, 18, 18);
-        Slot slot = menu.getSlot(EnzymeFactoryBlockEntity.ENZYME_SLOT);
-        ItemStack stack = slot.getItem();
-        if (!stack.isEmpty()) {
-            graphics.renderItem(stack, x + 1, y + 1, (x + 1) + (y + 1) * imageWidth);
-            graphics.renderItemDecorations(font, stack, x + 1, y + 1, null);
-        }
-        // hover 高亮（半透明白，与物种卡同款）
-        int mx = (int) Minecraft.getInstance().mouseHandler.xpos() - leftPos;
-        int my = (int) Minecraft.getInstance().mouseHandler.ypos() - topPos;
-        if (mx >= x + 1 && mx < x + 17 && my >= y + 1 && my < y + 17) {
-            graphics.fill(x + 1, y + 1, x + 17, y + 17, 0x80FFFFFF);
-        }
+        graphics.blit(SLOT, this.leftPos + MachineMenu.ENZYME_SLOT_X,
+                this.topPos + MachineMenu.ENZYME_SLOT_Y, 0, 0, 18, 18, 18, 18);
     }
 
     /**
@@ -1063,25 +1047,20 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 按滚动偏移计算鼠标命中的动态槽位（0 槽 + 输入区 + 输出区，无命中返回 null）
+     * 按滚动偏移计算鼠标命中的动态槽位（输入区与输出区都查，无命中返回 null）
      * <p>
-     * 0 槽固定位置 (7,7)（isActive=false 全自绘，命中区 16×16 与渲染中心对齐）；
-     * 物种槽位置 = 卡片位置 + 卡片内相对 (2,3)，命中区域 16×16；
+     * 0 槽为原版 Slot 模式（isActive=true），由 vanilla findSlot/hoveredSlot
+     * 处理命中与 JEI 快捷键，不在此处手动命中；
+     * 物种槽位置 = 卡片位置 + 卡片内相对 (2,3)，命中区域 16×16，
      * 与绘制位置严格一致（同一公式）
      *
      * @param mouseX 鼠标 x（屏幕坐标）
      * @param mouseY 鼠标 y（屏幕坐标）
-     * @return 命中的槽位，未命中为 null
+     * @return 命中的物种槽，未命中为 null
      */
     private Slot findDynamicSlot(double mouseX, double mouseY) {
         int localX = (int) mouseX - this.leftPos;
         int localY = (int) mouseY - this.topPos;
-        // 0 槽（酶槽）：固定位置，命中区 = 渲染物品区（背景内 16×16）
-        int ezX = MachineMenu.ENZYME_SLOT_X + 1;
-        int ezY = MachineMenu.ENZYME_SLOT_Y + 1;
-        if (localX >= ezX && localX < ezX + 16 && localY >= ezY && localY < ezY + 16) {
-            return menu.getSlot(EnzymeFactoryBlockEntity.ENZYME_SLOT);
-        }
         Slot slot = inputArea.findSlot(localX, localY);
         if (slot != null) {
             return slot;

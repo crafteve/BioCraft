@@ -214,13 +214,14 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 添加 0 槽（酶槽）：固定位置 (7,7)，mayPlace 只接受酶蛋白物品；
-     * isActive=false 由 Screen 全接管绘制与命中（与物种槽同款模式，
-     * 绕开 vanilla active-slot 渲染的坐标异常，实测槽位对象定位失效）
+     * 添加 0 槽（酶槽）：硬编码位置 (7,7)，mayPlace 只接受酶 tag 内物品；
+     * isActive=true 原版 Slot 模式（与背包槽同款）——vanilla 渲染物品/
+     * 高亮/命中，JEI 的 U/R 等快捷键经 hoveredSlot 机制可用；
+     * 槽位背景贴图由 Screen 自绘（vanilla 不画槽位背景）
      */
     private void addEnzymeSlot() {
         addSlot(new RestrictedSlot(blockEntity, EnzymeFactoryBlockEntity.ENZYME_SLOT,
-                ENZYME_SLOT_X, ENZYME_SLOT_Y, 64, false, true));
+                ENZYME_SLOT_X, ENZYME_SLOT_Y, 64, true, true));
     }
 
     /**

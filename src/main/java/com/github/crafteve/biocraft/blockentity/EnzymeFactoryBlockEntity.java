@@ -132,14 +132,23 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      * 无酶 → 全部停摆（simulator=null、映射全 -1、能量归零）；
      * 有酶 → 构建模拟器（注册期防火墙保证数据必然通过断言）、
      * 槽位映射（1..n 按引擎物种表顺序）、fe 下标定位
+     * <p>
+     * 无论新旧酶，一律彻底重置：旧引擎实例丢弃（新 simulator 全新浓度
+     * 数组 = 0）、余量清零（否则换酶后残留旧浓度尾数，回写会把浓度
+     * 抬回非零）、观测缓存/能量快照复位（GUI 不残留旧酶读数）
      */
     private void rebuildFromEnzymeSlot() {
         EnzymeFactoryData data = resolveEnzyme();
         this.enzymeData = data;
         this.energyStorage = null;
         this.energyStored = 0;
+        this.energyStoredSnapshot = -1;
         this.cachedEnergyRate = 0;
+        this.cachedFluxX1000 = 0;
+        this.cachedTempX100 = (int) Math.round(KineticConstants.T0 * 100.0);
+        this.cachedProgressX1000 = 0;
         java.util.Arrays.fill(slotToSpeciesIndex, -1);
+        java.util.Arrays.fill(remainder, 0.0);
         if (data == null) {
             this.simulator = null;
             this.speciesIds = new String[0];
@@ -416,11 +425,12 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
 
     /**
      * 单 tick 完整流水线（仅服务端）：
-     * 槽位合法性防呆 → 事件回写兜底 → 酶槽检查兜底 → 引擎 step →
-     * 浓度投影回槽位 → 观测数据缓存
+     * 槽位合法性防呆 → 事件回写 → 引擎 step → 浓度投影回槽位 → 观测数据缓存
      * <p>
-     * 酶槽变动主要由 setChanged 事件驱动立即初始化（handleEnzymeSlotChanged），
-     * 本处保留同款检查作为兜底（任何绕过 setChanged 的路径保险）
+     * 酶槽变动由 setChanged 事件驱动立即初始化（handleEnzymeSlotChanged，
+     * GUI/漏斗/管道全部经容器 setItem → setChanged 捕获，无需 tick 兜底）；
+     * 无酶时引擎睡眠：本 tick 只做防呆（非法物品弹出）后直接返回，
+     * 不执行任何引擎/缓存工作——放入酶的事件会立即唤醒初始化
      * <p>
      * 活性 = 酶堆叠数 [E]（0 = 无酶停摆，64 = 64 倍速），由引擎
      * 活动通道实现 Vmax = kcat × [E] 严格线性，平衡位置不受影响
@@ -431,35 +441,35 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         }
         ejectIllegalItems();
         syncFromSlots();
-        handleEnzymeSlotChanged();
         if (simulator == null) {
+            // 无酶睡眠：引擎不步进，变化由 setChanged 事件唤醒；
+            // 防呆已在上面执行，直接返回（省去缓存/历史写入）
+            return;
+        }
+        double[] x = simulator.getState().getConcentrations();
+
+        // fe 能量镜像：step 前把 fe 浓度写为"存量镜像"（满能量 = 满浓度），
+        // 引擎结算的 fe 导数被下一 tick 的镜像覆盖丢弃（fe 固定活性不进速率方程）
+        if (feSpeciesIndex >= 0) {
+            x[feSpeciesIndex] = EnergyKinetics.mirrorConcentration(energyStored, getEnergyCapacity());
+        }
+
+        boolean asleep = true;
+        for (double value : x) {
+            if (value > 1e-9) {
+                asleep = false;
+                break;
+            }
+        }
+        if (asleep) {
             cachedFluxX1000 = 0;
         } else {
-            double[] x = simulator.getState().getConcentrations();
-
-            // fe 能量镜像：step 前把 fe 浓度写为"存量镜像"（满能量 = 满浓度），
-            // 引擎结算的 fe 导数被下一 tick 的镜像覆盖丢弃（fe 固定活性不进速率方程）
-            if (feSpeciesIndex >= 0) {
-                x[feSpeciesIndex] = EnergyKinetics.mirrorConcentration(energyStored, getEnergyCapacity());
-            }
-
-            boolean asleep = true;
-            for (double value : x) {
-                if (value > 1e-9) {
-                    asleep = false;
-                    break;
-                }
-            }
-            if (asleep) {
-                cachedFluxX1000 = 0;
-            } else {
-                ItemStack enzymeStack = inventory.getItem(ENZYME_SLOT);
-                simulator.getState().setActivity(enzymeStack.isEmpty() ? 0.0 : enzymeStack.getCount());
-                var result = simulator.step(KineticConstants.TICK_SECONDS);
-                cachedFluxX1000 = (int) Math.round(result.fluxNet() * 1000.0);
-                settleEnergy(result.fluxNet());
-                projectToSlots();
-            }
+            ItemStack enzymeStack = inventory.getItem(ENZYME_SLOT);
+            simulator.getState().setActivity(enzymeStack.isEmpty() ? 0.0 : enzymeStack.getCount());
+            var result = simulator.step(KineticConstants.TICK_SECONDS);
+            cachedFluxX1000 = (int) Math.round(result.fluxNet() * 1000.0);
+            settleEnergy(result.fluxNet());
+            projectToSlots();
         }
         // 能量存档脏标记：settleEnergy 只更新存量，标记放在投影之后——
         // 此时槽位浓度与引擎一致，setChanged → syncFromSlots 幂等
@@ -502,6 +512,9 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      * 余量 = 浓度×64 − 数量（0~1 个物品的积累进度）
      */
     private void projectToSlots() {
+        if (simulator == null) {
+            return;
+        }
         projecting = true;
         try {
             double[] x = simulator.getState().getConcentrations();
