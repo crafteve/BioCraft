@@ -139,7 +139,15 @@ public class PixelCanvas {
      * @param name 调色板颜色名
      */
     public void fill(String name) {
-        int argb = c(name);
+        fill(c(name));
+    }
+
+    /**
+     * 将整块画布填充为指定颜色，直接使用 ARGB 值
+     *
+     * @param argb 0xAARRGGBB 颜色值
+     */
+    public void fill(int argb) {
         java.util.Arrays.fill(pixels, argb);
     }
 
@@ -153,9 +161,22 @@ public class PixelCanvas {
      * @param name 调色板颜色名
      */
     public void rect(int x0, int y0, int x1, int y1, String name) {
+        rect(x0, y0, x1, y1, c(name));
+    }
+
+    /**
+     * 画实心矩形，含两端点坐标（闭区间），直接使用 ARGB 值
+     *
+     * @param x0   左上角横坐标
+     * @param y0   左上角纵坐标
+     * @param x1   右下角横坐标
+     * @param y1   右下角纵坐标
+     * @param argb 0xAARRGGBB 颜色值
+     */
+    public void rect(int x0, int y0, int x1, int y1, int argb) {
         for (int y = y0; y <= y1; y++) {
             for (int x = x0; x <= x1; x++) {
-                set(x, y, name);
+                set(x, y, argb);
             }
         }
     }
@@ -170,10 +191,23 @@ public class PixelCanvas {
      * @param name 调色板颜色名
      */
     public void outline(int x0, int y0, int x1, int y1, String name) {
-        hline(x0, x1, y0, name);
-        hline(x0, x1, y1, name);
-        vline(y0, y1, x0, name);
-        vline(y0, y1, x1, name);
+        outline(x0, y0, x1, y1, c(name));
+    }
+
+    /**
+     * 画一像素宽的空心矩形描边，含两端点坐标，直接使用 ARGB 值
+     *
+     * @param x0   左上角横坐标
+     * @param y0   左上角纵坐标
+     * @param x1   右下角横坐标
+     * @param y1   右下角纵坐标
+     * @param argb 0xAARRGGBB 颜色值
+     */
+    public void outline(int x0, int y0, int x1, int y1, int argb) {
+        hline(x0, x1, y0, argb);
+        hline(x0, x1, y1, argb);
+        vline(y0, y1, x0, argb);
+        vline(y0, y1, x1, argb);
     }
 
     /**
@@ -185,10 +219,22 @@ public class PixelCanvas {
      * @param name 调色板颜色名
      */
     public void hline(int x0, int x1, int y, String name) {
+        hline(x0, x1, y, c(name));
+    }
+
+    /**
+     * 画水平线段，含两端点，直接使用 ARGB 值
+     *
+     * @param x0   起点横坐标
+     * @param x1   终点横坐标
+     * @param y    纵坐标
+     * @param argb 0xAARRGGBB 颜色值
+     */
+    public void hline(int x0, int x1, int y, int argb) {
         int from = Math.min(x0, x1);
         int to = Math.max(x0, x1);
         for (int x = from; x <= to; x++) {
-            set(x, y, name);
+            set(x, y, argb);
         }
     }
 
@@ -201,10 +247,22 @@ public class PixelCanvas {
      * @param name 调色板颜色名
      */
     public void vline(int y0, int y1, int x, String name) {
+        vline(y0, y1, x, c(name));
+    }
+
+    /**
+     * 画垂直线段，含两端点，直接使用 ARGB 值
+     *
+     * @param y0   起点纵坐标
+     * @param y1   终点纵坐标
+     * @param x    横坐标
+     * @param argb 0xAARRGGBB 颜色值
+     */
+    public void vline(int y0, int y1, int x, int argb) {
         int from = Math.min(y0, y1);
         int to = Math.max(y0, y1);
         for (int y = from; y <= to; y++) {
-            set(x, y, name);
+            set(x, y, argb);
         }
     }
 
