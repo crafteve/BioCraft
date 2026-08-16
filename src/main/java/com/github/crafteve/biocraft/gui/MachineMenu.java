@@ -214,28 +214,31 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 添加 0 槽（酶槽）：硬编码位置 (7,7)，mayPlace 只接受酶 tag 内物品；
+     * 添加 0 槽（酶槽）：硬编码位置 (9,8)，mayPlace 只接受酶 tag 内物品；
      * isActive=true 原版 Slot 模式（与背包槽同款）——vanilla 渲染物品/
      * 高亮/命中，JEI 的 U/R 等快捷键经 hoveredSlot 机制可用；
      * 槽位背景贴图由 Screen 自绘（vanilla 不画槽位背景）
      */
     private void addEnzymeSlot() {
         addSlot(new RestrictedSlot(blockEntity, EnzymeFactoryBlockEntity.ENZYME_SLOT,
-                ENZYME_SLOT_X, ENZYME_SLOT_Y, 64, true, true));
+                ENZYME_SLOT_X, ENZYME_SLOT_Y, 64, true));
     }
 
     /**
      * 添加物种槽（1..maxSpecies，固定最大容量）
      * <p>
-     * 全部 isActive=false（vanilla 完全跳过渲染/hover/点击），
-     * 位置由 Screen 的 CardScrollArea 按当前酶动态绘制与命中；
-     * mayPlace 查 BE 当前酶的槽位映射（无酶/未用槽位拒绝一切）
+     * 槽位原版化：isActive=true（vanilla 渲染循环/命中逻辑参与），但
+     * 1.21.1 的 Slot.x/y 是 final 无法改坐标——物种槽固定构造于屏外
+     * (-100,-100)，vanilla findSlot/hoveredSlot 永不命中它们（点击与
+     * 悬停由 Screen 手动计算滚动位置，见 MachineScreen.findDynamicSlot
+     * 与 render 的 hoveredSlot 覆写说明）；mayPlace 查 BE 当前酶的
+     * 槽位映射（无酶/未用槽位拒绝一切）
      */
     private void addSpeciesSlots() {
         int slotLimit = 64 * com.github.crafteve.biocraft.reaction.KineticConstants.SLOT_GROUPS;
         for (int slot = EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
              slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount; slot++) {
-            addSlot(new RestrictedSlot(blockEntity, slot, 0, 0, slotLimit, false, false));
+            addSlot(new RestrictedSlot(blockEntity, slot, -100, -100, slotLimit, false));
         }
     }
 
@@ -454,21 +457,29 @@ public class MachineMenu extends AbstractContainerMenu {
     /**
      * 受限槽位：酶槽只接受酶蛋白物品；物种槽只接受当前酶的对应物种
      * <p>
-     * 全部 isActive=false：vanilla 的槽位遍历（渲染/hover/点击命中）完全跳过，
-     * 0 槽固定位置与物种槽滚动位置均由 Screen 手动计算绘制与命中
+     * 槽位原版化（修复原版/模组快捷键兼容）：
+     * <ul>
+     *   <li>isActive 恒 true——进入 vanilla 渲染/命中/拖拽状态机；但
+     *       1.21.1 的 Slot.x/y 是 final（构造后不可改），物种槽固定构造
+     *       于屏外 (-100,-100)，vanilla findSlot/hoveredSlot 按固定坐标
+     *       永不命中——滚动位置的点击与悬停由 Screen 手动计算
+     *       （findDynamicSlot + render 尾部覆写 hoveredSlot）</li>
+     *   <li>isHighlightable 物种槽返回 false——vanilla 的 hover 高亮
+     *       （renderSlotHighlight 是 static 且渲染循环不可注入裁剪）无法
+     *       裁剪滚动视口，会溢出到图表区；关闭后由 Screen 自绘高亮
+     *       （CardScrollArea.draw，scissor 内裁剪）；0 槽保留 vanilla 高亮</li>
+     * </ul>
      */
     private static class RestrictedSlot extends Slot {
         private final EnzymeFactoryBlockEntity blockEntity;
         private final int maxStack;
-        private final boolean active;
         private final boolean enzymeSlot;
 
         RestrictedSlot(EnzymeFactoryBlockEntity blockEntity, int slot, int x, int y,
-                       int maxStack, boolean active, boolean enzymeSlot) {
+                       int maxStack, boolean enzymeSlot) {
             super(blockEntity.getContainer(), slot, x, y);
             this.blockEntity = blockEntity;
             this.maxStack = maxStack;
-            this.active = active;
             this.enzymeSlot = enzymeSlot;
         }
 
@@ -496,7 +507,19 @@ public class MachineMenu extends AbstractContainerMenu {
 
         @Override
         public boolean isActive() {
-            return active;
+            return true;
+        }
+
+        /**
+         * 高亮策略：0 槽保留 vanilla 高亮（固定位置不越界）；
+         * 物种槽返回 false——vanilla 的 renderSlotHighlight 在渲染循环内
+         * 联调用（static 方法无覆写注入点），滚动到视口边缘的槽位高亮会
+         * 溢出到图表区且无法裁剪；自绘高亮（CardScrollArea.draw）在
+         * scissor 内渲染，无此问题
+         */
+        @Override
+        public boolean isHighlightable() {
+            return enzymeSlot;
         }
     }
 }

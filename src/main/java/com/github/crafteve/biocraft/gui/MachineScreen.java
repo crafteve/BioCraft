@@ -39,7 +39,14 @@ import java.util.List;
  *       (7,41)~(63,162) 与 (193,41)~(249,162)，卡片数 = JSON 物种条目数；
  *       每卡含槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中，
  *       可交互受限槽位）、缩写、浓度进度条与读数；滚轮连续滚动 +
- *       平滑插值，视口 scissor 裁剪</li>
+ *       平滑插值，视口 scissor 裁剪。
+ *       槽位原版化（修复原版/模组快捷键兼容）：1.21.1 的 Slot.x/y 是
+ *       final，物种槽固定构造于屏外；滚动位置的命中/悬停由本类手动
+ *       计算（findDynamicSlot），render 尾部覆写 protected hoveredSlot
+ *       ——数字键快速放入/JEI/EMI U-R/悬停 tooltip 恢复原版行为；
+ *       物品与高亮仍自绘（renderSlot 对物种槽空实现 + isHighlightable
+ *       =false，见 renderSlot 覆写说明）；点击经 mouseClicked 手动
+ *       slotClicked（拾取/放置/Shift 转移/右键拆分）</li>
  *   <li>v-t 图：4x 超采样抗锯齿，Y 轴按刻度宽度自动定位、X 轴按
  *       vmax 比例定位（可逆居中/不可逆贴底），1s 一点 10 点折线，
  *       刻度标注（/tick）</li>
@@ -401,13 +408,70 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
-        // 动态槽位 tooltip：物种槽 isActive=false 不进入 vanilla hoveredSlot
-        // 机制，悬停时手动渲染物品 tooltip（与背包槽的 renderTooltip 互补）
-        Slot hovered = findDynamicSlot(mouseX, mouseY);
-        if (hovered != null && hovered.hasItem()) {
-            graphics.renderTooltip(this.font, hovered.getItem(), mouseX, mouseY);
+        // 槽位原版化的关键补丁：1.21.1 的 Slot.x/y 是 final 且 findSlot 私有，
+        // vanilla 的 hoveredSlot 只认构造时的固定坐标——物种槽构造于屏外
+        // (-100,-100)，此处按滚动位置手动命中并覆盖 hoveredSlot（protected
+        // 可写）。hoveredSlot 驱动：数字键快速放入（keyPressed 的
+        // handleHotbarKeyPressed）、JEI/EMI 的 U-R 快捷键（getSlotUnderMouse）、
+        // renderTooltip 的悬停 tooltip——三项全部恢复原版行为
+        Slot scrollHovered = findDynamicSlot(mouseX, mouseY);
+        if (scrollHovered != null) {
+            this.hoveredSlot = scrollHovered;
         }
         this.renderTooltip(graphics, mouseX, mouseY);
+    }
+
+    /**
+     * 槽位物品渲染：物种槽空实现（物品由 CardScrollArea.draw 自绘，
+     * scissor 内裁剪滚动视口）；其余槽位（0 槽/背包）交 vanilla
+     * <p>
+     * isActive=true 后 vanilla 渲染循环会对物种槽调用本方法，若放行
+     * 会与自绘物品双重渲染（物种槽坐标恒在屏外，渲染无视觉残留）；
+     * vanilla 的 renderSlotHighlight 高亮已由 RestrictedSlot.
+     * isHighlightable()=false 关闭（static 方法无裁剪注入点，
+     * 高亮改由 CardScrollArea.draw 自绘）
+     *
+     * @param graphics 渲染器
+     * @param slot     槽位实例
+     */
+    @Override
+    protected void renderSlot(GuiGraphics graphics, Slot slot) {
+        int base = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+        if (slot.index >= base && slot.index < base + speciesSlotCount()) {
+            return;
+        }
+        super.renderSlot(graphics, slot);
+    }
+
+    /**
+     * 固定物种槽数（与 Menu 注册一致，判断槽位是否物种槽用）
+     *
+     * @return 最大非 fe 物种数
+     */
+    private static int speciesSlotCount() {
+        return com.github.crafteve.biocraft.init.EnzymeFactoryRegistry.maxNonFeSpeciesCount();
+    }
+
+    /**
+     * 按滚动偏移计算鼠标命中的动态槽位（输入区与输出区都查，无命中返回 null）
+     * <p>
+     * 0 槽为原版 Slot 模式（固定坐标 (9,8)），由 vanilla findSlot/hoveredSlot
+     * 处理命中与 JEI 快捷键，不在此处手动命中；
+     * 物种槽位置 = 卡片位置 + 卡片内相对 (2,3)，命中区域 16×16，
+     * 与绘制位置严格一致（同一公式）
+     *
+     * @param mouseX 鼠标 x（屏幕坐标）
+     * @param mouseY 鼠标 y（屏幕坐标）
+     * @return 命中的物种槽，未命中为 null
+     */
+    private Slot findDynamicSlot(double mouseX, double mouseY) {
+        int localX = (int) mouseX - this.leftPos;
+        int localY = (int) mouseY - this.topPos;
+        Slot slot = inputArea.findSlot(localX, localY);
+        if (slot != null) {
+            return slot;
+        }
+        return outputArea.findSlot(localX, localY);
     }
 
     /**
@@ -1027,10 +1091,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /**
      * 鼠标点击：优先命中滚动卡片内的动态槽位（手动计算位置）
      * <p>
-     * 物种槽 isActive 恒 false 被 vanilla 完全跳过，此处复刻 vanilla
-     * 点击核心逻辑：左键拾取/放置（PICKUP）、Shift+左键快速转移
-     * （QUICK_MOVE）、右键拆分；双击快速收集暂不支持（vanilla 的
-     * 双击状态字段为私有无法子类维护）
+     * 1.21.1 的 Slot.x/y 是 final，物种槽坐标恒在屏外，vanilla 的
+     * findSlot（private）命中不到它们——此处复刻 vanilla 点击核心逻辑：
+     * 左键拾取/放置（PICKUP）、Shift+左键快速转移（QUICK_MOVE）、右键
+     * 拆分；双击快速收集与拖拽分裂仍不支持（依赖 vanilla 私有状态机
+     * 与坐标命中，见 AGENTS.md 欠账说明）
      *
      * @param mouseX 鼠标 x（屏幕坐标）
      * @param mouseY 鼠标 y（屏幕坐标）
@@ -1047,28 +1112,6 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    /**
-     * 按滚动偏移计算鼠标命中的动态槽位（输入区与输出区都查，无命中返回 null）
-     * <p>
-     * 0 槽为原版 Slot 模式（isActive=true），由 vanilla findSlot/hoveredSlot
-     * 处理命中与 JEI 快捷键，不在此处手动命中；
-     * 物种槽位置 = 卡片位置 + 卡片内相对 (2,3)，命中区域 16×16，
-     * 与绘制位置严格一致（同一公式）
-     *
-     * @param mouseX 鼠标 x（屏幕坐标）
-     * @param mouseY 鼠标 y（屏幕坐标）
-     * @return 命中的物种槽，未命中为 null
-     */
-    private Slot findDynamicSlot(double mouseX, double mouseY) {
-        int localX = (int) mouseX - this.leftPos;
-        int localY = (int) mouseY - this.topPos;
-        Slot slot = inputArea.findSlot(localX, localY);
-        if (slot != null) {
-            return slot;
-        }
-        return outputArea.findSlot(localX, localY);
     }
 
     /**
@@ -1104,6 +1147,17 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * 与 Menu 槽位的关系：本区域持有一段卡片描述列表（物种卡携带容器
      * 槽位序号，能量卡无槽位），卡片顺序 = JSON 条目顺序
      * <p>
+     * 槽位原版化后的分工（1.21.1 的 Slot.x/y 是 final 无法动态改坐标）：
+     * <ul>
+     *   <li>交互：物种槽固定坐标在屏外（vanilla findSlot 永不命中），
+     *       滚动位置的点击（mouseClicked → findDynamicSlot → slotClicked）
+     *       与悬停（findSlot → render 尾部覆写 hoveredSlot）由本类手动
+     *       计算——数字键/JEI-EMI U-R/tooltip 经 hoveredSlot 恢复</li>
+     *   <li>渲染：卡片底色/槽位贴图/物品图标/高亮/缩写/进度条自绘于
+     *       draw（scissor 裁剪视口）；renderSlot 对物种槽空实现防止
+     *       vanilla 双重渲染，isHighlightable=false 关闭不可裁剪的
+     *       vanilla 高亮</li>
+     * </ul>
      * 滚动机制（与用户给定的约束一一对应）：
      * <ul>
      *   <li>容器：左上角 (areaX, 41)，区域 y 41~162，宽 56</li>
@@ -1169,6 +1223,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
         /**
          * 每 tick 平滑插值：显示偏移向目标偏移逼近（差距 <0.5px 直接吸附）
+         * <p>
+         * 注意：Slot.x/y 在 1.21.1 是 final（构造后不可改），物种槽坐标
+         * 恒为构造值（屏外 -100,-100），vanilla 命中/hoveredSlot 只认
+         * 该固定坐标——滚动位置的命中由 findDynamicSlot（本区域 findSlot）
+         * 手动计算，并在 render 尾部覆写 hoveredSlot（见 render 说明）
          */
         void tick() {
             this.scrollOffset += (this.scrollTarget - this.scrollOffset) * SCROLL_LERP;
