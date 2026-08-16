@@ -254,21 +254,30 @@ public class MachineModelProvider implements DataProvider {
     }
 
     /**
-     * 全部 10 个贴片元素（主题区，tintindex 0=液体、1=灯）
+     * 全部 13 个贴片元素（主题区，tintindex 0=液体、1=灯）
      * <p>
      * 每个贴片 = 凸出主面 0.001 的薄元素（避免与主面共面 z-fighting），
      * 面 UV 按该面 vanilla 约定映射到 theme 贴图内容区（内容坐标 = 概念稿
      * 主题区坐标，见 ChamberAssets.theme* 系列），采样 1:1 无拉伸：
      * <ul>
-     *   <li>正面（north，u=x/v=y）：凸字形窗口液体两段（上横条 (6,4)-(9,6)、
-     *       下主体 (3,7)-(12,10)）、两侧状态灯 2×2 (3,4)/(11,4)</li>
+     *   <li>**y 翻转关键约定**：贴图坐标 y 从上往下（y=0 顶部），而方块
+     *       模型坐标 y 从下往上（y=0 底部）——贴片元素的 from/to.y 必须
+     *       用 16−贴图 y（元素 y0 = 16−贴图y1、y1 = 16−贴图y0），否则
+     *       贴图上方的内容（灯/窗口横条）会被放到方块下部（实测"灯在
+     *       下方、上方黑色空穴"根因）；UV 的 v 保持贴图 y 不变（FaceBakery
+     *       把 v1 映射到元素顶 = 方块高 y 端 = 贴图顶部）</li>
+     *   <li>正面（north，u=x/v=y）：凸字形窗口液体两段（上横条贴图
+     *       (6,4)-(9,6)、下主体 (3,7)-(12,10)）、两侧状态灯 2×2
+     *       贴图 (3,4)/(11,4)</li>
      *   <li>背面（south，u=16−x）：大法兰内环 (6,7)-(9,8)</li>
      *   <li>东面（east，u=z）：管道 (4,2)-(4,13)、观察孔 (10,6)-(12,8)、灯 (11,12)</li>
      *   <li>西面（west，u=16−z）：管道 (11,2)-(11,13)、观察孔 (3,6)-(5,8)、灯 (3,12)
      *       ——西面 UV 镜像，贴片元素块坐标与东面一致（物理镜像对称），
      *       UV 取 theme 贴图西面内容区</li>
-     *   <li>顶面（up，u=x/v=z）：中央观察孔 (6,6)-(9,9)</li>
-     *   <li>底面（down，u=x/v=z）：中央接口环 (7,7)-(8,8)</li>
+     *   <li>顶面（up，u=x/v=z）：中央观察孔 (6,6)-(9,9)——z 轴即贴图 y
+     *       方向（v1 → z_min 北 = 俯视上方），无需翻转</li>
+     *   <li>底面（down，u=x/v=z）：中央接口环 (7,7)-(8,8)——v1 → z_max 南
+     *       = 仰视下方，需 z 翻转（16−z）+ UV v 交换</li>
      * </ul>
      *
      * @return 贴片元素 JSON 列表
@@ -276,28 +285,29 @@ public class MachineModelProvider implements DataProvider {
     private JsonArray patchElements() {
         JsonArray patches = new JsonArray();
         // 正面凸字形窗口液体（tint0）：上横条 (6,4)-(9,6) + 下主体 (3,7)-(12,10)
-        // 两个贴片元素（凸字非矩形，拆两段 UV 各自裁剪 theme_window 对应区）
-        patches.add(patch(6, 4, -0.001f, 10, 7, 0, "north", 6, 4, 10, 7, "#theme_window", 0));
-        patches.add(patch(3, 7, -0.001f, 13, 11, 0, "north", 3, 7, 13, 11, "#theme_window", 0));
-        // 正面两侧指示灯（tint1）：2×2 at (3,4)-(4,5) / (11,4)-(12,5)，
+        // 两个贴片元素（凸字非矩形，拆两段 UV 各自裁剪 theme_window 对应区）；
+        // 元素 y = 16 − 贴图 y（贴图坐标与方块坐标 y 方向相反，见类 javadoc）
+        patches.add(patch(6, 10, -0.001f, 10, 12, 0, "north", 6, 4, 10, 6, "#theme_window", 0));
+        patches.add(patch(3, 6, -0.001f, 13, 9, 0, "north", 3, 7, 13, 10, "#theme_window", 0));
+        // 正面两侧指示灯（tint1）：2×2 贴图 (3,4)-(4,5) / (11,4)-(12,5)，
         // 用户指定位置；状态灯（黄=等料/红=停摆/绿=运行）由 BE 状态通道染色
-        patches.add(patch(3, 4, -0.001f, 5, 6, 0, "north", 3, 4, 5, 6, "#theme_lamp", 1));
-        patches.add(patch(11, 4, -0.001f, 13, 6, 0, "north", 11, 4, 13, 6, "#theme_lamp", 1));
+        patches.add(patch(3, 11, -0.001f, 5, 12, 0, "north", 3, 4, 5, 6, "#theme_lamp", 1));
+        patches.add(patch(11, 11, -0.001f, 13, 12, 0, "north", 11, 4, 13, 6, "#theme_lamp", 1));
         // 背面大法兰内环（tint0）
-        patches.add(patch(6, 7, 16, 10, 9, 16.001f, "south", 6, 7, 10, 9, "#theme_flange", 0));
-        // 东面：管道/观察孔/灯
-        patches.add(patch(16, 2, 4, 16.001f, 13, 5, "east", 4, 2, 5, 13, "#theme_pipe", 0));
-        patches.add(patch(16, 6, 10, 16.001f, 9, 13, "east", 10, 6, 13, 9, "#theme_porthole", 0));
-        patches.add(patch(16, 12, 11, 16.001f, 14, 13, "east", 11, 12, 13, 14, "#theme_lamp", 1));
-        // 西面：管道/观察孔/灯（块坐标 = 镜像内容区经 u=16−z 还原的物理位置，
-        // 与东面一致——管道前端、孔与灯后端，物理镜像对称）
-        patches.add(patch(-0.001f, 2, 4, 0, 13, 5, "west", 11, 2, 12, 13, "#theme_pipe", 0));
-        patches.add(patch(-0.001f, 6, 10, 0, 9, 13, "west", 3, 6, 6, 9, "#theme_porthole", 0));
-        patches.add(patch(-0.001f, 12, 11, 0, 14, 13, "west", 3, 12, 5, 14, "#theme_lamp", 1));
-        // 顶面观察孔（tint0）：up 面在元素 to.y，凸出顶面 0.001
+        patches.add(patch(6, 8, 16, 10, 9, 16.001f, "south", 6, 7, 10, 8, "#theme_flange", 0));
+        // 东面：管道/观察孔/灯（元素 y = 16 − 贴图 y）
+        patches.add(patch(16, 3, 4, 16.001f, 14, 5, "east", 4, 2, 5, 13, "#theme_pipe", 0));
+        patches.add(patch(16, 8, 10, 16.001f, 10, 13, "east", 10, 6, 13, 8, "#theme_porthole", 0));
+        patches.add(patch(16, 3, 11, 16.001f, 4, 13, "east", 11, 12, 13, 13, "#theme_lamp", 1));
+        // 西面：管道/观察孔/灯（块坐标与东面一致，UV 取西面镜像内容区）
+        patches.add(patch(-0.001f, 3, 4, 0, 14, 5, "west", 11, 2, 12, 13, "#theme_pipe", 0));
+        patches.add(patch(-0.001f, 8, 10, 0, 10, 13, "west", 3, 6, 6, 8, "#theme_porthole", 0));
+        patches.add(patch(-0.001f, 3, 11, 0, 4, 13, "west", 3, 12, 5, 13, "#theme_lamp", 1));
+        // 顶面观察孔（tint0）：up 面 v=z、v1→z_min 北 = 俯视上方，贴图 y 即 z，无需翻转
         patches.add(patch(6, 16, 6, 10, 16.001f, 10, "up", 6, 6, 10, 10, "#theme_top", 0));
-        // 底面接口环（tint0）：down 面在元素 from.y，凸出底面 0.001
-        patches.add(patch(7, -0.001f, 7, 9, 0, 9, "down", 7, 7, 9, 9, "#theme_ring", 0));
+        // 底面接口环（tint0）：down 面 v=z、v1→z_max 南 = 仰视下方，
+        // 需 z 翻转（元素 z = 16 − 贴图 y）+ UV v 交换（v1'=贴图 y1）
+        patches.add(patch(7, -0.001f, 8, 9, 0, 9, "down", 7, 9, 9, 7, "#theme_ring", 0));
         return patches;
     }
 
