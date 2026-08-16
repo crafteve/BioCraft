@@ -69,7 +69,8 @@
 - 已完成 侧向 IO 模式按钮（防误塞/防误取）：GUI INPUT/OUTPUT 滚动槽下边界上抬 9px，底部各新增一个 56×11 IO 模式按钮（主题色边框 + 浅色填充 + 模式文字，下边界与中央反应速率区背景底齐平，悬停原版槽位高亮同款浅色遮罩脉动动画 + 说明 tooltip）；三态循环（仅输入 → 仅输出 → 输入输出），INPUT 默认仅输入、OUTPUT 默认仅输出，点击经网络包（ServerboundSetIoModePacket）写服务端并 ContainerData 回刷；门控覆盖玩家 GUI（Slot.mayPlace/mayPickup）、工业管道（ItemHandler insertItem/extractItem）、原版漏斗（容器 canPlaceItem/removeItem）三路——防玩家/管道把物品塞进产物槽导致容量冻结（TPI 满堆卡 0.00 的预防性设计），IO 模式随 NBT 存档（换酶不重置）
 - 已完成 酶容器方块视觉概念设计（Phase 1，贴图与渲染机制前置）：六视图 16×16 程序化概念稿（`tools/texturegen/ChamberAssets.java`，PixelCanvas 逐像素绘制：正面大观察窗 + 上排双灯、侧面竖直主题色管道 + 观察孔、背面大法兰 + 维护面板、顶面中央观察孔、底面金属底座）+ 展开图 + 8 倍预览；设计文档《酶容器方块概念设计_2026-08-16.md》定稿设计语言（五档金属色阶/玻璃色阶/统一左上光照/1px 像素语法/六面四角螺栓定位基准）、主题色槽位表（液体 0 号 tint + 灯 1 号 tint）、状态语义（无酶暗灰 / 有酶酶色，靠 BlockColor 动态实现无需 blockstate）；渲染机制方案：vanilla 多元素模型 + 贴片元素 tintindex 分区 + 灰度反照率贴图 + BlockColor 从 BE 缓存取酶色 + MachineBlock 新增水平 FACING；物品形态走默认 3D 方块模型（用户指定），ItemColor 返回无酶暗灰
 - 已完成 酶容器方块正式贴图与渲染机制（Phase 2）：12 张反照率贴图（base 5 张 + 西面 side 镜像 1 张 + theme 灰度 6 张 + lamp 1 张，`ChamberAssets textures` 模式生成后拷入 resources）；`MachineModelProvider` 改多元素模型（1 主元素六面 base 无 tint + 12 贴片元素凸出 0.001，BlockElement 校验 [-16,32] 已核对反编译源码，tintindex 0=液体/1=灯，UV 按各面 vanilla 约定（north u=x / south u=16−x / east u=z / west u=16−z / up-down u=x）裁剪 theme 内容区，东西两侧贴片块坐标一致 = 物理镜像对称）；BlockColor 从 BE 缓存取酶色（换酶更新 O(1)，无酶 = 空机暗灰）→ 同一模型零 blockstate 表达空机/有酶；ItemColor 物品固定空机暗灰（用户指定默认 3D 方块模型渲染）；`MachineBlock` 新增水平 FACING（放置正面朝玩家，旧存档回退朝北）；**运行期实测修复**：①外观不随酶变（读档才刷新）= 两层根因：客户端 BE 主题色缓存永不更新（handleEnzymeSlotChanged 客户端守卫 + 无 tick）→ BE 覆写 getUpdateTag/getUpdatePacket 携带主题色 + 服务端换酶时 sendBlockUpdated(pos,state,state,3)（SignBlockEntity 同款标准姿势）；且**服务端发的 BlockUpdatePacket 的 state 与当前相同，客户端 Level.setBlock 因状态不变直接 no-op 不重烘焙**（源码实证）→ 客户端 handleUpdateTag 收到数据后必须主动 `level.sendBlockUpdated` 请求重渲染；另加客户端 setChanged 分支（GUI 操作经菜单槽位同步触发）即时解析 0 槽刷新主题色——GUI 路径即时变色、管道/漏斗路径走 data packet，双通道互备；②物品非默认 3D = 裸 elements 模型缺 display 段（vanilla 方块物品的显示变换来自 block/block 父模型）→ 模型补 vanilla block/block 同款 display + gui_light=side + particle
-- 待开发 酶容器贴图 Phase 3（可选）：停摆红灯（stall 状态 tint）、自发光指示灯、气泡粒子、GUI 小模型图标
+- 已完成 酶容器贴图 Phase 3 ①②（状态灯与自发光）：**停摆红灯**——引擎暴露 `wasStalled()`（上次 step 最小边界缩放 ≈0 = 物理冻结：产物/逆向底物满堆、固定活性资源耗尽；空闲与平衡不算），BE tickServer 每 tick 判定、状态翻转时把灯色缓存切红灯并复用主题色更新包通道通知客户端（客户端零改动，engineTest 27 守护信号契约）；指示灯三态：无酶灭灯 / 运行提亮酶色 / 停摆红。**自发光**——`ModelEvent.ModifyBakingResult` 把 enzyme_chamber 全部 facing variant 包装为 `EmissiveLampBakedModel`（client 包），getQuads 对 tintindex==1 灯 quad 应用 `QuadTransformers.settingMaxEmissivity()`（光照全亮，夜晚真实发光；物品模型 key 不命中不受影响）
+- 待开发 酶容器贴图 Phase 3 ③④（可选，用户暂未选）：气泡粒子（运行中观察窗冒泡）、GUI 小模型图标
 - 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
 - 待开发 中心法则链（转录仪/翻译仪/内质网折叠器/高尔基体修饰仪，未实现；酶蛋白未来经中心法则产出后插入反应腔）
 - 待开发 糖酵解流水线搭建（14 步酶数据已齐含乳酸发酵线，机器布局与产线衔接待做；LDH/PDC/ADH 需供 H⁺、ATPase 需供水，产 H⁺ 机制待电解水补）
@@ -146,7 +147,7 @@
 ```
 com.github.crafteve.biocraft
 ├── BioCraft.java                 # 瘦身为纯装配：注册各 init 注册中心（无功能实现）
-├── BioCraftClient.java           # 客户端装配：菜单屏幕绑定 + 方块/物品染色（BlockColor 按 BE 缓存酶主题色给贴片元素 tint，ItemColor 物品固定空机暗灰）
+├── BioCraftClient.java           # 客户端装配：菜单屏幕绑定 + 方块/物品染色（BlockColor 按 BE 缓存酶主题色给贴片元素 tint，ItemColor 物品固定空机暗灰）+ 烘焙模型包装（ModifyBakingResult 给酶反应腔挂自发光灯）
 ├── init/
 │   ├── ModItems.java             # 读 substances.json → 动态注册 66 个 MoleculeItem；读 enzymes.json → 动态注册 14 个酶蛋白物品（enzyme_<酶id>，EnzymeItem）
 │   ├── ModBlocks.java            # 方块/BE 类型/MenuType/方块物品四件套：唯一酶反应腔 enzyme_chamber（方块/BE/菜单各一，酶由 0 槽动态解析）
@@ -163,7 +164,8 @@ com.github.crafteve.biocraft
 │   ├── MoleculeColors.java       # ItemColor 染色 + TooltipComponent 工厂 + 装饰器注册（Dist.CLIENT，含酶物品染色/装饰器）
 
 │   └── EnzymeItem.java           # 酶蛋白物品（新架构酶形态）：数据驱动注册、堆叠 64 = [E]、双层贴图数据表色染色、tooltip 沿用酶方块摘要
-├── client/                       # 分子结构图自绘渲染管线（9 类，4x 超采样）
+├── client/                       # 客户端渲染辅助（分子结构图自绘管线 + 方块模型包装）
+│   ├── EmissiveLampBakedModel.java # 自发光指示灯模型包装：tintindex==1 灯 quad 光照全亮（ModifyBakingResult 挂载）
 │   ├── MoleculeTextureCache.java # CDK 解析+2D 坐标+Kekulize → 自绘键线骨架 → DynamicTexture 缓存
 │   ├── MoleculeBondRenderer.java # 键线绘制（0.8px 细线、Kekulé 单双交替、环内双键朝环心偏移）
 │   ├── MoleculeGeometry.java     # 2D 几何：竖长分子旋转横放、标签碰撞推开
@@ -266,6 +268,7 @@ com.github.crafteve.biocraft
     ```
     `public-f` = 公开 + 移除 final（NeoForge AT 语法，FML 加载时全局应用，dev 环境 ModDevGradle 自动应用——AT 不生效则 `slot.x =` 编译直接失败，天然验证）。随后滚动面板每 tick 把槽位坐标按滚动偏移写入 Slot.x/y（视口外槽位移 (-100,-100) 等效禁用），vanilla 的 findSlot/hoveredSlot/点击/双击收集/拖拽分裂/数字键/JEI-EMI U-R/tooltip 全部原生生效，零手动复刻。**注意组合**：①物品渲染仍自绘（renderSlot 对滚动槽空实现防双重渲染，CardScrollArea.draw 的 scissor 裁剪滚动视口）；②`Slot.isHighlightable()` 覆写返回 false 关闭 vanilla 高亮（renderSlotHighlight 是 static 且渲染循环内联、无法注入裁剪，滚动边缘高亮会溢出到图表区）——自绘高亮替代；③精妙存储还 AT 了 `AbstractContainerScreen` 的 draggingItem/isSplittingStack/quickCraftingRemainder/clickedSlot/findSlot 等私有字段以覆写 render() 复制循环——**本项目不需要**（保留自绘渲染路径，不复制循环）。**走过的弯路（勿回退）**：先做了"屏外坐标 + render 尾部覆写 hoveredSlot + 手动 mouseClicked"方案（可编译可运行但双击收集/触屏拖拽分裂有缺口且代码绕），AT 方案净删 ~70 行且全兼容
 30. **BE 客户端数据同步 + 裸模型物品 display（已踩坑 + 已解）**：①客户端 BE 无引擎/无 tick 时，"只存在于服务端的状态"（如酶主题色）必须走 BE 数据同步通道，否则客户端渲染恒读构造默认值（实测"方块外观不随换酶变化"静默 bug）：覆写 `getUpdateTag`（区块加载时下发；注意 vanilla 默认返回**空 tag**）+ `handleUpdateTag`（读回；字段缺失保留构造默认值防误读 0）+ `getUpdatePacket` 返回 `ClientboundBlockEntityDataPacket.create(this)`，服务端状态变化时调 `level.sendBlockUpdated(pos, state, state, 3)`（SignBlockEntity 同款标准姿势，源码实证：ChunkHolder.broadcastChanges → broadcastBlockEntityIfNeeded 发 data packet）。**关键第二层坑**：随 BlockUpdatePacket 下发的 state 与当前相同 → 客户端 `Level.setBlock` 因状态不变直接 no-op、不重烘焙该方块（源码实证，这导致"读档才刷新、热插拔不变色"）——BE 数据到达客户端（handleUpdateTag）后必须**主动调 `level.sendBlockUpdated` 请求重渲染**（客户端调用只走 LevelRenderer.blockChanged 标记 dirty，无递归）；更优：客户端 `setChanged` 分支（GUI 操作经菜单槽位同步触发）直接解析 0 槽刷新颜色 + 重渲染，与服务端 data packet 双通道互备（GUI 即时、管道/漏斗走包）。②裸 elements 方块模型作为物品渲染时缺 display 段：vanilla 方块物品的显示变换（gui 0.625 缩放+旋转/ground 0.25/fixed 0.5/第三人称 0.375/第一人称 0.4）来自 block/block 父模型（vanilla 资源实证），裸模型无 parent 会以原始 16×16 尺寸渲染（物品栏异常形态）——自定义元素模型必须显式补 vanilla block/block 同款 display + `gui_light=side`（物品栏侧面光照）+ particle 纹理键（破坏粒子用）
+31. **停摆信号 + 方块自发光（已踩坑 + 已解）**：①引擎"物理性停摆"信号要由引擎给出而非显示层推断：`EnzymeSimulator` 新增 `lastBoundaryScale`（step 内 minScale 落盘，含 hasSupply=false 提前返回分支置 0）+ `wasStalled()`（<1e-9 = 边界完全冻结：产物/逆向底物满堆、固定活性资源耗尽；部分截断"攒余量"、空闲、平衡不算）——方块实体每 tick 判定、状态翻转时把灯色缓存切红并复用主题色更新包通道（客户端零改动）；engineTest 27 守护信号契约（产物满堆逆向越界 → true，腾容量 → false）。②vanilla 方块模型无自发光属性，标准做法是**烘焙后包装 BakedModel**：`ModelEvent.ModifyBakingResult` 遍历 `Map<ModelResourceLocation, BakedModel>` 替换目标模型（注意 1.21.1 的 `ModelResourceLocation` 是 **record（id + variant）**，要用 `key.id().getNamespace()/getPath()`，没有 getNamespace 方法）；包装类 getQuads 对目标 tintindex 的 quad 应用 `QuadTransformers.settingMaxEmissivity()`（光照全亮；物品模型 key 路径为 item/ 前缀不命中，不影响物品渲染）——发光色仍由 BlockColor 染色决定，包装只改光照不改颜色
 
 ## 第三章 编码与开发规范
 

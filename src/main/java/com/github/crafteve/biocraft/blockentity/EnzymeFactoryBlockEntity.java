@@ -60,15 +60,35 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     /**
      * 主题灯色缓存（ARGB，客户端 BlockColor 1 号 tint 查询用）
      * <p>
-     * 无酶 = 灭灯暗色；有酶 = 酶主题色向白提亮 40%（灯亮起）
+     * 无酶 = 灭灯暗色；有酶 = 酶主题色向白提亮 40%（灯亮起）；
+     * 有酶但引擎停摆 = 红灯（STALL_LAMP_ARGB，见 stalled 说明）
      */
     private int themeLampArgb = EMPTY_LAMP_ARGB;
+
+    /**
+     * 当前停摆态（有酶且引擎边界完全冻结 = 物理性卡住）
+     * <p>
+     * 由 tickServer 每 tick 从引擎 wasStalled() 更新；状态变化时把
+     * themeLampArgb 切到红灯并走主题色通道通知客户端（复用现有更新包，
+     * 客户端零改动）——stalled 字段即"已同步给客户端的状态"，比较后
+     * 再发包，避免每 tick 广播
+     */
+    private boolean stalled;
 
     /** 空机液体暗灰（无酶时所有液体槽位的 tint 色） */
     public static final int EMPTY_LIQUID_ARGB = 0xFF2A2F38;
 
     /** 灭灯暗色（无酶时所有指示灯的 tint 色） */
     public static final int EMPTY_LAMP_ARGB = 0xFF1D2129;
+
+    /**
+     * 停摆红灯（有酶但引擎被边界完全冻结时的指示灯 tint 色）
+     * <p>
+     * 停摆语义 = 物理性卡住：产物满堆、逆向底物满堆、固定活性资源耗尽
+     * （缺水/H⁺/fe 停供）——引擎 wasStalled()；空闲（无输入）与平衡态
+     * 不算停摆（引擎未被卡住）。红色让玩家远远一眼看出"机器在等什么"
+     */
+    public static final int STALL_LAMP_ARGB = 0xFFE53935;
 
     /** 引擎模拟器实例（有酶时构建，无酶为 null） */
     private EnzymeSimulator simulator;
@@ -206,10 +226,13 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             this.feSpeciesIndex = -1;
             this.themeLiquidArgb = EMPTY_LIQUID_ARGB;
             this.themeLampArgb = EMPTY_LAMP_ARGB;
+            this.stalled = false;
             return;
         }
         this.themeLiquidArgb = data.color();
         this.themeLampArgb = lightenArgb(data.color());
+        // 新引擎停摆态未知，先按运行处理（首个 tick 的 step 会重新判定）
+        this.stalled = false;
         this.simulator = data.buildSimulator();
         this.speciesIds = simulator.getDefinition().getSpeciesIds();
         this.feSpeciesIndex = -1;
@@ -728,6 +751,28 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
+     * 停摆态更新（每 tick 从引擎 step 结果判定，服务端专用）
+     * <p>
+     * 状态翻转时把灯色缓存切到红灯/运行色并通知客户端重渲染——复用
+     * 主题色更新包通道（getUpdatePacket 携带 themeLampArgb），客户端
+     * handleUpdateTag + requestThemeRenderUpdate 已完成重渲染闭环，
+     * 此处零客户端改动；stalled 字段即"已同步状态"，相同则直接返回
+     * （引擎每 tick 都会报告 wasStalled，翻转频率低，发包可控）
+     *
+     * @param stalledNow 本次 step 的停摆判定（引擎 wasStalled）
+     */
+    private void updateStallState(boolean stalledNow) {
+        if (stalledNow == stalled || enzymeData == null) {
+            return;
+        }
+        stalled = stalledNow;
+        themeLampArgb = stalledNow ? STALL_LAMP_ARGB : lightenArgb(enzymeData.color());
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    /**
      * 槽位 → 浓度事件回写（setChanged 触发）
      * <p>
      * 每个物种：浓度 = (槽位数量 + 余量)/64，钳制 [0, MAX_CONCENTRATION]；
@@ -801,12 +846,16 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         }
         if (asleep) {
             cachedFluxX1000 = 0;
+            // 空闲（无输入浓度≈0）不算停摆：引擎未被卡住，只是没事干
+            updateStallState(false);
         } else {
             ItemStack enzymeStack = inventory.getItem(ENZYME_SLOT);
             simulator.getState().setActivity(enzymeStack.isEmpty() ? 0.0 : enzymeStack.getCount());
             var result = simulator.step(KineticConstants.TICK_SECONDS);
             settleEnergy(result.fluxNet());
             projectToSlots();
+            // 引擎物理冻结（产物/逆向底物满堆、固定活性资源耗尽）→ 停摆红灯
+            updateStallState(simulator.wasStalled());
         }
         // 能量存档脏标记：settleEnergy 只更新存量，标记放在投影之后——
         // 此时槽位浓度与引擎一致，setChanged → syncFromSlots 幂等

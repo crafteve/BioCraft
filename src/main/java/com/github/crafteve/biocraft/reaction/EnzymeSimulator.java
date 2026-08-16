@@ -97,6 +97,14 @@ public final class EnzymeSimulator {
     private int temperatureRecalculations;
 
     /**
+     * 上次 step 的最小边界缩放（0..1）：满堆截断（产物/逆向底物满堆）或
+     * 固定活性资源耗尽时 < 1，接近 0 即"物理性停摆冻结"——方块实体的
+     * 停摆红灯状态判定数据源（AGENTS.md 2.6 欠账 19：边界截断是正确
+     * 物流行为，停摆灯只是向玩家提示"机器在等什么"）
+     */
+    private double lastBoundaryScale = 1.0;
+
+    /**
      * 由酶数据装配模拟器（注册期一次）
      *
      * @param data 酶数据档案（反应式 + 热力学 + 动力学，全部带出处）
@@ -162,6 +170,8 @@ public final class EnzymeSimulator {
         double activity = state.getActivity();
 
         if (!definition.hasSupply(x)) {
+            // 固定活性资源耗尽（缺水/H⁺/fe 停供）：反应无法进行 = 停摆冻结
+            this.lastBoundaryScale = 0.0;
             return new StepResult(0.0, 0.0, 0.0);
         }
 
@@ -199,7 +209,22 @@ public final class EnzymeSimulator {
 
         double forward = KineticsCalculator.forwardFlux(definition, x, vmaxB) * activity * minScale;
         double reverse = KineticsCalculator.reverseFlux(definition, x, vmaxB) * activity * minScale;
+        this.lastBoundaryScale = minScale;
         return new StepResult(forward, reverse, forward - reverse);
+    }
+
+    /**
+     * 上次 step 是否物理性停摆（边界冻结）
+     * <p>
+     * 判定口径：全 tick 最小边界缩放 ≈ 0——产物满堆、逆向底物满堆、
+     * 固定活性资源耗尽（缺水/H⁺/fe 停供）都会触发；部分截断
+     * （"槽满仍攒余量"scale 介于 0~1）不算停摆；空闲（浓度全 0）与
+     * 平衡态不算（引擎未被卡住，只是没事干/自然终态）
+     *
+     * @return true = 上次 step 被边界完全冻结
+     */
+    public boolean wasStalled() {
+        return this.lastBoundaryScale < 1e-9;
     }
 
     /**

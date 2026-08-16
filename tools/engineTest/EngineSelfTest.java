@@ -58,6 +58,7 @@ public final class EngineSelfTest {
         run("24 ALDO 64 活性强刚性：Vmax_b≈19200 正常推进并收敛 Keq", EngineSelfTest::test24AlodoHighActivity);
         run("25 ALDO 64 活性长周期：平衡区驻留 10000 tick Q 锁定 Keq 零漂移", EngineSelfTest::test25AlodoEquilibriumDrift);
         run("26 TPI [E]=3 满堆反应物冻结回归：方向矛盾细分 + 近平衡无极限环", EngineSelfTest::test26TpiFullReactantFreeze);
+        run("27 停摆信号：产物满堆逆向越界 wasStalled=true，腾出容量解冻", EngineSelfTest::test27StallSignal);
 
         if (failures > 0) {
             System.err.println("引擎单测失败: " + failures + "/" + total);
@@ -767,6 +768,42 @@ public final class EngineSelfTest {
         runTicks(sim, 200);
         double q2 = x[g3p] / x[dhap];
         checkNear(q2, keq, 0.001 * keq, "近平衡场景 200 tick 后 Q 漂移");
+    }
+
+    /**
+     * 停摆信号（wasStalled）判定：方块实体停摆红灯的数据源契约
+     * <p>
+     * 场景 A：产物（DHAP）满堆 + 底物少量 → Q 远超 Keq 逆向主导，逆向
+     * 净流把产物推越上限 → 边界缩放 scale=0 冻结 → wasStalled=true 且
+     * 产物浓度保持上限；场景 B：腾出产物容量 → 解冻，wasStalled=false
+     * 且产物恢复增长——红色指示灯必须只在"物理性卡住"时亮，
+     * 空闲（浓度全 0）与平衡态不误报（由方块实体侧不调 step 保证）
+     */
+    private static void test27StallSignal() {
+        // 与 test26 相同的真实 TPI 数据
+        EnzymeFactoryData realTpi = new EnzymeFactoryData(
+                "triose_phosphate_isomerase", "磷酸丙糖异构酶", "Triosephosphate Isomerase", "TPI", "EC5", 0xFFFFD966,
+                List.of(new EnzymeFactoryData.SpeciesSpec("dihydroxyacetone_phosphate", 1, 0.88)),
+                List.of(new EnzymeFactoryData.SpeciesSpec("glyceraldehyde_3_phosphate", 1, 0.79)),
+                true, 0.10874, null, 9000.0, 298.15,
+                1, 1);
+        // 场景 A：产物（DHAP）满堆 + 底物少量 → 逆向净流推产物越界 → 边界冻结
+        EnzymeSimulator sim = realTpi.buildSimulator();
+        sim.getState().setActivity(3.0);
+        double[] x = sim.getState().getConcentrations();
+        int dhap = idx(sim, "dihydroxyacetone_phosphate");
+        int g3p = idx(sim, "glyceraldehyde_3_phosphate");
+        x[dhap] = KineticConstants.MAX_CONCENTRATION;
+        x[g3p] = 0.5;
+        sim.step(KineticConstants.TICK_SECONDS);
+        check(sim.wasStalled(), "产物满堆 + 逆向主导应报告停摆（wasStalled）");
+        check(x[dhap] == KineticConstants.MAX_CONCENTRATION,
+                "停摆时产物浓度应保持上限（边界冻结）");
+        // 场景 B：腾出产物容量 → 解冻，逆向继续推进且停摆信号消失
+        x[dhap] = 1.0;
+        sim.step(KineticConstants.TICK_SECONDS);
+        check(!sim.wasStalled(), "腾出容量后应解除停摆");
+        check(x[dhap] > 1.0, String.format("解冻后产物应继续增长（实测 %.6f）", x[dhap]));
     }
 
     private EngineSelfTest() {
