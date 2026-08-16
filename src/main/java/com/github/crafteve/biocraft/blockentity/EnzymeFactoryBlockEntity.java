@@ -362,6 +362,12 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         if (tag.contains("themeLampArgb")) {
             this.themeLampArgb = tag.getInt("themeLampArgb");
         }
+        // 客户端收到 BE 数据包后必须主动触发本地重渲染：随包下发的
+        // BlockUpdatePacket 的 state 与当前相同，Level.setBlock 因状态不变
+        // 直接 no-op（源码实证），不会重烘焙该方块——不主动刷新则 BlockColor
+        // 不会重新查询（实测"热插拔不变色、读档才刷新"根因）；区块加载时
+        // 冗余触发一次无害
+        requestThemeRenderUpdate();
     }
 
     /**
@@ -681,6 +687,44 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         super.setChanged();
         syncFromSlots();
         handleEnzymeSlotChanged();
+        if (level != null && level.isClientSide) {
+            // 客户端酶槽变化（GUI 操作经菜单槽位同步触发）：即时刷新主题色与
+            // 重渲染，不依赖服务端 data packet 的到达时序（双通道之一）
+            refreshThemeFromEnzymeSlot();
+        }
+    }
+
+    /**
+     * 客户端从 0 槽即时解析主题色（GUI 操作路径，setChanged 触发）
+     * <p>
+     * 颜色变化才更新并请求重渲染（物种槽变动也会触发 setChanged，
+     * 但酶没换时颜色不变，零重渲染开销）；与服务端 data packet 通道
+     * 互为双保险——GUI 路径即时变色，管道/漏斗路径靠 data packet
+     *
+     * @see #handleUpdateTag(CompoundTag, HolderLookup.Provider)
+     */
+    private void refreshThemeFromEnzymeSlot() {
+        EnzymeFactoryData data = resolveEnzyme();
+        int liquid = data == null ? EMPTY_LIQUID_ARGB : data.color();
+        int lamp = data == null ? EMPTY_LAMP_ARGB : lightenArgb(data.color());
+        if (liquid != themeLiquidArgb || lamp != themeLampArgb) {
+            themeLiquidArgb = liquid;
+            themeLampArgb = lamp;
+            requestThemeRenderUpdate();
+        }
+    }
+
+    /**
+     * 请求客户端重渲染本方块（主题色变化的渲染刷新）
+     * <p>
+     * 客户端 sendBlockUpdated → LevelRenderer.blockChanged → setBlockDirty
+     * → section 重烘焙 → BlockColor 重新查询；无递归（只标记 dirty 不触
+     * 发 setChanged/数据包）
+     */
+    private void requestThemeRenderUpdate() {
+        if (level != null && level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     /**
