@@ -32,6 +32,5 @@ public class ModDataGen {
         generator.addProvider(true, new SubstanceLanguageProvider(packOutput, "en_us"));
         generator.addProvider(true, new SubstanceLanguageProvider(packOutput, "zh_cn"));
         generator.addProvider(true, new MachineModelProvider(packOutput));
-        generator.addProvider(true, new MachineRecipeProvider(packOutput, event.getLookupProvider()));
     }
 }

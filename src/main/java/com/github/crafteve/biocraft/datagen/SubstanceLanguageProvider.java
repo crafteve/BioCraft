@@ -47,7 +47,6 @@ public class SubstanceLanguageProvider implements DataProvider {
     @Override
     public CompletableFuture<?> run(CachedOutput cachedOutput) {
         addTabTranslations();
-        addMachineTranslations();
         addEnzymeTranslations();
         addCompatTranslations();
         addEnzymeTooltipTranslations();
@@ -88,40 +87,6 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "按住 Shift 查看结构式" : "Hold Shift to view structure");
         translations.put("tooltip.biocraft.sequence",
                 zh ? "序列: %s" : "Sequence: %s");
-    }
-
-    /**
-     * 添加机器方块、GUI 与合成状态文案翻译
-     * <p>
-     * 酶工厂方块的显示名不在此处：酶数据表自带中文 name 字段，
-     * 由 EnzymeLanguageProvider 按数据驱动生成翻译键
-     */
-    private void addMachineTranslations() {
-        boolean zh = "zh_cn".equals(language);
-        translations.put("block.biocraft.dna_encoder",
-                zh ? "DNA 编码器" : "DNA Encoder");
-        translations.put("item.biocraft.dna_template",
-                zh ? "DNA 模板" : "DNA Template");
-        translations.put("gui.biocraft.synthesize",
-                zh ? "合成" : "Synthesize");
-        translations.put("gui.biocraft.button.promoter",
-                zh ? "启动子" : "Promoter");
-        translations.put("gui.biocraft.button.terminator",
-                zh ? "终止子" : "Terminator");
-        translations.put("gui.biocraft.sequence_label",
-                zh ? "DNA 序列" : "DNA Sequence");
-        translations.put("gui.biocraft.status.idle",
-                zh ? "输入序列后点击合成" : "Type a sequence and click Synthesize");
-        translations.put("gui.biocraft.status.success",
-                zh ? "合成成功" : "Synthesis successful");
-        translations.put("gui.biocraft.status.empty_sequence",
-                zh ? "序列为空" : "Sequence is empty");
-        translations.put("gui.biocraft.status.invalid_sequence",
-                zh ? "序列含非法字符" : "Sequence contains invalid characters");
-        translations.put("gui.biocraft.status.insufficient_base",
-                zh ? "碱基不足" : "Insufficient bases");
-        translations.put("gui.biocraft.status.output_full",
-                zh ? "输出槽已满" : "Output slot is full");
     }
 
     /**

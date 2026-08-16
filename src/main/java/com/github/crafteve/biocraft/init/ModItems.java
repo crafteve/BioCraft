@@ -5,7 +5,6 @@ import com.github.crafteve.biocraft.data.SubstanceData;
 import com.github.crafteve.biocraft.item.EnzymeItem;
 import com.github.crafteve.biocraft.item.MoleculeCategory;
 import com.github.crafteve.biocraft.item.MoleculeItem;
-import com.github.crafteve.biocraft.item.SequenceItem;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -45,11 +44,6 @@ public final class ModItems {
 
     /** 按酶数据表顺序排列的酶物品列表，供创意标签页展示 */
     private static final List<DeferredItem<EnzymeItem>> ENZYME_ORDERED = new ArrayList<>();
-
-    /** DNA模板：序列载体物品，由 DNA编码器产出，不走物质表（无固定化学结构） */
-    public static final DeferredItem<SequenceItem> DNA_TEMPLATE = ITEMS.register(
-            "dna_template",
-            () -> new SequenceItem(new Item.Properties().stacksTo(1)));
 
     static {
         loadSubstances();

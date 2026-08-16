@@ -49,15 +49,13 @@ public final class ModCreativeTabs {
                     })
                     .build());
 
-    /** 生物工艺 · 机器标签页：原始机器方块、酶工厂方块与序列载体物品 */
+    /** 生物工艺 · 机器标签页：酶工厂方块（数据驱动注册，过渡期保留） */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> MACHINES = TABS.register(
             "biocraft_machines",
             () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup.biocraft.machines"))
-                    .icon(() -> new ItemStack(ModBlocks.DNA_ENCODER))
+                    .icon(() -> new ItemStack(ModBlocks.enzymeBlocks().get(0)))
                     .displayItems((parameters, output) -> {
-                        output.accept(ModBlocks.DNA_ENCODER.asItem());
-                        output.accept(ModItems.DNA_TEMPLATE.get());
                         // 酶工厂方块（数据驱动注册，按酶数据表顺序展示）
                         for (var item : ModBlocks.enzymeItems()) {
                             output.accept(item.get());

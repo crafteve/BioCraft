@@ -131,16 +131,16 @@ public final class EngineSelfTest {
 
     /** kcat 非正、速率项 Km 非正等坏数据必须在构建期快速失败 */
     private static void test02BadDataRejected() {
-        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5",
+        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5", 0xFFB57EDC,
                         TestEnzymes.pgi().reactants(), TestEnzymes.pgi().products(),
                         true, 0.3104, null, 0.0, 298.15, 1, 1)
                 .buildSimulator(), "kcat=0 应被拒绝");
-        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5",
+        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5", 0xFFB57EDC,
                         List.of(new EnzymeFactoryData.SpeciesSpec("glucose_6_phosphate", 1, 0.0)),
                         TestEnzymes.pgi().products(),
                         true, 0.3104, null, 79.0, 298.15, 1, 1)
                 .buildSimulator(), "反应物 Km=0 应被拒绝");
-        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5",
+        checkThrows(() -> new EnzymeFactoryData("bad", "坏酶", "Bad Enzyme", "BAD", "EC5", 0xFFB57EDC,
                         TestEnzymes.pgi().reactants(),
                         List.of(new EnzymeFactoryData.SpeciesSpec("fructose_6_phosphate", 1, 0.0)),
                         true, 0.3104, null, 79.0, 298.15, 1, 1)
@@ -611,7 +611,7 @@ public final class EngineSelfTest {
      */
     private static void test23RigidAdaptive() {
         EnzymeFactoryData rigidTpi = new EnzymeFactoryData(
-                "tpi_rigid", "刚性TPI", "Rigid TPI", "TPIR", "EC5",
+                "tpi_rigid", "刚性TPI", "Rigid TPI", "TPIR", "EC5", 0xFFD966,
                 List.of(new EnzymeFactoryData.SpeciesSpec("dihydroxyacetone_phosphate", 1, 0.88)),
                 List.of(new EnzymeFactoryData.SpeciesSpec("glyceraldehyde_3_phosphate", 1, 0.79)),
                 true, 0.10874, null, 9000.0, 298.15,

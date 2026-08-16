@@ -39,7 +39,7 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData pgi() {
         return new EnzymeFactoryData(
-                "phosphoglucose_isomerase", "磷酸葡萄糖异构酶", "Phosphoglucose Isomerase", "PGI", "EC5",
+                "phosphoglucose_isomerase", "磷酸葡萄糖异构酶", "Phosphoglucose Isomerase", "PGI", "EC5", 0xFFFFD966,
                 List.of(s("glucose_6_phosphate", 1, 0.43)),
                 List.of(s("fructose_6_phosphate", 1, 0.046)),
                 true, 0.3104, null, 79.0, 298.15,
@@ -54,7 +54,7 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData hk() {
         return new EnzymeFactoryData(
-                "hexokinase", "己糖激酶", "Hexokinase", "HK", "EC2",
+                "hexokinase", "己糖激酶", "Hexokinase", "HK", "EC2", 0xFFFFA94D,
                 List.of(s("glucose", 1, 0.049), s("atp", 1, 1.12)),
                 List.of(s("glucose_6_phosphate", 1, 0.0), s("adp", 1, 0.0)),
                 false, 4800.0, null, 54.1, 298.15,
@@ -72,7 +72,7 @@ public final class TestEnzymes {
     public static EnzymeFactoryData gapdh() {
         return new EnzymeFactoryData(
                 "glyceraldehyde_3_phosphate_dehydrogenase", "甘油醛-3-磷酸脱氢酶",
-                "Glyceraldehyde-3-phosphate Dehydrogenase", "GAPDH", "EC1",
+                "Glyceraldehyde-3-phosphate Dehydrogenase", "GAPDH", "EC1", 0xFF6FC3DF,
                 List.of(s("glyceraldehyde_3_phosphate", 1, 0.137),
                         s("nad_plus", 1, 0.045),
                         s("phosphate_ion", 1, 4.0)),
@@ -92,7 +92,7 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData tpi() {
         return new EnzymeFactoryData(
-                "triosephosphate_isomerase", "磷酸丙糖异构酶", "Triosephosphate Isomerase", "TPI", "EC5",
+                "triosephosphate_isomerase", "磷酸丙糖异构酶", "Triosephosphate Isomerase", "TPI", "EC5", 0xFFFFD966,
                 List.of(s("dihydroxyacetone_phosphate", 1, 0.62)),
                 List.of(s("glyceraldehyde_3_phosphate", 1, 0.52)),
                 true, 0.1087, null, 2946.0, 298.15,
@@ -108,7 +108,7 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData eno() {
         return new EnzymeFactoryData(
-                "enolase", "烯醇化酶", "Enolase", "ENO", "EC4",
+                "enolase", "烯醇化酶", "Enolase", "ENO", "EC4", 0xFFB57EDC,
                 List.of(s("2_phosphoglycerate", 1, 0.244)),
                 List.of(s("phosphoenolpyruvate", 1, 0.637), s("water", 1, 0.0)),
                 true, 4.449, null, 81.7, 298.15,
@@ -126,7 +126,7 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData aldo() {
         return new EnzymeFactoryData(
-                "aldolase", "果糖二磷酸醛缩酶", "Fructose-bisphosphate Aldolase", "ALDO", "EC4",
+                "aldolase", "果糖二磷酸醛缩酶", "Fructose-bisphosphate Aldolase", "ALDO", "EC4", 0xFFB57EDC,
                 List.of(s("fructose_1_6_bisphosphate", 1, 0.17)),
                 List.of(s("dihydroxyacetone_phosphate", 1, 0.88), s("glyceraldehyde_3_phosphate", 1, 0.79)),
                 true, 1.456e-4, null, 10.7, 298.15,
@@ -149,7 +149,7 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData ldh() {
         return new EnzymeFactoryData(
-                "lactate_dehydrogenase", "乳酸脱氢酶", "Lactate Dehydrogenase", "LDH", "EC1",
+                "lactate_dehydrogenase", "乳酸脱氢酶", "Lactate Dehydrogenase", "LDH", "EC1", 0xFF6FC3DF,
                 List.of(s("pyruvate", 1, 0.14), s("nadh", 1, 0.03), s("hydrogen_ion", 1, 0.0)),
                 List.of(s("lactate", 1, 10.0), s("nad_plus", 1, 0.3)),
                 true, 22000.0, null, 150.0, 298.15,
@@ -165,7 +165,7 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData pdc() {
         return new EnzymeFactoryData(
-                "pyruvate_decarboxylase", "丙酮酸脱羧酶", "Pyruvate Decarboxylase", "PDC", "EC4",
+                "pyruvate_decarboxylase", "丙酮酸脱羧酶", "Pyruvate Decarboxylase", "PDC", "EC4", 0xFFB57EDC,
                 List.of(s("pyruvate", 1, 1.0), s("hydrogen_ion", 1, 0.0)),
                 List.of(s("acetaldehyde", 1, 0.0), s("carbon_dioxide", 1, 0.0)),
                 false, 3200.0, null, 60.0, 298.15,
@@ -181,7 +181,7 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData adh() {
         return new EnzymeFactoryData(
-                "alcohol_dehydrogenase", "乙醇脱氢酶", "Alcohol Dehydrogenase", "ADH", "EC1",
+                "alcohol_dehydrogenase", "乙醇脱氢酶", "Alcohol Dehydrogenase", "ADH", "EC1", 0xFF6FC3DF,
                 List.of(s("acetaldehyde", 1, 0.05), s("nadh", 1, 0.02), s("hydrogen_ion", 1, 0.0)),
                 List.of(s("ethanol", 1, 10.0), s("nad_plus", 1, 0.3)),
                 true, 11000.0, null, 200.0, 298.15,
@@ -197,7 +197,7 @@ public final class TestEnzymes {
      */
     public static EnzymeFactoryData atpase() {
         return new EnzymeFactoryData(
-                "atp_hydrolase", "ATP 水解酶", "ATP Hydrolase", "ATPase", "EC3",
+                "atp_hydrolase", "ATP 水解酶", "ATP Hydrolase", "ATPase", "EC3", 0xFF7BD88F,
                 List.of(s("atp", 1, 0.5), s("water", 1, 0.0)),
                 List.of(s("adp", 1, 0.0), s("phosphate_ion", 1, 0.0), s("fe", 100, 0.0)),
                 false, 190000.0, null, 100.0, 298.15,

@@ -2,9 +2,7 @@ package com.github.crafteve.biocraft;
 
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModCreativeTabs;
-import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
-import com.github.crafteve.biocraft.network.ModNetwork;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
@@ -15,7 +13,7 @@ import net.neoforged.fml.common.Mod;
 /**
  * BioCraft 主类，只做纯装配工作
  * <p>
- * 注册各 init 注册中心（物品、方块、菜单、数据组件、创意标签页），
+ * 注册各 init 注册中心（物品、方块、菜单、创意标签页），
  * 不承载任何具体功能实现，具体注册逻辑见各 init 类
  */
 @Mod(BioCraft.MODID)
@@ -37,6 +35,5 @@ public class BioCraft {
         ModBlocks.BLOCKS.register(modEventBus);
         ModBlocks.BE_TYPES.register(modEventBus);
         ModBlocks.MENUS.register(modEventBus);
-        ModDataComponents.DATA_COMPONENT_TYPES.register(modEventBus);
     }
 }

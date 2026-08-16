@@ -2,7 +2,6 @@ package com.github.crafteve.biocraft.datagen;
 
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.block.MachineBlock;
-import com.github.crafteve.biocraft.blockentity.MachineType;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.EnzymeItem;
@@ -23,17 +22,14 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * 机器方块与序列物品模型生成器（datagen）
+ * 机器方块与酶物品模型生成器（datagen）
  * <p>
- * 生成四类资源：
+ * 生成两类资源：
  * <ul>
- *   <li>原始机器（MachineType 枚举）：方块状态 + 方块模型（cube_bottom_top
- *       三面分离贴图）+ 物品模型，每类型一份</li>
  *   <li>酶工厂（数据驱动）：方块状态 + 方块模型（简化白底 cube + tintindex
- *       按类别色染色）+ 物品模型，每实例一份</li>
+ *       按数据表 color 字段染色）+ 物品模型，每实例一份</li>
  *   <li>酶蛋白物品（数据驱动）：双层 generated 模型（layer0 内容物染色 +
  *       layer1 烧杯瓶身），与分子物品同款视觉语言</li>
- *   <li>序列物品：item/generated 单层模型</li>
  * </ul>
  * 模型以手写 JsonObject 形式输出（与 SubstanceModelProvider 风格一致）
  */
@@ -48,7 +44,7 @@ public class MachineModelProvider implements DataProvider {
     }
 
     /**
-     * 生成全部机器与序列物品的模型资源
+     * 生成全部机器与酶物品的模型资源
      *
      * @param cachedOutput 输出写入器
      * @return 完成信号
@@ -56,12 +52,8 @@ public class MachineModelProvider implements DataProvider {
     @Override
     public CompletableFuture<?> run(CachedOutput cachedOutput) {
         Map<Path, JsonObject> outputs = new HashMap<>();
-        for (MachineType type : MachineType.values()) {
-            outputs.putAll(machineResources(type));
-        }
         outputs.putAll(enzymeFactoryResources());
         outputs.putAll(enzymeItemResources());
-        outputs.putAll(sequenceItemResources());
 
         for (Map.Entry<Path, JsonObject> entry : outputs.entrySet()) {
             byte[] bytes = entry.getValue().toString().getBytes(StandardCharsets.UTF_8);
@@ -130,7 +122,7 @@ public class MachineModelProvider implements DataProvider {
             JsonObject textures = new JsonObject();
             textures.addProperty("all", "minecraft:block/white_concrete");
             blockModelJson.add("textures", textures);
-            // tintindex 0：整块方块按类别主题色染色（BlockColors 注册）
+            // tintindex 0：整块方块按酶数据表 color 字段染色（BlockColors 注册）
             // 必须提供 from/to 六面立方体坐标，否则模型 JSON 非法（missing from）
             JsonArray elements = new JsonArray();
             JsonObject tintedElement = new JsonObject();
@@ -168,71 +160,6 @@ public class MachineModelProvider implements DataProvider {
             outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/blockstates/" + blockName + ".json"), blockState);
             outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/models/block/" + blockName + ".json"), blockModelJson);
             outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/models/item/" + blockName + ".json"), itemModel);
-        }
-        return outputs;
-    }
-
-    /**
-     * 为单个机器类型生成方块状态/方块模型/物品模型三个文件
-     *
-     * @param type 机器类型
-     * @return 输出路径到 JSON 内容的映射
-     */
-    private Map<Path, JsonObject> machineResources(MachineType type) {
-        Map<Path, JsonObject> outputs = new HashMap<>();
-        String blockName = type.getId();
-        ResourceLocation blockModel = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/" + blockName);
-        // 三面分离贴图：顶面设备面板（屏幕/指示灯）、侧面金属外壳、底面底座
-        ResourceLocation topTexture = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/machine_" + blockName + "_top");
-        ResourceLocation sideTexture = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/machine_" + blockName + "_side");
-        ResourceLocation bottomTexture = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/machine_" + blockName + "_bottom");
-
-        // 方块状态：无朝向，单一 variant 指向方块模型
-        JsonObject blockState = new JsonObject();
-        JsonObject variants = new JsonObject();
-        JsonObject variant = new JsonObject();
-        variant.addProperty("model", blockModel.toString());
-        variants.add("", variant);
-        blockState.add("variants", variants);
-
-        // 方块模型：cube_bottom_top，顶/侧/底三面不同贴图（比 cube_all 更有立体观感）
-        JsonObject blockModelJson = new JsonObject();
-        blockModelJson.addProperty("parent", "minecraft:block/cube_bottom_top");
-        JsonObject textures = new JsonObject();
-        textures.addProperty("top", topTexture.toString());
-        textures.addProperty("side", sideTexture.toString());
-        textures.addProperty("bottom", bottomTexture.toString());
-        blockModelJson.add("textures", textures);
-
-        // 方块物品模型：parent 直接指向方块模型——物品栏/手持时以 3D 视角
-        // 渲染立体方块（vanilla blockitem 统一风格，与石头/草方块一致），
-        // 纹理由方块模型自带，无需在此重复声明
-        JsonObject itemModel = new JsonObject();
-        itemModel.addProperty("parent", blockModel.toString());
-
-        outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/blockstates/" + blockName + ".json"), blockState);
-        outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/models/block/" + blockName + ".json"), blockModelJson);
-        outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/models/item/" + blockName + ".json"), itemModel);
-        return outputs;
-    }
-
-    /**
-     * 为序列载体物品生成物品模型
-     * <p>
-     * 序列物品数量较少且结构固定，此处直接枚举（与分子物品的
-     * 物质表驱动方式不同，序列物品不走 substances.json）
-     *
-     * @return 输出路径到 JSON 内容的映射
-     */
-    private Map<Path, JsonObject> sequenceItemResources() {
-        Map<Path, JsonObject> outputs = new HashMap<>();
-        for (String itemName : new String[]{"dna_template"}) {
-            JsonObject model = new JsonObject();
-            model.addProperty("parent", "minecraft:item/generated");
-            JsonObject textures = new JsonObject();
-            textures.addProperty("layer0", ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "item/" + itemName).toString());
-            model.add("textures", textures);
-            outputs.put(packOutput.getOutputFolder().resolve("assets/biocraft/models/item/" + itemName + ".json"), model);
         }
         return outputs;
     }

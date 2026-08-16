@@ -31,7 +31,7 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
      * @param type          方块实体类型
      * @param pos           方块位置
      * @param state         方块状态
-     * @param containerSize 容器槽位总数（由 MachineType 决定）
+     * @param containerSize 容器槽位总数（由机器子类决定）
      */
     protected MachineBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state, int containerSize) {
         super(type, pos, state);
