@@ -607,7 +607,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             return;
         }
         double v = menu.getFlux();
-        String vs = Math.abs(v) < 0.05 ? "0.0" : formatTickValue(v);
+        String vs = formatTickValue(v);
         String text = "v=" + vs + " /tick";
         int textW = this.font.width(text);
         int x = this.leftPos + (VT_BG_X0 + VT_BG_X1) / 2 - textW / 2;
@@ -843,7 +843,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * <p>
      * 防御极端值（用户实测产物空槽等工况下 Q 可达 1e27 级）：
      * NaN/±inf 与 |值| ≥ 1e6 统一显示 "inf"，|值| < 1e-4 显示 "0"，
-     * 其余走 %.2g（含 e 时回退 %.2f）
+     * 其余走 %.3g（3 位有效数字，含 e 时回退 %.3f）——
+     * 速率显示精度要求（实测 0.05 阈值 + 2 位有效数字下小速率
+     * 恒显示 0.0，无法分辨 0.01 与 0.049 的差异）
      *
      * @param value 数值（通量或浓度商）
      * @return 显示文本
@@ -855,9 +857,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         if (value != 0.0 && Math.abs(value) < 1e-4) {
             return "0";
         }
-        String s = String.format("%.2g", value);
+        String s = String.format("%.3g", value);
         if (s.contains("e")) {
-            s = String.format("%.2f", value);
+            s = String.format("%.3f", value);
         }
         return s;
     }
