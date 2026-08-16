@@ -3,6 +3,11 @@
   "lookup_history": [
     {
       "type": "item",
+      "id": "biocraft:dihydroxyacetone_phosphate",
+      "amount": 35
+    },
+    {
+      "type": "item",
       "id": "biocraft:fructose_1_6_bisphosphate",
       "amount": 128
     },
@@ -19,7 +24,6 @@
     "item:biocraft:3_phosphoglycerate",
     "item:biocraft:1_3_bisphosphoglycerate",
     "item:biocraft:glyceraldehyde_3_phosphate",
-    "item:biocraft:dihydroxyacetone_phosphate",
     "item:biocraft:fructose_6_phosphate",
     "item:biocraft:glucose_6_phosphate",
     "item:biocraft:glucose",

@@ -1042,6 +1042,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     protected void containerTick() {
         super.containerTick();
         refreshEnzymeIfChanged();
+        // 未用物种槽先全部移出屏外（含无酶态全部物种槽、当前酶不用的槽位）——
+        // 再让两个滚动区域各自写自己的坐标；全局清理必须在区域写入之前，
+        // 否则后执行区域的"先清再写"会抹掉先执行区域的坐标（见 tick 说明）
+        clearSpeciesSlotPositions();
         inputArea.tick();
         outputArea.tick();
         // v-t 采样：每 1s（20 tick）取当前净通量一点入环形缓冲
@@ -1051,6 +1055,21 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             vtFlux[vtIndex] = menu.getFlux();
             vtIndex = (vtIndex + 1) % VT_POINTS;
             vtSampleCount = Math.min(vtSampleCount + 1, VT_POINTS);
+        }
+    }
+
+    /**
+     * 全部物种槽移出屏外（(-100,-100)）：当前酶未使用的槽位保持禁用
+     * （vanilla findSlot 命中不到、渲染无残留，等效禁用）
+     * <p>
+     * 每 tick 在 inputArea/outputArea.tick 之前执行一次——两个区域的
+     * syncSlotPositions 只写自己区域的坐标，未用槽位靠本方法兜底
+     */
+    private void clearSpeciesSlotPositions() {
+        int base = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+        for (int slot = base; slot < base + speciesSlotCount(); slot++) {
+            menu.getSlot(slot).x = -100;
+            menu.getSlot(slot).y = -100;
         }
     }
 
@@ -1164,9 +1183,13 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
         /**
          * 每 tick 平滑插值：显示偏移向目标偏移逼近（差距 <0.5px 直接吸附），
-         * 并把物种槽坐标按滚动偏移写入对应 Slot（AT 已拆掉 Slot.x/y 的
-         * final，见 META-INF/accesstransformer.cfg）——vanilla 的命中/
-         * hoveredSlot/快捷键按坐标原生工作，与绘制位置天然同步
+         * 并把本区域物种槽坐标按滚动偏移写入对应 Slot（AT 已拆掉 Slot.x/y
+         * 的 final，见 META-INF/accesstransformer.cfg）——vanilla 的命中/
+         * hoveredSlot/快捷键按坐标原生工作，与绘制位置天然同步。
+         * 注意：本方法只写本区域槽位，全局未用槽位的屏外清理由
+         * containerTick 的 clearSpeciesSlotPositions 统一执行——
+         * 若每个区域各自"先全清再写自己"，后执行区域的清理会把
+         * 先执行区域的坐标抹掉（实测输入槽恒屏外、点击无效的根因）
          */
         void tick() {
             this.scrollOffset += (this.scrollTarget - this.scrollOffset) * SCROLL_LERP;
@@ -1180,19 +1203,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
          * 将本区域卡片坐标写入对应 Slot（与 draw 的绘制公式严格一致）：
          * x = areaX + SLOT_X，y = SCROLL_Y + i×CARD_STEP − round(offset) + SLOT_Y
          * <p>
-         * 当前酶未使用的物种槽（本区域之外，含无酶态全部物种槽）先全部
-         * 移出屏外 (-100,-100)——vanilla findSlot 命中不到、渲染无残留，
-         * 等效禁用
+         * 不清理其他区域/未用槽位（见 tick 的说明）——未用槽位的屏外
+         * 清理由 containerTick 统一执行
          */
         private void syncSlotPositions() {
             int offset = (int) Math.round(scrollOffset);
-            int base = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
-            int slotCount = speciesSlotCount();
-            // 先全部移出屏外：未用槽位（含无酶态全部物种槽）保持禁用
-            for (int slot = base; slot < base + slotCount; slot++) {
-                menu.getSlot(slot).x = -100;
-                menu.getSlot(slot).y = -100;
-            }
             for (int i = 0; i < getCount(); i++) {
                 if (!(cards.get(i) instanceof SpeciesCard speciesCard)) {
                     continue;
