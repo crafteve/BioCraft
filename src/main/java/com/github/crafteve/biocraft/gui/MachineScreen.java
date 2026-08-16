@@ -16,8 +16,10 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.ChatFormatting;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -411,16 +413,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 槽位物品渲染：物种槽包 scissor 后交 vanilla 全逻辑（物品/堆叠数/
-     * quickCraft 拖拽分裂的半透明选取预览/clickedSlot 拖动效果全部原生）；
-     * 其余槽位（0 槽/背包）直接交 vanilla
+     * 槽位物品渲染：物种槽自绘（物品图标 + 拖拽分裂预览 + 自动缩小的
+     * 堆叠数），包 scissor 裁剪滚动视口；其余槽位（0 槽/背包）交 vanilla
      * <p>
-     * vanilla 渲染循环对每个 isActive 槽位调用本方法——物种槽坐标实时
-     * 在滚动视口内，若不裁剪，滚动时边缘卡片的物品会溢出到图表区；
-     * scissor 参数为屏幕绝对坐标（enableScissor 不经过 pose 变换，
-     * 与 renderBg 阶段的自绘裁剪同口径），两列滚动区合并为一个
-     * 大矩形（x 7~249, y 41~162）——中间图表区在槽位渲染阶段无内容，
-     * 空裁无影响；背包槽（y≥174）与 0 槽（y 8~24）在矩形外不受影响
+     * 自绘原因：槽位容量参数化后堆叠数可达 128（3 位数），vanilla 的
+     * renderItemDecorations 固定 8px 字号会大面积遮挡分子贴图——
+     * 自绘按位数自动缩小（3 位 0.75、4 位及以上 0.55），右下角锚点缩放；
+     * quickCraft 拖拽分裂的"选取槽位"半透明预览与黄色超限数字由 AT
+     * 开放的字段（isQuickCrafting/quickCraftSlots/quickCraftingType）
+     * 复刻 vanilla renderSlot 的同款逻辑（精妙存储同款 AT 路线）
      *
      * @param graphics 渲染器
      * @param slot     槽位实例
@@ -433,11 +434,101 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                     this.topPos + MachineMenu.SCROLL_Y,
                     this.leftPos + MachineMenu.OUTPUT_SCROLL_X + MachineMenu.SCROLL_W,
                     this.topPos + MachineMenu.SCROLL_Y + MachineMenu.SCROLL_H);
-            super.renderSlot(graphics, slot);
+            renderSpeciesSlot(graphics, slot);
             graphics.disableScissor();
             return;
         }
         super.renderSlot(graphics, slot);
+    }
+
+    /**
+     * 自绘物种槽：物品图标 + 拖拽分裂预览 + 自动缩小堆叠数（vanilla
+     * renderSlot 的 quickCraft 分支同款逻辑，字段经 AT 开放）
+     *
+     * @param graphics 渲染器
+     * @param slot     槽位实例
+     */
+    private void renderSpeciesSlot(GuiGraphics graphics, Slot slot) {
+        ItemStack stack = slot.getItem();
+        ItemStack carried = this.menu.getCarried();
+        boolean preview = false;
+        ItemStack renderStack = stack;
+        String countText = null;
+        // quickCraft 拖拽分裂预览（复刻 vanilla renderSlot 分支）：
+        // 拖拽经过的槽位显示"放置后结果"的半透明预览 + 黄色超限数字
+        if (this.isQuickCrafting && this.quickCraftSlots.contains(slot) && !carried.isEmpty()) {
+            if (this.quickCraftSlots.size() == 1) {
+                // vanilla 同款：拖拽源槽（唯一选中槽）不画预览
+                return;
+            }
+            if (AbstractContainerMenu.canItemQuickReplace(slot, carried, true) && this.menu.canDragTo(slot)) {
+                preview = true;
+                int maxStack = Math.min(carried.getMaxStackSize(), slot.getMaxStackSize(carried));
+                int existing = stack.isEmpty() ? 0 : stack.getCount();
+                int place = AbstractContainerMenu.getQuickCraftPlaceCount(
+                        this.quickCraftSlots, this.quickCraftingType, carried) + existing;
+                if (place > maxStack) {
+                    place = maxStack;
+                    countText = ChatFormatting.YELLOW.toString() + maxStack;
+                }
+                renderStack = carried.copyWithCount(place);
+            } else {
+                this.quickCraftSlots.remove(slot);
+                this.recalculateQuickCraftRemaining();
+            }
+        }
+        graphics.pose().pushPose();
+        graphics.pose().translate(0.0F, 0.0F, 100.0F);
+        if (preview) {
+            // 半透明白底（拖拽分裂的"选取槽位"效果，vanilla 同色）
+            graphics.pose().translate(0.0F, 0.0F, 50.0F);
+            graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0x80FFFFFF);
+            graphics.pose().translate(0.0F, 0.0F, -50.0F);
+        }
+        if (!renderStack.isEmpty()) {
+            graphics.renderItem(renderStack, slot.x, slot.y, slot.x + slot.y * imageWidth);
+            renderStackCount(graphics, renderStack, slot.x, slot.y, countText);
+        }
+        graphics.pose().popPose();
+    }
+
+    /**
+     * 堆叠数渲染：≤99 走 vanilla 原样（renderItemDecorations），
+     * ≥100 或自定义文本（quickCraft 黄色超限数字）自动缩小字号
+     * <p>
+     * 大堆叠（3 位以上）用 vanilla 8px 字体会大面积遮挡分子贴图——
+     * 以槽位右下角为锚点缩放绘制（3 位 0.75、4 位及以上 0.55），
+     * 数字始终贴右下角不溢出；z 提升 200 层盖在物品（z=100）上
+     *
+     * @param graphics     渲染器
+     * @param stack        渲染物品堆
+     * @param x            槽位 x（GUI 相对）
+     * @param y            槽位 y（GUI 相对）
+     * @param textOverride 自定义堆叠数字（null = 用 count）
+     */
+    private void renderStackCount(GuiGraphics graphics, ItemStack stack, int x, int y, String textOverride) {
+        int count = stack.getCount();
+        String text = textOverride;
+        if (text == null) {
+            if (count <= 1) {
+                return;
+            }
+            if (count <= 99) {
+                graphics.renderItemDecorations(this.font, stack, x, y, null);
+                return;
+            }
+            text = String.valueOf(count);
+        }
+        float scale = text.length() >= 4 ? 0.55f : 0.75f;
+        int textW = this.font.width(text);
+        graphics.pose().pushPose();
+        // 锚点 = 槽位右下角，先缩放再平移（数字贴右下角向内收缩）
+        graphics.pose().translate(x + 16, y + 16, 200.0F);
+        graphics.pose().scale(scale, scale, 1.0F);
+        graphics.pose().translate(-textW, -8.0F, 0.0F);
+        int color = textOverride != null ? 0xFFFF00 : 0xFFFFFF;
+        graphics.drawString(this.font, text, 0, 0, color, true);
+        graphics.pose().popPose();
     }
 
     /**

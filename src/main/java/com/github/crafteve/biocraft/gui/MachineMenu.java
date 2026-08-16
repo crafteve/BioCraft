@@ -25,8 +25,10 @@ import net.minecraft.world.level.block.Blocks;
  *   <li>0 槽（酶槽）：isActive=true 由 vanilla 渲染/命中，固定位于标题栏
  *       (8,8)——原酶工厂方块图标位；mayPlace 只接受酶蛋白物品，
  *       堆叠上限 64（堆叠数 = [E]，1 个 = 1 倍速、64 个 = 64 倍速）</li>
- *   <li>1..maxSpecies 槽（物种槽）：isActive 恒 false 使 vanilla 完全跳过，
- *       位置由 Screen 的 CardScrollArea 按滚动偏移手动计算绘制与命中；
+ *   <li>1..maxSpecies 槽（物种槽）：isActive=true + AT 拆掉坐标
+ *       final（见 META-INF/accesstransformer.cfg），坐标由 Screen 的
+ *       CardScrollArea 每帧按滚动偏移写入；物品/堆叠数/拖拽预览由
+ *       Screen 自绘（见 MachineScreen.renderSlot 覆写说明）；
  *       mayPlace 查 BE 当前酶的槽位映射（无酶/未用槽位拒绝一切）</li>
  *   <li>玩家背包槽位：起始 (48,174)，x 步进 18；主背包三行 y = 174/192/210，
  *       快捷栏 y = 232</li>
@@ -462,10 +464,13 @@ public class MachineMenu extends AbstractContainerMenu {
      *       src/main/resources/META-INF/accesstransformer.cfg）——
      *       Screen 的 CardScrollArea 每 tick 按滚动偏移写入坐标，
      *       vanilla 的 findSlot/hoveredSlot/点击/双击/拖拽全部原生生效</li>
-     *   <li>isHighlightable 物种槽返回 false——vanilla 的 hover 高亮
-     *       （renderSlotHighlight 是 static 且渲染循环不可注入裁剪）无法
-     *       裁剪滚动视口，会溢出到图表区；关闭后由 Screen 自绘高亮
-     *       （CardScrollArea.draw，scissor 内裁剪）；0 槽保留 vanilla 高亮</li>
+     *   <li>物品/堆叠数/拖拽分裂预览由 Screen 自绘（renderSlot 覆写，
+     *       见 MachineScreen 说明——堆叠数自动缩小、预览复刻 vanilla
+     *       quickCraft 分支）；hover 高亮保留 vanilla 绘制
+     *       （renderSlotHighlight，渲染循环在物品之后画，盖在自绘
+     *       物品之上；滚动边缘高亮溢出 ≤9px 属可接受小瑕疵）</li>
+     *   <li>remove 覆写限单次拿取 64（槽位容量 128 时防一次拿走全部，
+     *       见 remove 说明）</li>
      * </ul>
      */
     private static class RestrictedSlot extends Slot {
@@ -509,15 +514,19 @@ public class MachineMenu extends AbstractContainerMenu {
         }
 
         /**
-         * 高亮策略：全部槽位恢复 vanilla 高亮（isHighlightable=true）——
-         * 物品渲染已交回 vanilla renderSlot（见 MachineScreen.renderSlot
-         * 覆写说明），hover 高亮由 vanilla 渲染循环统一绘制；
-         * 滚动边缘槽位高亮最多溢出视口 3~9px（卡片部分可见时），
-         * 属可接受的视觉小瑕疵（换取拖拽分裂选取预览等原生效果完整）
+         * 拿取限制：一次最多 64 个（原版槽位堆叠上限的行为直觉）
+         * <p>
+         * 槽位容量参数化（128）后 vanilla PICKUP 主手点击会一次拿走
+         * 整个堆（tryRemove(count) → Slot.remove(count)），128 个物品
+         * 直接进玩家 carried——与原版"一次拿一组"的行为不兼容
+         * （放回背包时只能放 64，剩 64 在手里造成混乱）。
+         * 本覆写把单次移除钳到 64：分两次点击拿完，符合原版直觉；
+         * 双击收集（safeTake，carried 上限 64 自然限制）与
+         * shift 快速转移（moveItemStackTo，背包槽上限限制）不受影响
          */
         @Override
-        public boolean isHighlightable() {
-            return true;
+        public ItemStack remove(int amount) {
+            return super.remove(Math.min(amount, 64));
         }
     }
 }
