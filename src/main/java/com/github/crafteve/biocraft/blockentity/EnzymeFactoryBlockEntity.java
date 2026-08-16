@@ -277,6 +277,11 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         }
         rebuildFromEnzymeSlot();
         notifyEnergyCapabilityChange();
+        // 主题色已随换酶更新（rebuildFromEnzymeSlot 内）：通知客户端重渲染
+        // （sendBlockUpdated → BlockUpdatePacket + 本 BE 的 update packet，
+        // 客户端 handleUpdateTag 读回新颜色后 LevelRenderer 重烘焙该方块，
+        // BlockColor 按新主题色重新查询——不加此通知则客户端恒显示旧色）
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
     }
 
     /**
@@ -319,6 +324,57 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      */
     public int getThemeLampArgb() {
         return themeLampArgb;
+    }
+
+    /**
+     * 更新包 tag：主题色随 BE 数据同步到客户端
+     * <p>
+     * 客户端 BE 无引擎/无 tick，酶变化只发生在服务端——主题色必须走
+     * BE 数据同步通道（区块加载 update tag + 换酶时 update packet），
+     * 否则客户端 BlockColor 恒取构造时的空机暗灰（实测 bug 根因）
+     *
+     * @param registries 注册表查找器
+     * @return 含主题色的 NBT
+     */
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        CompoundTag tag = super.getUpdateTag(registries);
+        tag.putInt("themeLiquidArgb", themeLiquidArgb);
+        tag.putInt("themeLampArgb", themeLampArgb);
+        return tag;
+    }
+
+    /**
+     * 客户端接收更新 tag：读回主题色
+     * <p>
+     * 空 tag（vanilla 默认 update tag 为空）或旧版本存档缺字段时
+     * 保留构造默认值（空机暗灰），防误读为 0
+     *
+     * @param tag        服务端下发的 NBT
+     * @param registries 注册表查找器
+     */
+    @Override
+    public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider registries) {
+        super.handleUpdateTag(tag, registries);
+        if (tag.contains("themeLiquidArgb")) {
+            this.themeLiquidArgb = tag.getInt("themeLiquidArgb");
+        }
+        if (tag.contains("themeLampArgb")) {
+            this.themeLampArgb = tag.getInt("themeLampArgb");
+        }
+    }
+
+    /**
+     * 换酶时的增量数据包：带主题色的更新包（SignBlockEntity 同款标准姿势）
+     * <p>
+     * 服务端 handleEnzymeSlotChanged 里 sendBlockUpdated 触发本包发送，
+     * 客户端 handleUpdateTag 读回颜色后由 LevelRenderer 重渲染该方块
+     *
+     * @return BE 数据包
+     */
+    @Override
+    public net.minecraft.network.protocol.Packet<net.minecraft.network.protocol.game.ClientGamePacketListener> getUpdatePacket() {
+        return net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket.create(this);
     }
 
     /**

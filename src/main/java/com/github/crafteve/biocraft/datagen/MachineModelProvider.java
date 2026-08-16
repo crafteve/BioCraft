@@ -132,6 +132,8 @@ public class MachineModelProvider implements DataProvider {
         blockState.add("variants", variants);
 
         JsonObject blockModelJson = new JsonObject();
+        blockModelJson.addProperty("gui_light", "side");
+        blockModelJson.add("display", chamberDisplay());
         blockModelJson.add("textures", chamberTextures());
         JsonArray elements = new JsonArray();
         elements.add(mainElement());
@@ -151,11 +153,15 @@ public class MachineModelProvider implements DataProvider {
 
     /**
      * 模型贴图引用表：base 中性贴图 6 张（西面用 side 镜像）+ theme 灰度贴图 7 张
+     * <p>
+     * particle 单独指向正面贴图（破坏方块粒子效果用；vanilla 缺省取第一个
+     * 面纹理，显式声明避免歧义）
      *
      * @return textures 段的 JSON 对象
      */
     private JsonObject chamberTextures() {
         JsonObject textures = new JsonObject();
+        textures.addProperty("particle", "biocraft:block/enzyme_chamber_front");
         textures.addProperty("front", "biocraft:block/enzyme_chamber_front");
         textures.addProperty("side", "biocraft:block/enzyme_chamber_side");
         textures.addProperty("side_m", "biocraft:block/enzyme_chamber_side_mirrored");
@@ -170,6 +176,44 @@ public class MachineModelProvider implements DataProvider {
         textures.addProperty("theme_ring", "biocraft:block/enzyme_chamber_theme_ring");
         textures.addProperty("theme_lamp", "biocraft:block/enzyme_chamber_theme_lamp");
         return textures;
+    }
+
+    /**
+     * 物品显示变换（display 段）：复制 vanilla block/block 的标准值
+     * <p>
+     * 方块模型作为物品模型渲染（物品栏/手持/掉落物）时，vanilla 的
+     * block/block 父模型提供这套变换（gui 0.625 缩放 + 旋转、ground 0.25、
+     * fixed 0.5、第三人称 0.375 等）——裸 elements 模型缺 display 会以
+     * 原始 16×16 尺寸渲染，物品栏里表现为"非默认 3D"的异常方块，
+     * 必须显式声明与 vanilla 一致的值
+     *
+     * @return display 段的 JSON 对象
+     */
+    private JsonObject chamberDisplay() {
+        JsonObject display = new JsonObject();
+        display.add("gui", itemTransform(30, 225, 0, 0, 0, 0, 0.625f));
+        display.add("ground", itemTransform(0, 0, 0, 0, 3, 0, 0.25f));
+        display.add("fixed", itemTransform(0, 0, 0, 0, 0, 0, 0.5f));
+        display.add("thirdperson_righthand", itemTransform(75, 45, 0, 0, 2.5f, 0, 0.375f));
+        display.add("firstperson_righthand", itemTransform(0, 45, 0, 0, 0, 0, 0.4f));
+        display.add("firstperson_lefthand", itemTransform(0, 225, 0, 0, 0, 0, 0.4f));
+        return display;
+    }
+
+    /**
+     * 构造单个物品显示变换（旋转/平移/缩放三元组）
+     *
+     * @param rx/ry/rz    旋转角（度）
+     * @param tx/ty/tz    平移（1/16 格单位）
+     * @param scale       三轴统一缩放
+     * @return 变换 JSON
+     */
+    private JsonObject itemTransform(float rx, float ry, float rz, float tx, float ty, float tz, float scale) {
+        JsonObject transform = new JsonObject();
+        transform.add("rotation", floatArray(rx, ry, rz));
+        transform.add("translation", floatArray(tx, ty, tz));
+        transform.add("scale", floatArray(scale, scale, scale));
+        return transform;
     }
 
     /**
