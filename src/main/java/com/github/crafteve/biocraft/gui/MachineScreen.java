@@ -411,13 +411,16 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 槽位物品渲染：物种槽空实现（物品由 CardScrollArea.draw 自绘，
-     * scissor 内裁剪滚动视口）；其余槽位（0 槽/背包）交 vanilla
+     * 槽位物品渲染：物种槽包 scissor 后交 vanilla 全逻辑（物品/堆叠数/
+     * quickCraft 拖拽分裂的半透明选取预览/clickedSlot 拖动效果全部原生）；
+     * 其余槽位（0 槽/背包）直接交 vanilla
      * <p>
-     * isActive=true 后 vanilla 渲染循环会对物种槽调用本方法，若放行
-     * 会与自绘物品双重渲染；vanilla 的 renderSlotHighlight 高亮已由
-     * RestrictedSlot.isHighlightable()=false 关闭（static 方法无
-     * 裁剪注入点，高亮改由 CardScrollArea.draw 自绘）
+     * vanilla 渲染循环对每个 isActive 槽位调用本方法——物种槽坐标实时
+     * 在滚动视口内，若不裁剪，滚动时边缘卡片的物品会溢出到图表区；
+     * scissor 参数为屏幕绝对坐标（enableScissor 不经过 pose 变换，
+     * 与 renderBg 阶段的自绘裁剪同口径），两列滚动区合并为一个
+     * 大矩形（x 7~249, y 41~162）——中间图表区在槽位渲染阶段无内容，
+     * 空裁无影响；背包槽（y≥174）与 0 槽（y 8~24）在矩形外不受影响
      *
      * @param graphics 渲染器
      * @param slot     槽位实例
@@ -426,6 +429,12 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     protected void renderSlot(GuiGraphics graphics, Slot slot) {
         int base = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
         if (slot.index >= base && slot.index < base + speciesSlotCount()) {
+            graphics.enableScissor(this.leftPos + MachineMenu.SCROLL_X,
+                    this.topPos + MachineMenu.SCROLL_Y,
+                    this.leftPos + MachineMenu.OUTPUT_SCROLL_X + MachineMenu.SCROLL_W,
+                    this.topPos + MachineMenu.SCROLL_Y + MachineMenu.SCROLL_H);
+            super.renderSlot(graphics, slot);
+            graphics.disableScissor();
             return;
         }
         super.renderSlot(graphics, slot);
@@ -1220,8 +1229,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
         /**
          * 绘制本区域全部卡片（视口 scissor 裁剪内）：
-         * 物种卡 = 槽位元素（slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中）
-         * + 物品图标/数量 + hover 高亮 + 缩写 + 浓度进度条 + 浓度读数；
+         * 物种卡 = 卡片底色 + 槽位背景（slot.png 18×18 @卡片内 (1,2)）
+         * + 缩写 + 浓度进度条 + 浓度读数——物品图标/堆叠数/拖拽分裂
+         * 选取预览由 vanilla renderSlot 渲染（见 renderSlot 覆写说明，
+         * 包 scissor 裁剪滚动视口）；
          * 能量卡 = 绿色 "FE" 标签 + 存量/容量 + 绿色进度条 + 产率读数
          *
          * @param graphics 渲染器
@@ -1239,24 +1250,12 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                     continue;
                 }
                 SpeciesCard speciesCard = (SpeciesCard) cards.get(i);
-                // 槽位元素：slot.png 18×18 @卡片内 (1,2)，Slot 16×16 居中于 (2,3)
+                // 槽位背景：slot.png 18×18 @卡片内 (1,2)（物品图标由 vanilla 渲染）
                 int pngX = x + MachineMenu.SLOT_PNG_X;
                 int pngY = cardY + MachineMenu.SLOT_PNG_Y;
                 Slot slot = menu.getSlot(speciesCard.containerSlot());
                 graphics.blit(SLOT, pngX, pngY, 0, 0, 18, 18, 18, 18);
                 ItemStack stack = slot.getItem();
-                if (!stack.isEmpty()) {
-                    graphics.renderItem(stack, pngX + 1, pngY + 1,
-                            (pngX + 1) + (pngY + 1) * imageWidth);
-                    graphics.renderItemDecorations(font, stack, pngX + 1, pngY + 1, null);
-                }
-                // hover 高亮（半透明白，与 vanilla 同色，盖在物品上）
-                // 1.21 Screen 无 mouseX/mouseY 字段，从 MouseHandler 取屏幕坐标
-                int mx = (int) Minecraft.getInstance().mouseHandler.xpos() - leftPos;
-                int my = (int) Minecraft.getInstance().mouseHandler.ypos() - topPos;
-                if (mx >= pngX + 1 && mx < pngX + 17 && my >= pngY + 1 && my < pngY + 17) {
-                    graphics.fill(pngX + 1, pngY + 1, pngX + 17, pngY + 17, 0x80FFFFFF);
-                }
 
                 // 物品数据：颜色取 substances.json 解析出的物品染色（24 位 RGB 补 alpha）
                 String itemId = speciesCard.spec().item();

@@ -20,16 +20,16 @@ import net.minecraft.network.chat.Component;
 /**
  * 酶工厂配方类别（JEI 显示层，统一类别实例——全部酶配方共用）
  * <p>
- * 布局规格（像素单位，文本元素一律左对齐）：
+ * 布局规格（像素单位，文本元素一律左对齐，紧凑排布无空隙）：
  * <pre>
  *   y=2    [槽1] [槽2]  →(JEI 自带箭头)  [槽1] [槽2]   标准槽纹理，箭头无视可逆统一右向
- *   y=34   [酶槽] [PGI]                              行 1：酶蛋白物品槽（INPUT 角色，
- *   y=43   磷酸葡萄糖异构酶                                hover 显示酶名，U 键追溯唯一配方）
+ *   y=22   [酶槽] [PGI]                              行 1：酶蛋白物品槽（INPUT 角色，
+ *   y=31   磷酸葡萄糖异构酶                                hover 显示酶名，U 键追溯唯一配方）
  *                                                    右侧上部缩写（主题色+阴影）、下部显示名（白+阴影）
- *   y=56   Keq = 4.8×10³                             行 2：Keq（左对齐 x=2，白字+阴影，
- *   y=65   正向速率最大值 0.18 /tick                     位于酶槽下方、速率上方）
- *   y=74   逆向速率最大值 0.026 /tick                行 3/4：饱和可达速率（左对齐 x=2）
- *   y=83   能量产出 +100 kFE/分子（容量 12900 kFE）  行 5：能量（绿色，仅含 fe 酶显示）
+ *   y=44   Keq = 4.8×10³                             行 2：Keq（左对齐 x=2，白字+阴影，
+ *   y=53   正向速率最大值 0.18 /tick                     位于酶槽下方、速率上方）
+ *   y=62   逆向速率最大值 0.026 /tick                行 3/4：饱和可达速率（左对齐 x=2）
+ *   y=71   能量产出 +100 kFE/分子                   行 5：能量（绿色，仅含 fe 酶显示）
  * </pre>
  * 输入槽从 x=2 起排布，箭头区固定在输入末槽右侧（arrowX = 2 + nIn*20 + 8），
  * 输出槽在箭头右侧（outputX = arrowX + 30）；卡宽固定 160（容纳最多 3 输入 + 3 输出）
@@ -43,22 +43,22 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
     private static final int SLOT_GAP = 20;
     /** 槽区垂直起点 */
     private static final int SLOT_Y = 2;
-    /** 酶信息区：酶槽位置与右侧文字位置 */
-    private static final int MACHINE_SLOT_Y = 34;
+    /** 酶信息区：酶槽位置与右侧文字位置（紧贴槽区下沿 2px） */
+    private static final int MACHINE_SLOT_Y = 22;
     private static final int ENZ_TEXT_X = 24;
-    private static final int ABBR_Y = 34;
-    private static final int NAME_Y = 43;
-    /** 数值三行（酶槽下方 4px 起，左对齐）：Keq + 正逆向速率 */
-    private static final int KEQ_Y = 56;
-    private static final int VMAX_F_Y = 65;
-    private static final int VMAX_B_Y = 74;
+    private static final int ABBR_Y = 22;
+    private static final int NAME_Y = 31;
+    /** 数值三行（酶槽下方 2px 起，左对齐）：Keq + 正逆向速率 */
+    private static final int KEQ_Y = 44;
+    private static final int VMAX_F_Y = 53;
+    private static final int VMAX_B_Y = 62;
     /** 能量行 y（绿色，仅含 fe 酶显示） */
-    private static final int ENERGY_Y = 83;
+    private static final int ENERGY_Y = 71;
     /** 文本区统一左对齐起点 */
     private static final int TEXT_X = 2;
     /** 配方卡尺寸（background 为 null 时必须覆写 getWidth/getHeight） */
     private static final int WIDTH = 160;
-    private static final int HEIGHT = 92;
+    private static final int HEIGHT = 80;
 
     /** 文本颜色：主信息全白带阴影；tooltip 说明灰色 */
     private static final int COLOR_WHITE = 0xFFFFFF;
@@ -254,14 +254,14 @@ public class EnzymeFactoryRecipeCategory implements IRecipeCategory<EnzymeRecipe
                         .withStyle(style -> style.withColor(COLOR_WHITE)),
                 TEXT_X, VMAX_B_Y, COLOR_WHITE, true);
 
-        // 行 5：能量（绿色，仅含 fe 物种的酶显示：产出/消耗 + 容量）
+        // 行 5：能量（绿色，仅含 fe 物种的酶显示：产出/消耗，不显示容量——
+        // 容量属机器能力而非反应性质，玩家查配方只需要每分子的能量产出）
         // 每分子 kFE = |stoich|，容量 = 引擎 EnergyKinetics（显示层不复制公式）
         if (recipe.energyStoich() != 0) {
             int kfePerMolecule = Math.abs(recipe.energyStoich());
             String direction = recipe.energyStoich() > 0 ? "+" : "-";
             Component energyLine = Component.translatable("jei.biocraft.energy",
-                            direction + kfePerMolecule,
-                            String.format("%,d", recipe.energyCapacityFE() / 1000))
+                            direction + kfePerMolecule)
                     .withStyle(style -> style.withColor(COLOR_ENERGY));
             graphics.drawString(font, energyLine, TEXT_X, ENERGY_Y, COLOR_ENERGY, true);
         }

@@ -1,6 +1,15 @@
 {
   "favorites": [],
   "lookup_history": [
+    "item:biocraft:atp",
+    "item:biocraft:water",
+    "item:biocraft:enzyme_atp_hydrolase",
+    "item:biocraft:enzyme_chamber",
+    {
+      "type": "item",
+      "id": "biocraft:glucose_6_phosphate",
+      "amount": 97
+    },
     {
       "type": "item",
       "id": "biocraft:dihydroxyacetone_phosphate",
@@ -25,9 +34,7 @@
     "item:biocraft:1_3_bisphosphoglycerate",
     "item:biocraft:glyceraldehyde_3_phosphate",
     "item:biocraft:fructose_6_phosphate",
-    "item:biocraft:glucose_6_phosphate",
     "item:biocraft:glucose",
-    "item:biocraft:atp",
     "item:minecraft:iron_block"
   ],
   "craft_history": [],

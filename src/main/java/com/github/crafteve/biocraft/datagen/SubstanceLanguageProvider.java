@@ -103,8 +103,8 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "固定活性物种（不参与速率计算，仅化学计量结算）"
                         : "Fixed-activity species (not in rate law, stoichiometry only)");
         translations.put("jei.biocraft.enzyme_catalyst",
-                zh ? "酶催化剂：插入酶反应腔 0 槽，堆叠数 = [E]"
-                        : "Enzyme catalyst: insert into chamber slot 0, stack = [E]");
+                zh ? "酶催化剂：插入酶反应器中，堆叠数越多反应速度越快"
+                        : "Enzyme catalyst: insert into an enzyme chamber; more stacked = faster reaction");
         translations.put("jei.biocraft.keq",
                 zh ? "平衡常数 %s" : "Equilibrium Constant %s");
         translations.put("jei.biocraft.delta_g",
@@ -120,7 +120,7 @@ public class SubstanceLanguageProvider implements DataProvider {
         translations.put("jei.biocraft.vmax_b",
                 zh ? "逆向速率最大值 %s/tick" : "Rev Max Rate %s/tick");
         translations.put("jei.biocraft.energy",
-                zh ? "能量 %s kFE/分子 · 容量 %s kFE" : "Energy %s kFE/mol · Capacity %s kFE");
+                zh ? "能量 %s kFE/分子" : "Energy %s kFE/mol");
     }
 
     /**

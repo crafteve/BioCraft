@@ -509,15 +509,15 @@ public class MachineMenu extends AbstractContainerMenu {
         }
 
         /**
-         * 高亮策略：0 槽保留 vanilla 高亮（固定位置不越界）；
-         * 物种槽返回 false——vanilla 的 renderSlotHighlight 在渲染循环内
-         * 联调用（static 方法无覆写注入点），滚动到视口边缘的槽位高亮会
-         * 溢出到图表区且无法裁剪；自绘高亮（CardScrollArea.draw）在
-         * scissor 内渲染，无此问题
+         * 高亮策略：全部槽位恢复 vanilla 高亮（isHighlightable=true）——
+         * 物品渲染已交回 vanilla renderSlot（见 MachineScreen.renderSlot
+         * 覆写说明），hover 高亮由 vanilla 渲染循环统一绘制；
+         * 滚动边缘槽位高亮最多溢出视口 3~9px（卡片部分可见时），
+         * 属可接受的视觉小瑕疵（换取拖拽分裂选取预览等原生效果完整）
          */
         @Override
         public boolean isHighlightable() {
-            return enzymeSlot;
+            return true;
         }
     }
 }
