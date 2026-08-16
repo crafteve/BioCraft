@@ -36,7 +36,16 @@ bin/
 .DS_Store
 
 ### Minecraft Modding ###
-run/
+# run/ 白名单入库（容灾备份）：提交测试环境核心（配置/mods/存档/选项），
+# 回退分支后可直接恢复之前的测试环境；logs/crash-reports/screenshots 等易变垃圾仍忽略
+run/*
+!run/config/
+!run/mods/
+!run/saves/
+!run/defaultconfigs/
+!run/resourcepacks/
+!run/options.txt
+!run/emi.json
 !**/src/**/run/
 **/src/generated/**/.cache/
 repo/

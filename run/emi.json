@@ -1,0 +1,31 @@
+{
+  "favorites": [],
+  "lookup_history": [
+    "item:biocraft:acetaldehyde",
+    "item:biocraft:pyruvate",
+    "item:biocraft:phosphoenolpyruvate",
+    "item:biocraft:2_phosphoglycerate",
+    "item:biocraft:3_phosphoglycerate",
+    "item:biocraft:1_3_bisphosphoglycerate",
+    "item:biocraft:glyceraldehyde_3_phosphate",
+    "item:biocraft:dihydroxyacetone_phosphate",
+    "item:biocraft:fructose_1_6_bisphosphate",
+    "item:biocraft:fructose_6_phosphate",
+    "item:biocraft:glucose_6_phosphate",
+    "item:biocraft:glucose",
+    "item:biocraft:atp_hydrolase",
+    "item:biocraft:aldolase",
+    "item:biocraft:hexokinase",
+    "item:biocraft:phosphoglucose_isomerase",
+    "item:biocraft:atp",
+    "item:minecraft:iron_block"
+  ],
+  "craft_history": [],
+  "recipe_defaults": {
+    "added": [],
+    "tags": {},
+    "resolutions": {},
+    "disabled": []
+  },
+  "hidden_stacks": []
+}
