@@ -20,50 +20,42 @@
         {
             "id":  "ion",
             "name_zn":  "离子",
-            "name_en":  "Ion",
-            "color":  4289774814
+            "name_en":  "Ion"
         },
         {
             "id":  "base",
             "name_zn":  "碱基",
-            "name_en":  "Nucleobase",
-            "color":  4283417591
+            "name_en":  "Nucleobase"
         },
         {
             "id":  "nucleotide",
             "name_zn":  "核苷酸",
-            "name_en":  "Nucleotide",
-            "color":  4293348412
+            "name_en":  "Nucleotide"
         },
         {
             "id":  "coenzyme",
             "name_zn":  "辅酶",
-            "name_en":  "Coenzyme",
-            "color":  4294937600
+            "name_en":  "Coenzyme"
         },
         {
             "id":  "glycolysis",
             "name_zn":  "糖酵解中间体",
-            "name_en":  "Glycolysis Intermediate",
-            "color":  4294947584
+            "name_en":  "Glycolysis Intermediate"
         },
         {
             "id":  "inorganic",
             "name_zn":  "无机物",
-            "name_en":  "Inorganic Compound",
-            "color":  4287090411
+            "name_en":  "Inorganic Compound"
         },
         {
             "id":  "atom",
             "name_zn":  "原子",
-            "name_en":  "Atom",
-            "color":  4290822336
+            "name_en":  "Atom"
         },
         {
             "id":  "amino_acid",
             "name_zn":  "氨基酸",
-            "name_en":  "Amino Acid",
-            "color":  4286381056
+            "name_en":  "Amino Acid"
         }
     ],
     "substances":  [
@@ -72,7 +64,7 @@
             "name_zn":  "甘氨酸",
             "name_en":  "Glycine",
             "container":  "beaker",
-            "color":  4293322470,
+            "color":  "#E6E6E6",
             "smiles":  "NCC(=O)O",
             "abbreviation":  "Gly",
             "category":  "amino_acid"
@@ -82,7 +74,7 @@
             "name_zn":  "丙氨酸",
             "name_en":  "Alanine",
             "container":  "beaker",
-            "color":  4289255658,
+            "color":  "#A8D8EA",
             "smiles":  "CC(N)C(=O)O",
             "abbreviation":  "Ala",
             "category":  "amino_acid"
@@ -92,7 +84,7 @@
             "name_zn":  "缬氨酸",
             "name_en":  "Valine",
             "container":  "beaker",
-            "color":  4294291521,
+            "color":  "#F5B041",
             "smiles":  "CC(C)C(N)C(=O)O",
             "abbreviation":  "Val",
             "category":  "amino_acid"
@@ -102,7 +94,7 @@
             "name_zn":  "亮氨酸",
             "name_en":  "Leucine",
             "container":  "beaker",
-            "color":  4293348412,
+            "color":  "#E74C3C",
             "smiles":  "CC(C)CC(N)C(=O)O",
             "abbreviation":  "Leu",
             "category":  "amino_acid"
@@ -112,7 +104,7 @@
             "name_zn":  "异亮氨酸",
             "name_en":  "Isoleucine",
             "container":  "beaker",
-            "color":  4290787627,
+            "color":  "#C0392B",
             "smiles":  "CCC(C)C(N)C(=O)O",
             "abbreviation":  "Ile",
             "category":  "amino_acid"
@@ -122,7 +114,7 @@
             "name_zn":  "脯氨酸",
             "name_en":  "Proline",
             "container":  "beaker",
-            "color":  4294433903,
+            "color":  "#F7DC6F",
             "smiles":  "C1CC(NC1)C(=O)O",
             "abbreviation":  "Pro",
             "category":  "amino_acid"
@@ -132,7 +124,7 @@
             "name_zn":  "苯丙氨酸",
             "name_en":  "Phenylalanine",
             "container":  "beaker",
-            "color":  4286397592,
+            "color":  "#7D3C98",
             "smiles":  "c1ccc(cc1)CC(N)C(=O)O",
             "abbreviation":  "Phe",
             "category":  "amino_acid"
@@ -142,7 +134,7 @@
             "name_zn":  "色氨酸",
             "name_en":  "Tryptophan",
             "container":  "beaker",
-            "color":  4284165231,
+            "color":  "#5B2C6F",
             "smiles":  "c1ccc2c(c1)c(c[nH]2)CC(N)C(=O)O",
             "abbreviation":  "Trp",
             "category":  "amino_acid"
@@ -152,7 +144,7 @@
             "name_zn":  "甲硫氨酸",
             "name_en":  "Methionine",
             "container":  "beaker",
-            "color":  4284012173,
+            "color":  "#58D68D",
             "smiles":  "CSCCC(N)C(=O)O",
             "abbreviation":  "Met",
             "category":  "amino_acid"
@@ -162,7 +154,7 @@
             "name_zn":  "丝氨酸",
             "name_en":  "Serine",
             "container":  "beaker",
-            "color":  4286956009,
+            "color":  "#85C1E9",
             "smiles":  "C(C(N)C(=O)O)O",
             "abbreviation":  "Ser",
             "category":  "amino_acid"
@@ -172,7 +164,7 @@
             "name_zn":  "苏氨酸",
             "name_en":  "Threonine",
             "container":  "beaker",
-            "color":  4281239233,
+            "color":  "#2E86C1",
             "smiles":  "CC(C(N)C(=O)O)O",
             "abbreviation":  "Thr",
             "category":  "amino_acid"
@@ -182,7 +174,7 @@
             "name_zn":  "半胱氨酸",
             "name_en":  "Cysteine",
             "container":  "beaker",
-            "color":  4294234175,
+            "color":  "#F4D03F",
             "smiles":  "C(C(N)C(=O)O)S",
             "abbreviation":  "Cys",
             "category":  "amino_acid"
@@ -192,7 +184,7 @@
             "name_zn":  "酪氨酸",
             "name_en":  "Tyrosine",
             "container":  "beaker",
-            "color":  4288692224,
+            "color":  "#A04000",
             "smiles":  "c1cc(ccc1CC(N)C(=O)O)O",
             "abbreviation":  "Tyr",
             "category":  "amino_acid"
@@ -202,7 +194,7 @@
             "name_zn":  "天冬酰胺",
             "name_en":  "Asparagine",
             "container":  "beaker",
-            "color":  4285777590,
+            "color":  "#73C6B6",
             "smiles":  "NC(=O)CC(N)C(=O)O",
             "abbreviation":  "Asn",
             "category":  "amino_acid"
@@ -212,7 +204,7 @@
             "name_zn":  "谷氨酰胺",
             "name_en":  "Glutamine",
             "container":  "beaker",
-            "color":  4279942300,
+            "color":  "#1ABC9C",
             "smiles":  "NC(=O)CCC(N)C(=O)O",
             "abbreviation":  "Gln",
             "category":  "amino_acid"
@@ -222,7 +214,7 @@
             "name_zn":  "天冬氨酸",
             "name_en":  "Aspartic Acid",
             "container":  "beaker",
-            "color":  4293295650,
+            "color":  "#E67E22",
             "smiles":  "OC(=O)CC(N)C(=O)O",
             "abbreviation":  "Asp",
             "category":  "amino_acid"
@@ -232,7 +224,7 @@
             "name_zn":  "谷氨酸",
             "name_en":  "Glutamic Acid",
             "container":  "beaker",
-            "color":  4292039680,
+            "color":  "#D35400",
             "smiles":  "OC(=O)CCC(N)C(=O)O",
             "abbreviation":  "Glu",
             "category":  "amino_acid"
@@ -242,7 +234,7 @@
             "name_zn":  "赖氨酸",
             "name_en":  "Lysine",
             "container":  "beaker",
-            "color":  4289690309,
+            "color":  "#AF7AC5",
             "smiles":  "NCCCCC(N)C(=O)O",
             "abbreviation":  "Lys",
             "category":  "amino_acid"
@@ -252,7 +244,7 @@
             "name_zn":  "精氨酸",
             "name_en":  "Arginine",
             "container":  "beaker",
-            "color":  4291511093,
+            "color":  "#CB4335",
             "smiles":  "NC(=N)NCCCC(N)C(=O)O",
             "abbreviation":  "Arg",
             "category":  "amino_acid"
@@ -262,7 +254,7 @@
             "name_zn":  "组氨酸",
             "name_en":  "Histidine",
             "container":  "beaker",
-            "color":  4294022282,
+            "color":  "#F1948A",
             "smiles":  "C1=C(NC=N1)CC(C(=O)O)N",
             "abbreviation":  "His",
             "category":  "amino_acid"
@@ -272,7 +264,7 @@
             "name_zn":  "氢离子",
             "name_en":  "Hydrogen Ion",
             "container":  "test_tube",
-            "color":  4294967295,
+            "color":  "#FFFFFF",
             "smiles":  "[H+]",
             "abbreviation":  "H⁺",
             "category":  "ion"
@@ -282,7 +274,7 @@
             "name_zn":  "氢氧根离子",
             "name_en":  "Hydroxide Ion",
             "container":  "test_tube",
-            "color":  4287090411,
+            "color":  "#87CEEB",
             "smiles":  "[OH-]",
             "abbreviation":  "OH⁻",
             "category":  "ion"
@@ -292,7 +284,7 @@
             "name_zn":  "钠离子",
             "name_en":  "Sodium Ion",
             "container":  "test_tube",
-            "color":  4294956800,
+            "color":  "#FFD700",
             "smiles":  "[Na+]",
             "abbreviation":  "Na⁺",
             "category":  "ion"
@@ -302,7 +294,7 @@
             "name_zn":  "钾离子",
             "name_en":  "Potassium Ion",
             "container":  "test_tube",
-            "color":  4288371126,
+            "color":  "#9B59B6",
             "smiles":  "[K+]",
             "abbreviation":  "K⁺",
             "category":  "ion"
@@ -312,7 +304,7 @@
             "name_zn":  "氯离子",
             "name_en":  "Chloride Ion",
             "container":  "test_tube",
-            "color":  4281257073,
+            "color":  "#2ECC71",
             "smiles":  "[Cl-]",
             "abbreviation":  "Cl⁻",
             "category":  "ion"
@@ -322,7 +314,7 @@
             "name_zn":  "钙离子",
             "name_en":  "Calcium Ion",
             "container":  "test_tube",
-            "color":  4286434976,
+            "color":  "#7DCEA0",
             "smiles":  "[Ca+2]",
             "abbreviation":  "Ca²⁺",
             "category":  "ion"
@@ -332,7 +324,7 @@
             "name_zn":  "镁离子",
             "name_en":  "Magnesium Ion",
             "container":  "test_tube",
-            "color":  4286767274,
+            "color":  "#82E0AA",
             "smiles":  "[Mg+2]",
             "abbreviation":  "Mg²⁺",
             "category":  "ion"
@@ -342,7 +334,7 @@
             "name_zn":  "亚铁离子",
             "name_en":  "Iron(II) Ion",
             "container":  "test_tube",
-            "color":  4292249872,
+            "color":  "#D68910",
             "smiles":  "[Fe+2]",
             "abbreviation":  "Fe²⁺",
             "category":  "ion"
@@ -352,7 +344,7 @@
             "name_zn":  "铁离子",
             "name_en":  "Iron(III) Ion",
             "container":  "test_tube",
-            "color":  4289739310,
+            "color":  "#B03A2E",
             "smiles":  "[Fe+3]",
             "abbreviation":  "Fe³⁺",
             "category":  "ion"
@@ -362,7 +354,7 @@
             "name_zn":  "铵离子",
             "name_en":  "Ammonium Ion",
             "container":  "test_tube",
-            "color":  4291998942,
+            "color":  "#D2B4DE",
             "smiles":  "[NH4+]",
             "abbreviation":  "NH₄⁺",
             "category":  "ion"
@@ -372,7 +364,7 @@
             "name_zn":  "磷酸根离子",
             "name_en":  "Phosphate Ion",
             "container":  "test_tube",
-            "color":  4294155282,
+            "color":  "#F39C12",
             "smiles":  "OP(=O)([O-])[O-]",
             "abbreviation":  "PO₄",
             "category":  "ion"
@@ -382,7 +374,7 @@
             "name_zn":  "硝酸根离子",
             "name_en":  "Nitrate Ion",
             "container":  "test_tube",
-            "color":  4283068325,
+            "color":  "#4A6FA5",
             "smiles":  "[O-][N+](=O)[O-]",
             "abbreviation":  "NO₃",
             "category":  "ion"
@@ -392,7 +384,7 @@
             "name_zn":  "碳酸氢根离子",
             "name_en":  "Bicarbonate Ion",
             "container":  "test_tube",
-            "color":  4282960304,
+            "color":  "#48C9B0",
             "smiles":  "OC(=O)[O-]",
             "abbreviation":  "HCO₃",
             "category":  "ion"
@@ -402,7 +394,7 @@
             "name_zn":  "碳原子",
             "name_en":  "Carbon Atom",
             "container":  "test_tube",
-            "color":  4286549133,
+            "color":  "#7F8C8D",
             "smiles":  "[C]",
             "abbreviation":  "C",
             "category":  "atom"
@@ -412,7 +404,7 @@
             "name_zn":  "氢原子",
             "name_en":  "Hydrogen Atom",
             "container":  "test_tube",
-            "color":  4294309365,
+            "color":  "#F5F5F5",
             "smiles":  "[H]",
             "abbreviation":  "H",
             "category":  "atom"
@@ -422,7 +414,7 @@
             "name_zn":  "氧原子",
             "name_en":  "Oxygen Atom",
             "container":  "test_tube",
-            "color":  4293348412,
+            "color":  "#E74C3C",
             "smiles":  "[O]",
             "abbreviation":  "O",
             "category":  "atom"
@@ -432,7 +424,7 @@
             "name_zn":  "氮原子",
             "name_en":  "Nitrogen Atom",
             "container":  "test_tube",
-            "color":  4281637083,
+            "color":  "#3498DB",
             "smiles":  "[N]",
             "abbreviation":  "N",
             "category":  "atom"
@@ -442,7 +434,7 @@
             "name_zn":  "磷原子",
             "name_en":  "Phosphorus Atom",
             "container":  "test_tube",
-            "color":  4293295650,
+            "color":  "#E67E22",
             "smiles":  "[P]",
             "abbreviation":  "P",
             "category":  "atom"
@@ -452,7 +444,7 @@
             "name_zn":  "水",
             "name_en":  "Water",
             "container":  "test_tube",
-            "color":  4284329442,
+            "color":  "#5DADE2",
             "smiles":  "O",
             "abbreviation":  "H₂O",
             "category":  "inorganic"
@@ -462,7 +454,7 @@
             "name_zn":  "二氧化碳",
             "name_en":  "Carbon Dioxide",
             "container":  "test_tube",
-            "color":  4287997350,
+            "color":  "#95A5A6",
             "smiles":  "O=C=O",
             "abbreviation":  "CO₂",
             "category":  "inorganic"
@@ -472,7 +464,7 @@
             "name_zn":  "腺嘌呤",
             "name_en":  "Adenine",
             "container":  "flask",
-            "color":  4281637083,
+            "color":  "#3498DB",
             "smiles":  "Nc1ncnc2[nH]cnc12",
             "abbreviation":  "A",
             "category":  "base"
@@ -482,7 +474,7 @@
             "name_zn":  "胞嘧啶",
             "name_en":  "Cytosine",
             "container":  "flask",
-            "color":  4280790624,
+            "color":  "#27AE60",
             "smiles":  "C1=C(NC(=O)N=C1)N",
             "abbreviation":  "C",
             "category":  "base"
@@ -492,7 +484,7 @@
             "name_zn":  "鸟嘌呤",
             "name_en":  "Guanine",
             "container":  "flask",
-            "color":  4294155282,
+            "color":  "#F39C12",
             "smiles":  "C1=NC2=C(N1)C(=O)NC(=N2)N",
             "abbreviation":  "G",
             "category":  "base"
@@ -502,7 +494,7 @@
             "name_zn":  "尿嘧啶",
             "name_en":  "Uracil",
             "container":  "flask",
-            "color":  4290787627,
+            "color":  "#C0392B",
             "smiles":  "O=C1NC=CC(=O)N1",
             "abbreviation":  "U",
             "category":  "base"
@@ -512,7 +504,7 @@
             "name_zn":  "胸腺嘧啶",
             "name_en":  "Thymine",
             "container":  "flask",
-            "color":  4289331407,
+            "color":  "#AA00CF",
             "smiles":  "O=C1NC=C(C)C(=O)N1",
             "abbreviation":  "T",
             "category":  "base"
@@ -522,7 +514,7 @@
             "name_zn":  "三磷酸腺苷",
             "name_en":  "Adenosine Triphosphate",
             "container":  "flask",
-            "color":  4293348412,
+            "color":  "#E74C3C",
             "smiles":  "C1=NC(=C2C(=N1)N(C=N2)C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O)O)N",
             "abbreviation":  "ATP",
             "category":  "nucleotide"
@@ -532,7 +524,7 @@
             "name_zn":  "三磷酸胞苷",
             "name_en":  "Cytidine Triphosphate",
             "container":  "flask",
-            "color":  4280910009,
+            "color":  "#2980B9",
             "smiles":  "c1cn(c(=O)nc1N)C2C(C(C(O2)COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O)O",
             "abbreviation":  "CTP",
             "category":  "nucleotide"
@@ -542,7 +534,7 @@
             "name_zn":  "三磷酸鸟苷",
             "name_en":  "Guanosine Triphosphate",
             "container":  "flask",
-            "color":  4280790624,
+            "color":  "#27AE60",
             "smiles":  "C1=NC2=C(N1C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O)O)N=C(NC2=O)N",
             "abbreviation":  "GTP",
             "category":  "nucleotide"
@@ -552,7 +544,7 @@
             "name_zn":  "三磷酸尿苷",
             "name_en":  "Uridine Triphosphate",
             "container":  "flask",
-            "color":  4294034447,
+            "color":  "#F1C40F",
             "smiles":  "O=c1cc(n(c(=O)[nH]1)C2C(C(C(O2)COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O)O)",
             "abbreviation":  "UTP",
             "category":  "nucleotide"
@@ -562,7 +554,7 @@
             "name_zn":  "二磷酸腺苷",
             "name_en":  "Adenosine Diphosphate",
             "container":  "flask",
-            "color":  4293295650,
+            "color":  "#E67E22",
             "smiles":  "C1=NC(=C2C(=N1)N(C=N2)C3C(C(C(O3)COP(=O)(O)OP(=O)(O)O)O)O)N",
             "abbreviation":  "ADP",
             "category":  "coenzyme"
@@ -572,7 +564,7 @@
             "name_zn":  "烟酰胺腺嘌呤二核苷酸",
             "name_en":  "Nicotinamide Adenine Dinucleotide",
             "container":  "flask",
-            "color":  4281616734,
+            "color":  "#34495E",
             "smiles":  "c1cc(c[n+](c1)C2C(C(C(O2)COP(=O)(O)OP(=O)(O)OCC3C(C(C(O3)N4C=NC5=C4N=CN=C5N)O)O)O)O)C(=O)N",
             "abbreviation":  "NAD⁺",
             "category":  "coenzyme"
@@ -582,7 +574,7 @@
             "name_zn":  "还原型烟酰胺腺嘌呤二核苷酸",
             "name_en":  "Nicotinamide Adenine Dinucleotide (Reduced)",
             "container":  "flask",
-            "color":  4279672965,
+            "color":  "#16A085",
             "smiles":  "C1C=CN(C=C1C(=O)N)C2C(C(C(O2)COP(=O)(O)OP(=O)(O)OCC3C(C(C(O3)N4C=NC5=C(N=CN=C54)N)O)O)O)O",
             "abbreviation":  "NADH",
             "category":  "coenzyme"
@@ -592,7 +584,7 @@
             "name_zn":  "葡萄糖",
             "name_en":  "Glucose",
             "container":  "flask",
-            "color":  4294433903,
+            "color":  "#F7DC6F",
             "smiles":  "C(C1C(C(C(C(O1)O)O)O)O)O",
             "abbreviation":  "GLUC",
             "category":  "glycolysis"
@@ -602,7 +594,7 @@
             "name_zn":  "葡萄糖-6-磷酸",
             "name_en":  "Glucose-6-Phosphate",
             "container":  "flask",
-            "color":  4294155282,
+            "color":  "#F39C12",
             "smiles":  "C(OP(=O)(O)O)C1C(C(C(C(O1)O)O)O)O",
             "abbreviation":  "G6P",
             "category":  "glycolysis"
@@ -612,7 +604,7 @@
             "name_zn":  "果糖-6-磷酸",
             "name_en":  "Fructose-6-Phosphate",
             "container":  "flask",
-            "color":  4294155282,
+            "color":  "#F39C12",
             "smiles":  "OCC(=O)C(O)C(O)C(O)COP(=O)(O)O",
             "abbreviation":  "F6P",
             "category":  "glycolysis"
@@ -622,7 +614,7 @@
             "name_zn":  "果糖-1,6-二磷酸",
             "name_en":  "Fructose-1,6-Bisphosphate",
             "container":  "flask",
-            "color":  4294155282,
+            "color":  "#F39C12",
             "smiles":  "OC1C(O)C(O)(COP(=O)(O)O)OC1COP(=O)(O)O",
             "abbreviation":  "F16P",
             "category":  "glycolysis"
@@ -632,7 +624,7 @@
             "name_zn":  "磷酸二羟丙酮",
             "name_en":  "Dihydroxyacetone Phosphate",
             "container":  "flask",
-            "color":  4294155282,
+            "color":  "#F39C12",
             "smiles":  "OCC(=O)COP(=O)(O)O",
             "abbreviation":  "DHAP",
             "category":  "glycolysis"
@@ -642,7 +634,7 @@
             "name_zn":  "甘油醛-3-磷酸",
             "name_en":  "Glyceraldehyde-3-Phosphate",
             "container":  "flask",
-            "color":  4294155282,
+            "color":  "#F39C12",
             "smiles":  "O=CC(O)COP(=O)(O)O",
             "abbreviation":  "G3P",
             "category":  "glycolysis"
@@ -652,7 +644,7 @@
             "name_zn":  "1,3-二磷酸甘油酸",
             "name_en":  "1,3-Bisphosphoglycerate",
             "container":  "flask",
-            "color":  4294155282,
+            "color":  "#F39C12",
             "smiles":  "O=C(OP(=O)(O)O)C(O)COP(=O)(O)O",
             "abbreviation":  "BPG",
             "category":  "glycolysis"
@@ -662,7 +654,7 @@
             "name_zn":  "3-磷酸甘油酸",
             "name_en":  "3-Phosphoglycerate",
             "container":  "flask",
-            "color":  4294155282,
+            "color":  "#F39C12",
             "smiles":  "OC(=O)C(O)COP(=O)(O)O",
             "abbreviation":  "3PG",
             "category":  "glycolysis"
@@ -672,7 +664,7 @@
             "name_zn":  "2-磷酸甘油酸",
             "name_en":  "2-Phosphoglycerate",
             "container":  "flask",
-            "color":  4294155282,
+            "color":  "#F39C12",
             "smiles":  "OC(=O)C(OP(=O)(O)O)CO",
             "abbreviation":  "2PG",
             "category":  "glycolysis"
@@ -682,7 +674,7 @@
             "name_zn":  "磷酸烯醇式丙酮酸",
             "name_en":  "Phosphoenolpyruvate",
             "container":  "flask",
-            "color":  4294155282,
+            "color":  "#F39C12",
             "smiles":  "OC(=O)C(=C)OP(=O)(O)O",
             "abbreviation":  "PEP",
             "category":  "glycolysis"
@@ -692,7 +684,7 @@
             "name_zn":  "丙酮酸",
             "name_en":  "Pyruvate",
             "container":  "flask",
-            "color":  4293348412,
+            "color":  "#E74C3C",
             "smiles":  "CC(=O)C(=O)O",
             "abbreviation":  "PYRU",
             "category":  "glycolysis"
@@ -702,7 +694,7 @@
             "name_zn":  "乳酸",
             "name_en":  "Lactate",
             "container":  "flask",
-            "color":  4293572958,
+            "color":  "#EAB95E",
             "smiles":  "CC(C(=O)[O-])O",
             "abbreviation":  "LAC",
             "category":  "glycolysis"
@@ -712,7 +704,7 @@
             "name_zn":  "乙醛",
             "name_en":  "Acetaldehyde",
             "container":  "flask",
-            "color":  4294270985,
+            "color":  "#F56009",
             "smiles":  "CC=O",
             "abbreviation":  "AcH",
             "category":  "glycolysis"
@@ -722,7 +714,7 @@
             "name_zn":  "乙醇",
             "name_en":  "Ethanol",
             "container":  "flask",
-            "color":  4294373125,
+            "color":  "#F6EF05",
             "smiles":  "CCO",
             "abbreviation":  "EtOH",
             "category":  "glycolysis"

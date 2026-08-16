@@ -84,8 +84,8 @@ public final class EnzymeFactoryRegistry {
         String nameEn = enzyme.get("name_en").getAsString();
         String abbreviation = enzyme.get("abbreviation").getAsString();
         String category = enzyme.get("category").getAsString();
-        // 主题色（ARGB int，与 substances.json 的 color 字段同格式），缺失即快速失败
-        int color = enzyme.get("color").getAsInt();
+        // 主题色（#RRGGBB 色号，与 substances.json 同格式），缺失或非法即快速失败
+        int color = com.github.crafteve.biocraft.data.SubstanceData.parseColor(enzyme.get("color").getAsString());
 
         JsonObject reaction = enzyme.getAsJsonObject("reaction");
         boolean reversible = reaction.get("reversible").getAsBoolean();

@@ -41,4 +41,31 @@ public final class SubstanceData {
             throw new IllegalStateException("解析物质数据表失败: " + path, e);
         }
     }
+
+    /**
+     * 解析 #色号 字符串为 ARGB int（substances.json 与 enzymes.json 的 color 字段共用）
+     * <p>
+     * 数据表颜色采用 #RRGGBB 十六进制色号（与网页/MC 惯例一致，肉眼可读可调），
+     * 引擎与渲染层内部统一用 ARGB int（alpha 恒 0xFF）——本方法在注册期做换算，
+     * 输入非法（非 # 开头/位数不对/含非十六进制字符）直接抛异常快速失败，
+     * 与数据防火墙同风格：颜色数据错误应在启动期暴露而非静默产出异常色
+     *
+     * @param hex #RRGGBB（6 位，自动补 alpha 0xFF）或 #AARRGGBB（8 位完整）
+     * @return ARGB int
+     */
+    public static int parseColor(String hex) {
+        if (hex == null || hex.charAt(0) != '#') {
+            throw new IllegalArgumentException("颜色必须为 # 开头色号: " + hex);
+        }
+        int len = hex.length();
+        if (len != 7 && len != 9) {
+            throw new IllegalArgumentException("颜色色号位数非法（#RRGGBB 6 位或 #AARRGGBB 8 位）: " + hex);
+        }
+        try {
+            int value = Integer.parseUnsignedInt(hex.substring(1), 16);
+            return len == 7 ? value | 0xFF000000 : value;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("颜色色号含非法字符: " + hex, e);
+        }
+    }
 }

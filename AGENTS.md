@@ -62,7 +62,7 @@
 - 已完成 乳酸发酵线数据 + 能量（FE）物种体系：substances.json +3 分子（乳酸 LAC/乙醛 AcH/乙醇 EtOH），enzymes.json +4 酶（LDH 可逆 Keq 22000 / PDC 不可逆 Keq 3200 / ADH 可逆 Keq 11000 / ATP 水解发电机不可逆 Keq 190000，fe 产物 count=100）；`EnergyKinetics` 纯函数（容量 = count×1000×64×MAX_CONCENTRATION，满存量=满浓度镜像，FE/tick 结算，引擎测试 22 用例含 FE 契约）；`FIXED_ACTIVITY_SPECIES` 加 "fe"（与 H₂O/H⁺ 同构：不进速率方程、计量结算、反应物侧耗尽停供）
 - 已完成 FE 能量卡片 GUI：滚动卡片区泛化（`CardSpec` 物种卡/能量卡，能量卡按 JSON 原顺序与 input/output 卡片同滚动区），绿色进度条（存量/容量 kFE）+ 产率读数；BE 槽位↔物种映射（fe 无槽位，`slotToSpeciesIndex`），`MachineEnergyStorage` capability（产物侧只可抽/反应物侧只可充），能量存量 NBT 存档，满能量引擎边界缩放停转回压；JEI/tooltip 绿色能量行（每分子 kFE + 容量）
 - 已完成 酶蛋白物品（新架构"酶 = 物品"重构第一步）：14 种酶蛋白物品由 enzymes.json 数据驱动注册（注册名 `enzyme_<酶id>` 与过渡期方块物品 id 区分），堆叠 64 = [E]（速率线性倍率待反应腔接入）；视觉与分子同款——双层烧杯贴图（layer0 按数据表 color 字段染色）+ 图标左上角缩写标注（`MoleculeItemDecorator` 泛化为 `AbbreviationProvider` 接口，MoleculeItem/EnzymeItem 共用）；tooltip 沿用酶方块摘要（EnzymeRecipeDisplay + EnzymeEquation）；新增"生物工艺 · 酶"创意标签页；**重构剩余步骤（统一酶反应腔、酶槽、换酶清空、方块废弃）在 feature/enzyme-chamber 分支进行中**
-- 已完成 酶主题色数据表化：`MachineCategory` 枚举整体删除，`enzymes.json` 每条酶新增 `color` 字段（ARGB，同类别酶手动配同色系），物品染色/GUI/JEI/tooltip 统一直取数据表色；tooltip 移除 EC 类别名段（缩写 + 可逆性）
+- 已完成 酶主题色数据表化：`MachineCategory` 枚举整体删除，`enzymes.json` 每条酶新增 `color` 字段（`#RRGGBB` 色号，同类别酶手动配同色系；`SubstanceData.parseColor` 解析补 alpha），物品染色/GUI/JEI/tooltip 统一直取数据表色；tooltip 移除 EC 类别名段（缩写 + 可逆性）
 - 已完成 DNA 编码器移除（破坏性）：方块/GUI/BE/网络包（ModNetwork/ServerboundDnaSequencePacket）/序列物品（SequenceItem/dna_template）/数据组件（ModDataComponents）/配方/贴图全部删除，`MachineType` 枚举与 `MachineSpec.Primitive` 一并移除，MachineBlock 只剩酶工厂形态；旧存档中 DNA 编码器方块与 DNA 模板物品丢失（既定破坏性更新）
 - 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
 - 待开发 中心法则链（转录仪/翻译仪/内质网折叠器/高尔基体修饰仪，未实现；酶蛋白未来经中心法则产出后插入反应腔）

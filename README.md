@@ -109,6 +109,7 @@
 
 ### 2026-08-16
 
+- **fix** 颜色数据表格式：`substances.json`/`enzymes.json` 的 `color` 字段从 ARGB 整数改为 `#RRGGBB` 色号（肉眼可读可调，如 `#FFA94D`），`SubstanceData.parseColor` 解析补 alpha；顺带清理 2 个无引用贴图（enzyme_background/dna_template）与 categories 段死数据 color 字段
 - **feat** 移除 DNA 编码器全部内容（机器/GUI/序列物品/配方/网络代码）：破坏性更新——旧存档中的 DNA 编码器方块与 DNA 模板物品将消失；机器体系只保留酶工厂，为统一酶反应腔重构铺路
 - **feat** 酶主题色数据表化：`enzymes.json` 新增 `color` 字段（同类别酶配同色系），取代原枚举查表——酶物品染色/GUI/JEI/tooltip 统一取数据表色；tooltip 移除 EC 类别名段（缩写 + 可逆性）
 - **feat** 酶蛋白物品化（架构重构第一步）：酶从"数据表注册方块"开始转为"物品"——新增 14 种酶蛋白物品（`enzyme_<酶id>` 数据驱动注册，堆叠数 = 酶浓度 [E]），双层烧杯贴图（layer0 按主题色染色）+ 图标左上角缩写标注，tooltip 沿用酶方块摘要（缩写/EC 类别/方程式/Keq/速率/能量/最适温度）；新增"生物工艺 · 酶"创意标签页；酶工厂方块保持不变（后续步骤过渡为统一酶反应腔）

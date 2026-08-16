@@ -68,7 +68,7 @@ public final class ModItems {
             String id = substance.get("id").getAsString();
             String smiles = substance.get("smiles").getAsString();
             String abbreviation = substance.get("abbreviation").getAsString();
-            int color = substance.get("color").getAsInt();
+            int color = SubstanceData.parseColor(substance.get("color").getAsString());
             MoleculeCategory category = MoleculeCategory.byId(substance.get("category").getAsString());
             DeferredItem<MoleculeItem> item = ITEMS.register(id, () -> new MoleculeItem(
                     new Item.Properties(), smiles, abbreviation, color, category));

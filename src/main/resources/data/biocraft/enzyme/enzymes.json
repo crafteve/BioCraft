@@ -1,4 +1,4 @@
-﻿{
+{
     "enzymes":  [
         {
             "id":  "hexokinase",
@@ -6,7 +6,7 @@
             "name_en":  "Hexokinase",
             "abbreviation":  "HK",
             "category":  "EC2",
-            "color":  4294945101,
+            "color":  "#FFA94D",
             "reaction":  {
                 "reversible":  false,
                 "reactants":  [
@@ -45,7 +45,7 @@
             "name_en":  "Phosphoglucose Isomerase",
             "abbreviation":  "PGI",
             "category":  "EC5",
-            "color":  4294957414,
+            "color":  "#FFD966",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -74,7 +74,7 @@
             "name_en":  "6-Phosphofructokinase-1",
             "abbreviation":  "PFK",
             "category":  "EC2",
-            "color":  4294945101,
+            "color":  "#FFA94D",
             "reaction":  {
                 "reversible":  false,
                 "reactants":  [
@@ -113,7 +113,7 @@
             "name_en":  "Fructose-bisphosphate Aldolase",
             "abbreviation":  "ALDO",
             "category":  "EC4",
-            "color":  4290084572,
+            "color":  "#B57EDC",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -147,7 +147,7 @@
             "name_en":  "Triosephosphate Isomerase",
             "abbreviation":  "TPI",
             "category":  "EC5",
-            "color":  4294957414,
+            "color":  "#FFD966",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -176,7 +176,7 @@
             "name_en":  "Glyceraldehyde-3-phosphate Dehydrogenase",
             "abbreviation":  "GAPDH",
             "category":  "EC1",
-            "color":  4285514719,
+            "color":  "#6FC3DF",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -225,7 +225,7 @@
             "name_en":  "Phosphoglycerate Kinase",
             "abbreviation":  "PGK",
             "category":  "EC2",
-            "color":  4294945101,
+            "color":  "#FFA94D",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -264,7 +264,7 @@
             "name_en":  "Phosphoglycerate Mutase",
             "abbreviation":  "PGM",
             "category":  "EC5",
-            "color":  4294957414,
+            "color":  "#FFD966",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -293,7 +293,7 @@
             "name_en":  "Enolase",
             "abbreviation":  "ENO",
             "category":  "EC4",
-            "color":  4290084572,
+            "color":  "#B57EDC",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -327,7 +327,7 @@
             "name_en":  "Pyruvate Kinase",
             "abbreviation":  "PK",
             "category":  "EC2",
-            "color":  4294945101,
+            "color":  "#FFA94D",
             "reaction":  {
                 "reversible":  false,
                 "reactants":  [
@@ -366,7 +366,7 @@
             "name_en":  "Lactate Dehydrogenase",
             "abbreviation":  "LDH",
             "category":  "EC1",
-            "color":  4285514719,
+            "color":  "#6FC3DF",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -410,7 +410,7 @@
             "name_en":  "Pyruvate Decarboxylase",
             "abbreviation":  "PDC",
             "category":  "EC4",
-            "color":  4290084572,
+            "color":  "#B57EDC",
             "reaction":  {
                 "reversible":  false,
                 "reactants":  [
@@ -449,7 +449,7 @@
             "name_en":  "Alcohol Dehydrogenase",
             "abbreviation":  "ADH",
             "category":  "EC1",
-            "color":  4285514719,
+            "color":  "#6FC3DF",
             "reaction":  {
                 "reversible":  true,
                 "reactants":  [
@@ -493,7 +493,7 @@
             "name_en":  "ATP Hydrolase",
             "abbreviation":  "ATPase",
             "category":  "EC3",
-            "color":  4286306447,
+            "color":  "#7BD88F",
             "reaction":  {
                 "reversible":  false,
                 "reactants":  [
