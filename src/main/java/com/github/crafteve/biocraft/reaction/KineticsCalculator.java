@@ -202,6 +202,34 @@ public final class KineticsCalculator {
         return Math.min(value, KineticConstants.MAX_CONCENTRATION);
     }
 
+    /**
+     * 边界缩放因子：保证增量后的终值不越出 [0, MAX_CONCENTRATION] 且守恒不被钳制破坏
+     * <p>
+     * 若积分终值使某物种越界（如产物满堆仍继续产出），对全部物种的增量
+     * 按同一比例缩减，使最紧迫的物种恰好停在边界——所有物种同步缩放，
+     * 化学计量守恒精确保持。产物满堆（上限 = 槽位容量 n 组 + 余量）时
+     * 反应自动减速至停，玩家取走产物即恢复，这就是"槽满停转"的动力学
+     * 实现；上限放宽后满堆浓度可达 2.0（128 个物品），"槽满仍攒余量"
+     * 的中间状态不会被冻结。本方法是积分器（RK4/Rosenbrock 共用）与
+     * 物理语义（物流回压）的桥接点，任何积分器都必须套用它
+     *
+     * @param oldX 更新前浓度
+     * @param newX 积分原始终值（未钳制）
+     * @return 0~1 的全局缩放因子（1 表示无需缩放）
+     */
+    public static double boundaryScale(double[] oldX, double[] newX) {
+        double scale = 1.0;
+        for (int i = 0; i < oldX.length; i++) {
+            double delta = newX[i] - oldX[i];
+            if (delta > 1e-12) {
+                scale = Math.min(scale, (KineticConstants.MAX_CONCENTRATION - oldX[i]) / delta);
+            } else if (delta < -1e-12) {
+                scale = Math.min(scale, oldX[i] / -delta);
+            }
+        }
+        return Math.max(scale, 0.0);
+    }
+
     private KineticsCalculator() {
     }
 }

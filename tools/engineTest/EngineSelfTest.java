@@ -60,6 +60,7 @@ public final class EngineSelfTest {
         run("25 ALDO 64 活性长周期：平衡区驻留 10000 tick Q 锁定 Keq 零漂移", EngineSelfTest::test25AlodoEquilibriumDrift);
         run("26 TPI [E]=3 满堆反应物冻结回归：方向矛盾细分 + 近平衡无极限环", EngineSelfTest::test26TpiFullReactantFreeze);
         run("27 停摆信号：产物满堆逆向越界 wasStalled=true，腾出容量解冻", EngineSelfTest::test27StallSignal);
+        run("28 Rosenbrock 收敛阶验证：单步/双半步外推误差比 ≈ 16（4 阶）", EngineSelfTest::test28ConvergenceOrder);
 
         if (failures > 0) {
             System.err.println("引擎单测失败: " + failures + "/" + total);
@@ -387,7 +388,13 @@ public final class EngineSelfTest {
      * PGI 黄金值快照：固定初始跑 1000 tick，断言最终浓度与累计通量
      * <p>
      * 黄金值在引擎定稿后固化防回归（数值首次运行人工核验：
-     * F6P 终值 0.2359 与 Keq 判决点 0.23687 一致，通量为正向单峰递减序列的积分）
+     * F6P 终值 0.23588 与 Keq 判决点 0.23687 一致，通量为正向单峰递减序列）。
+     * 2026-08-16 积分器由显式 RK4 更换为 Rosenbrock-W（同 4 阶）后快照重生成：
+     * 修正前的初版实现（各阶段误用独立 γ 构建矩阵）轨迹偏移（G6P 0.76313）且
+     * 瞬时通量口径失真（4.690 → 0.887）；按 KPP 实现修正（全部阶段共用 γ₀ 矩阵）
+     * 后轨迹与 RK4 近乎重合（G6P 0.764121550 vs 0.764121484，差 6.6e-8），
+     * 通量口径回归一致（4.690851670 vs 4.690124653）——本快照即修正后的
+     * Rosenbrock 数值路径（test28 收敛阶验证守护其 4 阶属性）
      */
     private static void test14Snapshot() {
         EnzymeSimulator sim = TestEnzymes.pgi().buildSimulator();
@@ -397,11 +404,11 @@ public final class EngineSelfTest {
         for (int i = 0; i < 1000; i++) {
             totalFlux += sim.step(KineticConstants.TICK_SECONDS).fluxNet();
         }
-        checkNear(x[idx(sim, "glucose_6_phosphate")], 0.764121484, 1e-6,
+        checkNear(x[idx(sim, "glucose_6_phosphate")], 0.764121550, 1e-6,
                 "快照 G6P 终值偏离黄金值");
-        checkNear(x[idx(sim, "fructose_6_phosphate")], 0.235878516, 1e-6,
+        checkNear(x[idx(sim, "fructose_6_phosphate")], 0.235878450, 1e-6,
                 "快照 F6P 终值偏离黄金值");
-        checkNear(totalFlux, 4.690124653, 1e-6, "快照累计净通量偏离黄金值");
+        checkNear(totalFlux, 4.690851670, 1e-6, "快照累计净通量偏离黄金值");
     }
 
     /**
@@ -868,6 +875,56 @@ public final class EngineSelfTest {
         double medianNs = times[1];
         System.out.printf("[基准] %s: %.2f ms / %d tick (%.0f tick/s)%n",
                 name, medianNs / 1_000_000.0, ticks, ticks / (medianNs / 1e9));
+    }
+
+    /**
+     * Rosenbrock 收敛阶验证：单步推进 vs 两步半长推进的差异按步长 4 阶收缩
+     * <p>
+     * 对 p 阶方法，单步 y(x+h) 与两步 y(x+h/2 → x+h) 的差 ≈ O(h^(p+1))，
+     * 步长减半后差异应缩小 2^(p+1) 倍——p=4 时比值 ≈ 32（相邻误差比
+     * err(h)/err(h/2) ≈ 16，因误差本身 O(h⁵)）；这是对"KPP ROS-4 系数
+     * 实现正确性"的实证：若系数表写错（阶数退化），比值会显著偏离 16
+     * <p>
+     * 场景避开死区（初始 F6P=0.1 非零，后退欧拉起步分支不参与）与
+     * 边界截断，纯净测积分器本身
+     */
+    private static void test28ConvergenceOrder() {
+        double[] hs = {0.05, 0.025, 0.0125, 0.00625};
+        double[] err = new double[hs.length - 1];
+        for (int k = 0; k < hs.length; k++) {
+            double h = hs[k];
+            // 单步 y(x+h)
+            EnzymeSimulator one = TestEnzymes.pgi().buildSimulator();
+            double[] x1 = one.getState().getConcentrations();
+            x1[idx(one, "glucose_6_phosphate")] = 1.0;
+            x1[idx(one, "fructose_6_phosphate")] = 0.1;
+            one.step(h);
+            // 双半步 y(x+h/2 → x+h)
+            EnzymeSimulator two = TestEnzymes.pgi().buildSimulator();
+            double[] x2 = two.getState().getConcentrations();
+            x2[idx(two, "glucose_6_phosphate")] = 1.0;
+            x2[idx(two, "fructose_6_phosphate")] = 0.1;
+            two.step(h / 2.0);
+            two.step(h / 2.0);
+            double diff = 0.0;
+            for (int i = 0; i < x1.length; i++) {
+                diff += Math.abs(x1[i] - x2[i]);
+            }
+            if (k > 0) {
+                err[k - 1] = diff;
+            }
+        }
+        // 相邻误差比 ≈ 32（4 阶：2^(p+1) = 2⁵），容差 [16, 64]（数值噪声吸收）；
+        // 只断言"未触及双精度下限"的相邻对——4 阶方法误差随 h⁵ 收缩极快，
+        // 小步长下 diff 落入 ~1e-16 机器精度后比值失真（实测 h≤0.0125 触底）
+        for (int k = 0; k < err.length - 1; k++) {
+            if (err[k] < 1e-13 || err[k + 1] < 1e-13) {
+                continue;
+            }
+            double ratio = err[k] / err[k + 1];
+            check(ratio > 16.0 && ratio < 64.0,
+                    String.format("Rosenbrock 收敛阶异常：误差比 %.2f（4 阶应 ≈32，容差 16~64）", ratio));
+        }
     }
 
     private EngineSelfTest() {
