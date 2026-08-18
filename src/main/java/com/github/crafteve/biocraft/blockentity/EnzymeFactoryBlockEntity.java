@@ -397,6 +397,37 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
+     * 客户端接收增量数据包：只读主题色（与 handleUpdateTag 对称，双通道互备）
+     * <p>
+     * 必须覆写：NeoForge 默认实现会把 data packet 路由回 loadAdditional——
+     * update tag 只含主题色（不含 concentrations），客户端 loadAdditional 里
+     * rebuildFromEnzymeSlot + projectToSlots 会用构造默认浓度（≈0）把物种槽
+     * 全部清空（实测"平衡 TPI 槽位显示清 0 但服务端完好"根因：GUI 打开期间
+     * 服务端 sendBlockUpdated（状态灯/换酶）每 tick 触发本包 → 客户端每 tick
+     * 清空自己的容器副本 → 显示 0 而左键取出仍有效）
+     *
+     * @param connection 连接（未用）
+     * @param packet     增量数据包
+     * @param registries 注册表查找器
+     */
+    @Override
+    public void onDataPacket(net.minecraft.network.Connection connection,
+                             net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket packet,
+                             HolderLookup.Provider registries) {
+        CompoundTag tag = packet.getTag();
+        if (tag == null) {
+            return;
+        }
+        if (tag.contains("themeLiquidArgb")) {
+            this.themeLiquidArgb = tag.getInt("themeLiquidArgb");
+        }
+        if (tag.contains("themeLampArgb")) {
+            this.themeLampArgb = tag.getInt("themeLampArgb");
+        }
+        requestThemeRenderUpdate();
+    }
+
+    /**
      * 获取工业 IO 适配器（懒加载单例）
      *
      * @return 本实体的 IItemHandler 适配器
@@ -919,28 +950,9 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             // 1 tick 实时反应速率（反应次数/tick ×1000 定点）；
             // 睡眠态（浓度全 0）由 tickServer 提前置 0，此处恒有引擎步进
             cachedFluxX1000 = (int) Math.round(rateDelta * 1000.0);
-            logBeSlotState();
         } finally {
             projecting = false;
         }
-    }
-
-    /**
-     * 临时测试点：BE 容器投影后槽位 count（服务端权威基准）
-     * <p>
-     * 定位"平衡 TPI 取走 G3P 后 GUI 反应物与生成物飞速消失"用——
-     * 与 [MENU-SRV]（服务端 Menu 视角）对比，验证 menu↔BE 是否同源，
-     * 定位后删除
-     */
-    private void logBeSlotState() {
-        if (level == null || level.isClientSide) {
-            return;
-        }
-        StringBuilder sb = new StringBuilder("[BE-CONC] t=").append(level.getGameTime());
-        for (int s = SPECIES_SLOT_BASE; s < slotToSpeciesIndex.length; s++) {
-            sb.append(" s").append(s).append("=").append(inventory.getItem(s).getCount());
-        }
-        BioCraft.LOGGER.info(sb.toString());
     }
 
     /**
@@ -1122,7 +1134,14 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             energyStoredSnapshot = energyStored;
         }
         enzymeSnapshot = enzymeData == null ? "" : enzymeData.id();
-        projectToSlots();
+        // 投影仅服务端执行：客户端收到 BE 数据包（sendBlockUpdated → update
+        // tag 只含主题色，不含 concentrations）触发 loadAdditional 时，浓度是
+        // 构造默认值 ≈0，投影会把槽位全部清空（实测"平衡 TPI 槽位显示清 0
+        // 但服务端完好"根因——客户端清的是自己的容器副本）；客户端槽位由
+        // 菜单网络同步维护，不应被未同步的引擎浓度覆盖
+        if (level == null || !level.isClientSide) {
+            projectToSlots();
+        }
     }
 
     /**

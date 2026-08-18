@@ -442,52 +442,6 @@ public class MachineMenu extends AbstractContainerMenu {
     public void broadcastChanges() {
         refreshData();
         super.broadcastChanges();
-        logServerMenuState();
-    }
-
-    /**
-     * 临时测试点：服务端 Menu 视角的槽位 count / 余量 / 通量
-     * <p>
-     * 定位"平衡 TPI 取走 G3P 后 GUI 反应物与生成物飞速消失（BE 完好）"
-     * 用——验证服务端 Menu 读到的槽位是否与 BE 容器一致（menu↔BE 服务器
-     * 内部同步），定位后删除
-     */
-    private void logServerMenuState() {
-        if (blockEntity.getLevel() == null) {
-            return;
-        }
-        StringBuilder sb = new StringBuilder("[MENU-SRV] t=").append(blockEntity.getLevel().getGameTime());
-        for (int i = EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
-             i < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount; i++) {
-            ItemStack st = blockEntity.getContainer().getItem(i);
-            sb.append(" s").append(i).append("=").append(st.getCount());
-        }
-        sb.append(" flux=").append(data.get(DATA_FLUX));
-        sb.append(" rem0=").append(data.get(DATA_REMAINDER_BASE));
-        sb.append(" rem1=").append(data.get(DATA_REMAINDER_BASE + 1));
-        // 临时测试点 2：Menu 自身槽位（slots 列表视角）与 BE 容器对比
-        sb.append(" |menuSlot:");
-        for (int i = EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
-             i < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount; i++) {
-            ItemStack menuStack = this.slots.get(i).getItem();
-            sb.append(" s").append(i).append("=").append(menuStack.getCount());
-        }
-        com.github.crafteve.biocraft.BioCraft.LOGGER.info(sb.toString());
-    }
-
-    /**
-     * 临时测试点 3：客户端收到的槽位同步包内容（定位"客户端 DHAP=0 而服务端
-     * 105"的包来源，定位后删除）
-     */
-    @Override
-    public void setItem(int slot, int stateId, ItemStack stack) {
-        super.setItem(slot, stateId, stack);
-        if (slot >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
-                && slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
-            com.github.crafteve.biocraft.BioCraft.LOGGER.info(
-                    "[CLI-SET] slot={} count={} item={}", slot, stack.getCount(),
-                    stack.isEmpty() ? "EMPTY" : stack.getItem());
-        }
     }
 
     /**
@@ -593,15 +547,6 @@ public class MachineMenu extends AbstractContainerMenu {
      */
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
-        // 临时测试点：shift 转移的槽位与前后状态（定位"shift 取出 G3P 后
-        // 反应物/生成物槽跳变 0"用，定位后删除）
-        if (index >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
-                && index < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
-            com.github.crafteve.biocraft.BioCraft.LOGGER.info(
-                    "[QUICKMOVE] index={} 前: s1={} s2={} 目标堆={}",
-                    index, blockEntity.getContainer().getItem(1).getCount(),
-                    blockEntity.getContainer().getItem(2).getCount(), slots.get(index).getItem().getCount());
-        }
         ItemStack moved = ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
         if (slot != null && slot.hasItem()) {
@@ -626,13 +571,6 @@ public class MachineMenu extends AbstractContainerMenu {
                 return ItemStack.EMPTY;
             }
             slot.onTake(player, original);
-        }
-        if (index >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
-                && index < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
-            com.github.crafteve.biocraft.BioCraft.LOGGER.info(
-                    "[QUICKMOVE] index={} 后: s1={} s2={} 取走={}",
-                    index, blockEntity.getContainer().getItem(1).getCount(),
-                    blockEntity.getContainer().getItem(2).getCount(), moved.getCount());
         }
         return moved;
     }
@@ -671,28 +609,6 @@ public class MachineMenu extends AbstractContainerMenu {
             this.blockEntity = blockEntity;
             this.maxStack = maxStack;
             this.enzymeSlot = enzymeSlot;
-        }
-
-        /**
-         * 临时测试点：槽位写入调用栈捕获（定位"客户端 DHAP 槽被本地清 0"
-         * 的写入者——Slot.set 是所有容器写入的必经点，调用栈直接指认，
-         * 定位后删除）
-         */
-        @Override
-        public void set(ItemStack stack) {
-            ItemStack old = getItem();
-            super.set(stack);
-            if (blockEntity.getLevel() != null && blockEntity.getLevel().isClientSide
-                    && index >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
-                    && stack.isEmpty() && !old.isEmpty()) {
-                StringBuilder sb = new StringBuilder("[SLOT-SET-STACK] index=").append(index)
-                        .append(" 旧值=").append(old.getCount());
-                StackTraceElement[] trace = Thread.currentThread().getStackTrace();
-                for (int t = 2; t < Math.min(trace.length, 22); t++) {
-                    sb.append("\n  at ").append(trace[t].getClassName()).append('.').append(trace[t].getMethodName());
-                }
-                com.github.crafteve.biocraft.BioCraft.LOGGER.info(sb.toString());
-            }
         }
 
         @Override

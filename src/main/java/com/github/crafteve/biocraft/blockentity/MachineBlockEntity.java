@@ -74,21 +74,6 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
             }
 
             /**
-             * 临时测试点：容器槽位写入捕获（定位"客户端 DHAP 槽位被清 0"
-             * 的写入来源——包/玩家操作/投影，定位后删除）
-             */
-            @Override
-            public void setItem(int index, ItemStack stack) {
-                super.setItem(index, stack);
-                if (index > 0 && MachineBlockEntity.this.level != null
-                        && MachineBlockEntity.this.level.isClientSide) {
-                    com.github.crafteve.biocraft.BioCraft.LOGGER.info(
-                            "[CLI-CONTAINER-SET] slot={} count={} item={}",
-                            index, stack.getCount(), stack.isEmpty() ? "EMPTY" : stack.getItem());
-                }
-            }
-
-            /**
              * 槽位插入许可（原版漏斗 canPlaceItem 询问路径）：
              * 委托子类钩子（酶工厂按 IO 模式门控，见 canPlaceItemInternal）
              *
