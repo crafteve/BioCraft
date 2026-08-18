@@ -229,6 +229,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      */
     private int[] speciesToMenuSlot = new int[0];
 
+    /**
+     * 槽位 → 物种注册名映射（图标渲染数据段驱动用）
+     * <p>
+     * renderSpeciesSlot 只有 Slot 无卡片上下文，需按槽位反查物种物品；
+     * 大通量反应时槽位 count 网络同步滞后（实测 bug），图标本体改用
+     * 物种静态实例 + ContainerData 引擎浓度驱动，本映射是反查桥梁
+     */
+    private String[] slotToSpeciesId = new String[0];
+
     /** 输入滚动卡片区（反应物，容器 x=7；无酶时空卡片区） */
     private CardScrollArea inputArea;
 
@@ -265,6 +274,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, java.util.Collections.emptyList());
         this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X, java.util.Collections.emptyList());
         rebuildEnzymeAreas();
+        // 立即同步一次滚动槽坐标：Screen 构造后首个 containerTick 之前渲染
+        // 就会发生，槽位初始坐标是屏外 (-100,-100)——不立即写坐标则首帧
+        // 滚动区图标画在屏外不可见，表现为"重进 GUI 闪一下才显示"
+        inputArea.tick();
+        outputArea.tick();
         initVtHistory(menu.getFluxHistory());
     }
 
@@ -310,6 +324,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private void rebuildEnzymeAreas() {
         if (enzymeData == null) {
             this.speciesToMenuSlot = new int[0];
+            this.slotToSpeciesId = new String[0];
             this.clientDefinition = null;
             this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, java.util.Collections.emptyList());
             this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X, java.util.Collections.emptyList());
@@ -325,6 +340,20 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 buildCards(enzymeData.reactants(), speciesBase));
         this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X,
                 buildCards(enzymeData.products(), speciesBase + inputSlots));
+        // 槽位 → 物种注册名映射（图标渲染反查用，长度 = 物种槽总数 + 1，
+        // 下标从 SPECIES_SLOT_BASE 起；未用槽位 null）
+        this.slotToSpeciesId = new String[speciesSlotCount() + 1];
+        java.util.Arrays.fill(slotToSpeciesId, null);
+        for (CardSpec card : this.inputArea.cards) {
+            if (card instanceof SpeciesCard speciesCard) {
+                slotToSpeciesId[speciesCard.containerSlot()] = speciesCard.spec().item();
+            }
+        }
+        for (CardSpec card : this.outputArea.cards) {
+            if (card instanceof SpeciesCard speciesCard) {
+                slotToSpeciesId[speciesCard.containerSlot()] = speciesCard.spec().item();
+            }
+        }
     }
 
     /**
@@ -613,45 +642,65 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * @param slot     槽位实例
      */
     private void renderSpeciesSlot(GuiGraphics graphics, Slot slot) {
-        ItemStack stack = slot.getItem();
         ItemStack carried = this.menu.getCarried();
-        boolean preview = false;
-        ItemStack renderStack = stack;
-        String countText = null;
-        // quickCraft 拖拽分裂预览（复刻 vanilla renderSlot 分支）：
-        // 拖拽经过的槽位显示"放置后结果"的半透明预览 + 黄色超限数字
+        // 拖拽分裂预览（复刻 vanilla renderSlot 分支）：交互瞬态用真实槽位
         if (this.isQuickCrafting && this.quickCraftSlots.contains(slot) && !carried.isEmpty()) {
             if (this.quickCraftSlots.size() == 1) {
                 // vanilla 同款：拖拽源槽（唯一选中槽）不画预览
                 return;
             }
+            ItemStack stack = slot.getItem();
             if (AbstractContainerMenu.canItemQuickReplace(slot, carried, true) && this.menu.canDragTo(slot)) {
-                preview = true;
                 int maxStack = Math.min(carried.getMaxStackSize(), slot.getMaxStackSize(carried));
                 int existing = stack.isEmpty() ? 0 : stack.getCount();
                 int place = AbstractContainerMenu.getQuickCraftPlaceCount(
                         this.quickCraftSlots, this.quickCraftingType, carried) + existing;
+                String countText = null;
                 if (place > maxStack) {
                     place = maxStack;
                     countText = ChatFormatting.YELLOW.toString() + maxStack;
                 }
-                renderStack = carried.copyWithCount(place);
+                graphics.pose().pushPose();
+                graphics.pose().translate(0.0F, 0.0F, 100.0F);
+                // 半透明白底（拖拽分裂的"选取槽位"效果，vanilla 同色）
+                graphics.pose().translate(0.0F, 0.0F, 50.0F);
+                graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0x80FFFFFF);
+                graphics.pose().translate(0.0F, 0.0F, -50.0F);
+                ItemStack previewStack = carried.copyWithCount(place);
+                graphics.renderItem(previewStack, slot.x, slot.y, slot.x + slot.y * imageWidth);
+                renderStackCount(graphics, previewStack, slot.x, slot.y, countText);
+                graphics.pose().popPose();
             } else {
                 this.quickCraftSlots.remove(slot);
                 this.recalculateQuickCraftRemaining();
             }
+            return;
+        }
+        // 常规渲染：图标与数量由 ContainerData 广播的引擎浓度驱动——
+        // 槽位 count 经菜单槽位同步存在 ~1 tick 网络滞后，大通量反应时
+        // 显示会跳变/失步甚至短暂消失（实测 bug）；引擎浓度是服务端权威
+        // 连续值、每 tick 广播，显示恒同步。交互（点击/取物/数字键）仍
+        // 走 vanilla 槽位机制不受影响
+        int base = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+        String speciesId = slot.index >= base && slot.index - base < slotToSpeciesId.length
+                ? slotToSpeciesId[slot.index - base] : null;
+        if (speciesId == null) {
+            return;
+        }
+        double concentration = Math.max(0.0, Math.min(menu.getSlotConcentration(slot.index),
+                com.github.crafteve.biocraft.reaction.KineticConstants.MAX_CONCENTRATION));
+        int displayCount = (int) Math.floor(concentration * 64.0);
+        if (displayCount <= 0) {
+            // 引擎浓度 0（权威判定无存量）：不画图标——不再依赖槽位同步
+            // 的"空栈"信号，避免大通量时客户端槽位同步滞后造成的误消失
+            return;
         }
         graphics.pose().pushPose();
         graphics.pose().translate(0.0F, 0.0F, 100.0F);
-        if (preview) {
-            // 半透明白底（拖拽分裂的"选取槽位"效果，vanilla 同色）
-            graphics.pose().translate(0.0F, 0.0F, 50.0F);
-            graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0x80FFFFFF);
-            graphics.pose().translate(0.0F, 0.0F, -50.0F);
-        }
-        if (!renderStack.isEmpty()) {
-            graphics.renderItem(renderStack, slot.x, slot.y, slot.x + slot.y * imageWidth);
-            renderStackCount(graphics, renderStack, slot.x, slot.y, countText);
+        ItemStack icon = ModItems.byId(speciesId).get().getDefaultInstance();
+        graphics.renderItem(icon, slot.x, slot.y, slot.x + slot.y * imageWidth);
+        if (displayCount > 1) {
+            renderStackCount(graphics, icon, slot.x, slot.y, String.valueOf(displayCount));
         }
         graphics.pose().popPose();
     }
@@ -682,6 +731,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 return;
             }
             text = String.valueOf(count);
+        }
+        if (textOverride != null && text.length() <= 2) {
+            // 数据段驱动的数量（≤99 纯数字）：renderItemDecorations 读
+            // stack.count（图标静态实例恒 1）无法复用——复刻其 8px 白字
+            // 黑阴影（右下角锚点）；黄色超限文本含 §e 控制字符长度 ≥3 不走此分支
+            int textW = this.font.width(text);
+            graphics.drawString(this.font, text, x + 16 - textW, y + 16 - 8, 0xFFFFFF, true);
+            return;
         }
         float scale = text.length() >= 4 ? 0.55f : 0.75f;
         int textW = this.font.width(text);
@@ -902,7 +959,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     }
 
     /**
-     * 物种浓度（客户端重建：槽位数量 + 同步余量）/64，
+     * 物种浓度（客户端直接读 ContainerData 广播的引擎浓度——服务端权威
+     * 连续值；槽位 count 经网络同步在大通量时滞后，重建会跳变/失步），
      * 钳制 [0, MAX_CONCENTRATION]（与引擎/进度条同源上限）
      * <p>
      * 入参为引擎物种下标（computeQ 的速率项条目下标），经
@@ -918,7 +976,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             return 0.0;
         }
         return Math.max(0.0, Math.min(
-                (menu.getSlot(slot).getItem().getCount() + menu.getRemainder(slot)) / 64.0,
+                menu.getSlotConcentration(slot),
                 com.github.crafteve.biocraft.reaction.KineticConstants.MAX_CONCENTRATION));
     }
 
@@ -1516,9 +1574,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 // 槽位背景：slot.png 18×18 @卡片内 (1,2)（物品图标由 vanilla 渲染）
                 int pngX = x + MachineMenu.SLOT_PNG_X;
                 int pngY = cardY + MachineMenu.SLOT_PNG_Y;
-                Slot slot = menu.getSlot(speciesCard.containerSlot());
                 graphics.blit(SLOT, pngX, pngY, 0, 0, 18, 18, 18, 18);
-                ItemStack stack = slot.getItem();
 
                 // 物品数据：颜色取 substances.json 解析出的物品染色（24 位 RGB 补 alpha）
                 String itemId = speciesCard.spec().item();
@@ -1532,12 +1588,12 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                         x + MachineMenu.SLOT_PNG_X + MachineMenu.NAME_DX,
                         pngY, itemColor, false);
 
-                // 浓度：客户端重建引擎连续浓度 = (槽位数量 + 同步余量)/64，
-                // 槽位数经菜单槽位同步、余量经 ContainerData 扩展通道同步
-                // （客户端 BE 引擎浓度恒 0，直接读引擎会导致进度条/读数不显示）；
+                // 浓度：直接读 ContainerData 广播的引擎浓度（服务端权威连续值）——
+                // 槽位 count 经网络同步在大通量反应时滞后（实测"数量不同步/
+                // 消失"bug），引擎浓度与投影同源、每 tick 广播，显示恒同步；
                 // 上限 = MAX_CONCENTRATION（槽位 n 组 + 余量），允许"槽满仍攒余量"
                 double concentration = Math.max(0.0, Math.min(
-                        (stack.getCount() + menu.getRemainder(speciesCard.containerSlot())) / 64.0,
+                        menu.getSlotConcentration(speciesCard.containerSlot()),
                         com.github.crafteve.biocraft.reaction.KineticConstants.MAX_CONCENTRATION));
 
                 // 进度条：槽位下方与卡片底端之间（20..28）垂直居中，

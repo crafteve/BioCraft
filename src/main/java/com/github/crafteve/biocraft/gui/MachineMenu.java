@@ -103,8 +103,16 @@ public class MachineMenu extends AbstractContainerMenu {
     public static final int DATA_PROGRESS = 2;
     /** 容器数据下标：酶 id 索引（registry 顺序索引 +1，0 = 无酶；GUI 实时刷新用） */
     public static final int DATA_ENZYME = 3;
-    /** 余量数据起始下标（每物种槽一个 int，×1000 定点；4 之后按槽位顺序，0 槽酶无余量） */
-    public static final int DATA_REMAINDER_BASE = 4;
+    /**
+     * 浓度数据起始下标（每物种槽一个 int，×1000 定点；4 之后按槽位顺序，
+     * 0 槽酶无浓度）
+     * <p>
+     * 广播的是引擎浓度（服务端权威连续值）而非槽位余量：大通量反应时
+     * 槽位整数 count 经网络同步滞后，客户端若以"槽位 count + 余量"重建
+     * 浓度会跳变/失步（实测 bug）——引擎浓度与投影同源、每 tick 广播，
+     * 客户端显示恒为服务端权威值
+     */
+    public static final int DATA_CONCENTRATION_BASE = 4;
 
     /** 固定物种槽数（最大非 fe 物种数，注册期统计；未用槽位禁用） */
     private final int speciesSlotCount;
@@ -156,8 +164,8 @@ public class MachineMenu extends AbstractContainerMenu {
         this.packetEnzymeId = packetEnzymeId;
         this.fluxHistory = fluxHistory == null ? new int[0] : fluxHistory;
         this.speciesSlotCount = EnzymeFactoryRegistry.maxNonFeSpeciesCount();
-        // 数据段：温度/通量/主产物浓度/酶索引 + 每物种槽余量 + 能量存量/产率 + 两个 IO 模式
-        this.data = new SimpleContainerData(DATA_REMAINDER_BASE + speciesSlotCount + 4);
+        // 数据段：温度/通量/主产物浓度/酶索引 + 每物种槽引擎浓度 + 能量存量/产率 + 两个 IO 模式
+        this.data = new SimpleContainerData(DATA_CONCENTRATION_BASE + speciesSlotCount + 4);
         refreshData();
         // 客户端：用打开包酶 id 覆盖 DATA_ENZYME（服务端权威值），
         // 打开瞬间即有正确酶态，后续广播同步继续覆盖
@@ -278,7 +286,7 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 从方块实体刷新全部容器数据（温度/通量/主产物浓度/酶索引/每槽余量 + 能量）
+     * 从方块实体刷新全部容器数据（温度/通量/主产物浓度/酶索引/每槽浓度 + 能量）
      *
      * @param offset 无
      */
@@ -288,8 +296,8 @@ public class MachineMenu extends AbstractContainerMenu {
         data.set(DATA_PROGRESS, blockEntity.getCachedProgressX1000());
         data.set(DATA_ENZYME, enzymeIndex(blockEntity.getEnzymeData()));
         for (int i = 0; i < speciesSlotCount; i++) {
-            data.set(DATA_REMAINDER_BASE + i,
-                    (int) Math.round(blockEntity.getRemainder(EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + i) * 1000.0));
+            data.set(DATA_CONCENTRATION_BASE + i,
+                    (int) Math.round(blockEntity.getConcentration(EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + i) * 1000.0));
         }
         data.set(energyIndex(0), blockEntity.getEnergyStored());
         data.set(energyIndex(1), (int) Math.round(blockEntity.getCachedEnergyRate() * 10.0));
@@ -328,14 +336,14 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 能量/IO 数据下标：余量段之后（DATA_REMAINDER_BASE + 物种槽数 + 偏移）
+     * 能量/IO 数据下标：浓度段之后（DATA_CONCENTRATION_BASE + 物种槽数 + 偏移）
      *
      * @param offset 偏移（0 = 能量存量、1 = 能量产率、2 = INPUT 区域 IO 模式、
      *               3 = OUTPUT 区域 IO 模式）
      * @return 容器数据下标
      */
     private int energyIndex(int offset) {
-        return DATA_REMAINDER_BASE + speciesSlotCount + offset;
+        return DATA_CONCENTRATION_BASE + speciesSlotCount + offset;
     }
 
     /**
@@ -456,17 +464,18 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 读取物种槽余量（ContainerData 同步值，客户端重建引擎浓度用）
+     * 读取物种槽引擎浓度（ContainerData 同步值，服务端权威连续值，
+     * 客户端图标/进度条/浓度读数统一数据源，与槽位网络同步解耦）
      *
      * @param slot 容器槽位（1..maxSpecies，物种槽）
-     * @return 0~1 的余量（浓度小数部分），0 槽/非法槽恒 0
+     * @return 引擎浓度 0~MAX_CONCENTRATION，0 槽/非法槽恒 0
      */
-    public double getRemainder(int slot) {
+    public double getSlotConcentration(int slot) {
         if (slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
                 || slot >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
             return 0.0;
         }
-        return data.get(DATA_REMAINDER_BASE + slot - EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE) / 1000.0;
+        return data.get(DATA_CONCENTRATION_BASE + slot - EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE) / 1000.0;
     }
 
     /**
