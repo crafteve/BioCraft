@@ -593,6 +593,15 @@ public class MachineMenu extends AbstractContainerMenu {
      */
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
+        // 临时测试点：shift 转移的槽位与前后状态（定位"shift 取出 G3P 后
+        // 反应物/生成物槽跳变 0"用，定位后删除）
+        if (index >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
+                && index < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
+            com.github.crafteve.biocraft.BioCraft.LOGGER.info(
+                    "[QUICKMOVE] index={} 前: s1={} s2={} 目标堆={}",
+                    index, blockEntity.getContainer().getItem(1).getCount(),
+                    blockEntity.getContainer().getItem(2).getCount(), slots.get(index).getItem().getCount());
+        }
         ItemStack moved = ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
         if (slot != null && slot.hasItem()) {
@@ -617,6 +626,13 @@ public class MachineMenu extends AbstractContainerMenu {
                 return ItemStack.EMPTY;
             }
             slot.onTake(player, original);
+        }
+        if (index >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
+                && index < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
+            com.github.crafteve.biocraft.BioCraft.LOGGER.info(
+                    "[QUICKMOVE] index={} 后: s1={} s2={} 取走={}",
+                    index, blockEntity.getContainer().getItem(1).getCount(),
+                    blockEntity.getContainer().getItem(2).getCount(), moved.getCount());
         }
         return moved;
     }
