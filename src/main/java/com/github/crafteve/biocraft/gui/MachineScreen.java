@@ -274,11 +274,24 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * 服务端换酶会清空物种槽内容并重置引擎，客户端经 DATA_ENZYME
      * 感知变化后重建渲染数据；同种酶数量增减（[E] 缩放）不触发。
      * 放在 containerTick 内（Screen.tick 为 final 无法覆写）
+     * <p>
+     * 有酶 → "无酶"切换防护：客户端 0 槽仍持有酶物品时，DATA_ENZYME
+     * 的"无酶"信号视为同步瞬态异常（0 槽由菜单槽位同步、打开期间权威，
+     * 而数据段可能受容器数据广播时序影响）——忽略本次变化，避免卡片区
+     * 被错误清空（实测：平衡时取走产物后反应物区整片消失、重进 GUI
+     * 恢复的 bug 根因路径）；0 槽同步为空（换酶取空）才是真无酶，正常切换
      */
     private void refreshEnzymeIfChanged() {
         EnzymeFactoryData current = menu.getEnzymeData();
         String id = current == null ? "" : current.id();
         if (!id.equals(currentEnzymeId)) {
+            if (current == null && enzymeData != null) {
+                ItemStack enzymeStack = blockEntity.getContainer().getItem(
+                        com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.ENZYME_SLOT);
+                if (!enzymeStack.isEmpty()) {
+                    return;
+                }
+            }
             currentEnzymeId = id;
             this.enzymeData = current;
             rebuildEnzymeAreas();

@@ -490,6 +490,11 @@ public class MachineMenu extends AbstractContainerMenu {
     /**
      * 获取当前酶数据（动态解析：服务端直查 BE，客户端从 DATA_ENZYME 索引查表——
      * GUI 打开期间放酶/换酶也能实时感知，Screen 据此重建卡片）
+     * <p>
+     * 客户端兜底：DATA_ENZYME 数据段出现异常值（0/越界）时回退到从
+     * 0 槽直接解析——打开 GUI 期间 0 槽内容由菜单槽位同步（服务端权威），
+     * 可靠性高于数据段；防止"平衡时取走产物"等操作下数据段瞬态异常
+     * 导致 Screen 误判无酶、整区卡片被清空（实测 bug 根因路径之一）
      *
      * @return 酶数据档案，无酶为 null
      */
@@ -497,12 +502,31 @@ public class MachineMenu extends AbstractContainerMenu {
         if (blockEntity.getLevel() == null || blockEntity.getLevel().isClientSide) {
             int index = data.get(DATA_ENZYME);
             if (index <= 0) {
-                return null;
+                return fallbackEnzymeFromSlot();
             }
             java.util.List<EnzymeFactoryData> ordered = EnzymeFactoryRegistry.ordered();
-            return index <= ordered.size() ? ordered.get(index - 1) : null;
+            if (index <= ordered.size()) {
+                return ordered.get(index - 1);
+            }
+            return fallbackEnzymeFromSlot();
         }
         return blockEntity.getEnzymeData();
+    }
+
+    /**
+     * 客户端兜底解析：直接从 0 槽酶物品解析酶数据（DATA_ENZYME 异常时的自愈路径）
+     * <p>
+     * 0 槽内容经菜单槽位同步，打开期间与服务端一致；换酶取空后 0 槽同步
+     * 为空 → 返回 null（正确进入无酶态），不会误报
+     *
+     * @return 酶数据档案，0 槽无酶/非法为 null
+     */
+    private EnzymeFactoryData fallbackEnzymeFromSlot() {
+        ItemStack enzymeStack = blockEntity.getContainer().getItem(EnzymeFactoryBlockEntity.ENZYME_SLOT);
+        if (!enzymeStack.isEmpty() && enzymeStack.getItem() instanceof EnzymeItem enzymeItem) {
+            return enzymeItem.getEnzymeData();
+        }
+        return null;
     }
 
     /**
