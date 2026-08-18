@@ -465,7 +465,29 @@ public class MachineMenu extends AbstractContainerMenu {
         sb.append(" flux=").append(data.get(DATA_FLUX));
         sb.append(" rem0=").append(data.get(DATA_REMAINDER_BASE));
         sb.append(" rem1=").append(data.get(DATA_REMAINDER_BASE + 1));
+        // 临时测试点 2：Menu 自身槽位（slots 列表视角）与 BE 容器对比
+        sb.append(" |menuSlot:");
+        for (int i = EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+             i < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount; i++) {
+            ItemStack menuStack = this.slots.get(i).getItem();
+            sb.append(" s").append(i).append("=").append(menuStack.getCount());
+        }
         com.github.crafteve.biocraft.BioCraft.LOGGER.info(sb.toString());
+    }
+
+    /**
+     * 临时测试点 3：客户端收到的槽位同步包内容（定位"客户端 DHAP=0 而服务端
+     * 105"的包来源，定位后删除）
+     */
+    @Override
+    public void setItem(int slot, int stateId, ItemStack stack) {
+        super.setItem(slot, stateId, stack);
+        if (slot >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
+                && slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
+            com.github.crafteve.biocraft.BioCraft.LOGGER.info(
+                    "[CLI-SET] slot={} count={} item={}", slot, stack.getCount(),
+                    stack.isEmpty() ? "EMPTY" : stack.getItem());
+        }
     }
 
     /**

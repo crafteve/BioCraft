@@ -1357,7 +1357,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * "网络同步丢失"还是"客户端渲染层"问题，定位后删除
      */
     private void logClientMenuState() {
-        StringBuilder sb = new StringBuilder("[MENU-CLI]");
+        long tick = this.minecraft.level != null ? this.minecraft.level.getGameTime() : -1;
+        StringBuilder sb = new StringBuilder("[MENU-CLI] t=").append(tick);
         for (int i = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
              i < com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount(); i++) {
             ItemStack st = menu.getSlot(i).getItem();
