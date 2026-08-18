@@ -616,29 +616,6 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     }
 
     /**
-     * 获取槽位对应物种的引擎浓度（服务端权威连续值，GUI 数量显示数据源）
-     * <p>
-     * 大通量反应时槽位整数 count 经网络同步存在 ~1 tick 滞后，GUI 若以
-     * "槽位 count + 余量"重建浓度会跳变/失步（实测 bug：大通量时槽位
-     * 渲染数量无法精确同步服务器、反应物短暂消失）；本方法直取引擎浓度
-     * 数组（与 projectToSlots 同一数据源），经 ContainerData 每 tick
-     * 广播，客户端显示恒为服务端权威连续值，与槽位网络同步完全解耦
-     *
-     * @param slot 容器槽位下标（0 = 酶槽）
-     * @return 引擎浓度 0~MAX_CONCENTRATION，无酶/未用槽位/酶槽返回 0
-     */
-    public double getConcentration(int slot) {
-        if (slot == ENZYME_SLOT || slot < 0 || slot >= slotToSpeciesIndex.length || simulator == null) {
-            return 0.0;
-        }
-        int speciesIndex = slotToSpeciesIndex[slot];
-        if (speciesIndex < 0) {
-            return 0.0;
-        }
-        return KineticsCalculator.clampConcentration(simulator.getState().getConcentrations()[speciesIndex]);
-    }
-
-    /**
      * 获取槽位余量（GUI 进度条数据源；无酶/未用槽位恒 0）
      *
      * @param slot 槽位下标（0 = 酶槽）
