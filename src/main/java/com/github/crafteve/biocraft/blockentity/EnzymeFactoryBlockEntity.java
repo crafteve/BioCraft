@@ -919,9 +919,28 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             // 1 tick 实时反应速率（反应次数/tick ×1000 定点）；
             // 睡眠态（浓度全 0）由 tickServer 提前置 0，此处恒有引擎步进
             cachedFluxX1000 = (int) Math.round(rateDelta * 1000.0);
+            logBeSlotState();
         } finally {
             projecting = false;
         }
+    }
+
+    /**
+     * 临时测试点：BE 容器投影后槽位 count（服务端权威基准）
+     * <p>
+     * 定位"平衡 TPI 取走 G3P 后 GUI 反应物与生成物飞速消失"用——
+     * 与 [MENU-SRV]（服务端 Menu 视角）对比，验证 menu↔BE 是否同源，
+     * 定位后删除
+     */
+    private void logBeSlotState() {
+        if (level == null || level.isClientSide) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder("[BE-CONC] t=").append(level.getGameTime());
+        for (int s = SPECIES_SLOT_BASE; s < slotToSpeciesIndex.length; s++) {
+            sb.append(" s").append(s).append("=").append(inventory.getItem(s).getCount());
+        }
+        BioCraft.LOGGER.info(sb.toString());
     }
 
     /**

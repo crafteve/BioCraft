@@ -442,6 +442,30 @@ public class MachineMenu extends AbstractContainerMenu {
     public void broadcastChanges() {
         refreshData();
         super.broadcastChanges();
+        logServerMenuState();
+    }
+
+    /**
+     * 临时测试点：服务端 Menu 视角的槽位 count / 余量 / 通量
+     * <p>
+     * 定位"平衡 TPI 取走 G3P 后 GUI 反应物与生成物飞速消失（BE 完好）"
+     * 用——验证服务端 Menu 读到的槽位是否与 BE 容器一致（menu↔BE 服务器
+     * 内部同步），定位后删除
+     */
+    private void logServerMenuState() {
+        if (blockEntity.getLevel() == null) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder("[MENU-SRV] t=").append(blockEntity.getLevel().getGameTime());
+        for (int i = EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+             i < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount; i++) {
+            ItemStack st = blockEntity.getContainer().getItem(i);
+            sb.append(" s").append(i).append("=").append(st.getCount());
+        }
+        sb.append(" flux=").append(data.get(DATA_FLUX));
+        sb.append(" rem0=").append(data.get(DATA_REMAINDER_BASE));
+        sb.append(" rem1=").append(data.get(DATA_REMAINDER_BASE + 1));
+        com.github.crafteve.biocraft.BioCraft.LOGGER.info(sb.toString());
     }
 
     /**

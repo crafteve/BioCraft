@@ -1338,6 +1338,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         clearSpeciesSlotPositions();
         inputArea.tick();
         outputArea.tick();
+        logClientMenuState();
         // v-t 采样：每 1s（20 tick）取当前净通量一点入环形缓冲
         vtTickCounter++;
         if (vtTickCounter >= VT_SAMPLE_TICKS) {
@@ -1346,6 +1347,28 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             vtIndex = (vtIndex + 1) % VT_POINTS;
             vtSampleCount = Math.min(vtSampleCount + 1, VT_POINTS);
         }
+    }
+
+    /**
+     * 临时测试点：客户端 Menu 视角的槽位 count / 余量 / 通量
+     * <p>
+     * 定位"平衡 TPI 取走 G3P 后 GUI 反应物与生成物飞速消失（BE 完好）"
+     * 用——与服务端 [MENU-SRV] 日志对比，判断是"服务端 Menu↔BE 分叉"、
+     * "网络同步丢失"还是"客户端渲染层"问题，定位后删除
+     */
+    private void logClientMenuState() {
+        StringBuilder sb = new StringBuilder("[MENU-CLI]");
+        for (int i = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+             i < com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount(); i++) {
+            ItemStack st = menu.getSlot(i).getItem();
+            sb.append(" s").append(i).append("=").append(st.getCount());
+        }
+        sb.append(" flux=").append(menu.getFlux());
+        sb.append(" rem0=").append(menu.getRemainder(
+                com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE));
+        sb.append(" rem1=").append(menu.getRemainder(
+                com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + 1));
+        com.github.crafteve.biocraft.BioCraft.LOGGER.info(sb.toString());
     }
 
     /**
