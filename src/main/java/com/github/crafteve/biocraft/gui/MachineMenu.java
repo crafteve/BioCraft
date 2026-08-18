@@ -673,6 +673,26 @@ public class MachineMenu extends AbstractContainerMenu {
             this.enzymeSlot = enzymeSlot;
         }
 
+        /**
+         * 临时测试点：槽位写入调用栈捕获（定位"客户端 DHAP 槽被本地清 0"
+         * 的写入者——Slot.set 是所有容器写入的必经点，调用栈直接指认，
+         * 定位后删除）
+         */
+        @Override
+        public void set(ItemStack stack) {
+            super.set(stack);
+            if (blockEntity.getLevel() != null && blockEntity.getLevel().isClientSide
+                    && index >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
+                    && stack.isEmpty() && !getItem().isEmpty()) {
+                StringBuilder sb = new StringBuilder("[SLOT-SET-STACK] index=").append(index);
+                StackTraceElement[] trace = Thread.currentThread().getStackTrace();
+                for (int t = 2; t < Math.min(trace.length, 18); t++) {
+                    sb.append("\n  at ").append(trace[t].getClassName()).append('.').append(trace[t].getMethodName());
+                }
+                com.github.crafteve.biocraft.BioCraft.LOGGER.info(sb.toString());
+            }
+        }
+
         @Override
         public boolean mayPlace(ItemStack stack) {
             // IO 模式门控：区域禁止插入时拒绝一切（防玩家把物品塞进
