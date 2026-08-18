@@ -36,21 +36,16 @@ bin/
 .DS_Store
 
 ### Minecraft Modding ###
-# run/ 白名单入库（容灾备份）：提交测试环境核心（配置/mods/存档/选项），
-# 回退分支后可直接恢复之前的测试环境；logs/crash-reports/screenshots 等易变垃圾仍忽略
-run/*
-!run/config/
-!run/mods/
-!run/saves/
-!run/defaultconfigs/
-!run/resourcepacks/
-!run/options.txt
-!run/emi.json
-!**/src/**/run/
+# run/ docs/ item/ 本地私有目录（2026-08-18 起取消推送）：运行环境配置与存档、
+# 内部设计文档、贴图源文件均不适合开源，仅本地保留；net/ 为反编译源码排查残留
+run/
+docs/
+item/
+net/
+run-client-log.txt
 **/src/generated/**/.cache/
 repo/
 !**/src/**/repo/
-run-client-log.txt
 
 ### 程序化贴图工具产物 ###
 tools/texturegen/output/
