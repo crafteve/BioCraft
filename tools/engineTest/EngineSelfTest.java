@@ -11,6 +11,7 @@ import com.github.crafteve.biocraft.reaction.ThermoUtil;
 
 import java.util.List;
 import java.util.Random;
+import java.util.function.Supplier;
 
 /**
  * 化学引擎独立单测主程序（脱离游戏环境，纯 JDK 运行）
@@ -65,6 +66,7 @@ public final class EngineSelfTest {
             System.exit(1);
         }
         System.out.println("引擎单测全部通过: " + total + " 用例");
+        runBenchmarks();
     }
 
     private static void run(String name, Runnable test) {
@@ -804,6 +806,68 @@ public final class EngineSelfTest {
         sim.step(KineticConstants.TICK_SECONDS);
         check(!sim.wasStalled(), "腾出容量后应解除停摆");
         check(x[dhap] > 1.0, String.format("解冻后产物应继续增长（实测 %.6f）", x[dhap]));
+    }
+
+    /**
+     * 引擎工作效率基准（wall-time），积分器改造前后对比用
+     * <p>
+     * 三场景覆盖代表性工况：
+     * <ul>
+     *   <li>PGI [E]=1：普通非刚性酶（旧 RK4 单子步，阶段数少）</li>
+     *   <li>TPI kcat=9000 [E]=3：高 kcat 刚性酶（旧 RK4 需子步细分，与 test26 同数据）</li>
+     *   <li>ALDO [E]=64：重刚性 + 平衡区驻留（旧 RK4 平衡区 64 子步，期望最大加速）</li>
+     * </ul>
+     * 每场景预热 100 tick（JIT 等首跑开销不计入），正式计时 3 次取中位数
+     * （System.nanoTime），输出 10000 tick 墙钟毫秒与每秒 tick 速率；
+     * 本段为性能测量，不属于正确性断言，异常仅打印不置失败退出码
+     */
+    private static void runBenchmarks() {
+        System.out.println();
+        System.out.println("==== 引擎工作效率基准（wall-time） ====");
+        // TPI 刚性场景复用 test26 的真实数据（kcat=9000，与 enzymes.json 一致）
+        EnzymeFactoryData rigidTpi = new EnzymeFactoryData(
+                "triose_phosphate_isomerase", "磷酸丙糖异构酶", "Triosephosphate Isomerase", "TPI", "EC5", 0xFFFFD966,
+                List.of(new EnzymeFactoryData.SpeciesSpec("dihydroxyacetone_phosphate", 1, 0.88)),
+                List.of(new EnzymeFactoryData.SpeciesSpec("glyceraldehyde_3_phosphate", 1, 0.79)),
+                true, 0.10874, null, 9000.0, 298.15,
+                1, 1);
+        measure("PGI [E]=1 普通非刚性", () -> TestEnzymes.pgi(), 1.0, "glucose_6_phosphate", 1.0);
+        measure("TPI kcat=9000 [E]=3 高刚性", () -> rigidTpi, 3.0, "dihydroxyacetone_phosphate", 1.0);
+        measure("ALDO [E]=64 重刚性平衡区", () -> TestEnzymes.aldo(), 64.0, "fructose_1_6_bisphosphate", 2.0);
+        System.out.println("==== 基准结束 ====");
+    }
+
+    /**
+     * 单场景基准测量：预热 100 tick 后正式计时 3 次取中位数
+     *
+     * @param name                  场景名（输出标识）
+     * @param dataSupplier          酶数据提供者（每次测量新建模拟器）
+     * @param activity              活性因子（酶堆叠数，1 个 = 1 倍速）
+     * @param reactantId            初始浓度物种（注册名）
+     * @param initialConcentration  初始浓度（堆叠分数）
+     */
+    private static void measure(String name, Supplier<EnzymeFactoryData> dataSupplier,
+                                double activity, String reactantId, double initialConcentration) {
+        final int ticks = 10_000;
+        final int samples = 3;
+        final long[] times = new long[samples];
+        for (int s = 0; s < samples; s++) {
+            EnzymeSimulator sim = dataSupplier.get().buildSimulator();
+            sim.getState().setActivity(activity);
+            double[] x = sim.getState().getConcentrations();
+            x[idx(sim, reactantId)] = initialConcentration;
+            if (s == 0) {
+                runTicks(sim, 100); // 预热：JIT 等首次运行开销不计入
+                continue;
+            }
+            long start = System.nanoTime();
+            runTicks(sim, ticks);
+            times[s - 1] = System.nanoTime() - start;
+        }
+        java.util.Arrays.sort(times);
+        double medianNs = times[1];
+        System.out.printf("[基准] %s: %.2f ms / %d tick (%.0f tick/s)%n",
+                name, medianNs / 1_000_000.0, ticks, ticks / (medianNs / 1e9));
     }
 
     private EngineSelfTest() {
