@@ -680,13 +680,15 @@ public class MachineMenu extends AbstractContainerMenu {
          */
         @Override
         public void set(ItemStack stack) {
+            ItemStack old = getItem();
             super.set(stack);
             if (blockEntity.getLevel() != null && blockEntity.getLevel().isClientSide
                     && index >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
-                    && stack.isEmpty() && !getItem().isEmpty()) {
-                StringBuilder sb = new StringBuilder("[SLOT-SET-STACK] index=").append(index);
+                    && stack.isEmpty() && !old.isEmpty()) {
+                StringBuilder sb = new StringBuilder("[SLOT-SET-STACK] index=").append(index)
+                        .append(" 旧值=").append(old.getCount());
                 StackTraceElement[] trace = Thread.currentThread().getStackTrace();
-                for (int t = 2; t < Math.min(trace.length, 18); t++) {
+                for (int t = 2; t < Math.min(trace.length, 22); t++) {
                     sb.append("\n  at ").append(trace[t].getClassName()).append('.').append(trace[t].getMethodName());
                 }
                 com.github.crafteve.biocraft.BioCraft.LOGGER.info(sb.toString());
