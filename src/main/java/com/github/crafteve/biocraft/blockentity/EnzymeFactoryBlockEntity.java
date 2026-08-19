@@ -166,9 +166,15 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      */
     public EnzymeFactoryBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlocks.ENZYME_CHAMBER_BE.get(), pos, state, 1 + EnzymeFactoryRegistry.maxNonFeSpeciesCount());
-        this.slotToSpeciesIndex = new int[EnzymeFactoryRegistry.maxNonFeSpeciesCount()];
+        // 数组长度 = 最大非 fe 物种数 + 1：映射用"容器槽位下标"索引（从
+        // SPECIES_SLOT_BASE=1 起），需容纳槽位 1..maxNonFeSpeciesCount，
+        // 长度必须为 max+1——曾误用 max（下标 0..max-1），第 max 个物种
+        // （如 GAPDH 的 H⁺，恰是唯一 6 物种酶）槽位映射越界被丢弃，
+        // 投影/同步循环也到不了该槽（实测"GAPDH 不输出 H"根因）
+        this.slotToSpeciesIndex = new int[EnzymeFactoryRegistry.maxNonFeSpeciesCount() + 1];
         java.util.Arrays.fill(slotToSpeciesIndex, -1);
-        this.remainder = new double[EnzymeFactoryRegistry.maxNonFeSpeciesCount()];
+        // 余量数组与槽位映射同长度同索引（余量[槽位下标]）
+        this.remainder = new double[EnzymeFactoryRegistry.maxNonFeSpeciesCount() + 1];
         rebuildFromEnzymeSlot();
     }
 
