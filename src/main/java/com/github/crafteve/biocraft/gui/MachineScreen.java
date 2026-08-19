@@ -1146,13 +1146,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /**
      * v-t 图 Y 轴刻度标注格式化
      * <p>
-     * 分档显示（保证各档位文本宽度大致相等，刻度区美观）：
+     * 分档显示（各档文本宽度大致相等，刻度区美观）：
      * <ul>
      *   <li>|值| ≥ 10000（5 位及以上，4 位有效数字装不下）→ 2 位有效
      *       数字 + 科学计数法，指数上标（如 1.2×10⁴、1×10⁴）</li>
-     *   <li>|值| < 10000 → 4 位有效数字（去尾随零），如 1124、0.334、
-     *       1000——整数与小数都保持约 4 个字符的宽度，与科学计数法
-     *       档宽度接近（旧 %.3f 会把 1124 显示成 "1124.000" 撑爆）</li>
+     *   <li>1 ≤ |值| < 10000 → 4 位有效数字（如 1124、1.000、999.9），
+     *       尾随零保留（旧 %.3f 会把 1124 显示成 "1124.000" 撑爆）</li>
+     *   <li>|值| < 1 → 3 位小数能精确表达（值×1000 为整数）时保留 3 位
+     *       小数（如 0.050、0.334），尾随零保留；3 位小数丢精度时改
+     *       2 位有效数字 + 科学计数法（如 0.05031 → 5.0×10⁻²）</li>
      * </ul>
      *
      * @param value 刻度值（个/tick 口径）
@@ -1162,34 +1164,59 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         if (Double.isNaN(value) || Double.isInfinite(value) || Math.abs(value) >= 1e6) {
             return "inf";
         }
-        if (value != 0.0 && Math.abs(value) < 1e-4) {
+        if (value == 0.0) {
             return "0";
         }
         double abs = Math.abs(value);
         if (abs >= 10000.0) {
-            // 2 位有效数字 + 科学计数法（指数上标）
-            int exp = (int) Math.floor(Math.log10(abs));
-            double mantissa = value / Math.pow(10, exp);
-            String m = String.format("%.1f", mantissa);
-            if (m.endsWith(".0")) {
-                m = m.substring(0, m.length() - 2);
+            return scientific(value);
+        }
+        if (abs < 1.0) {
+            // 3 位小数能精确表达（值×1000 为整数，浮点容差）→ 保留 3 位小数
+            double scaled = value * 1000.0;
+            if (Math.abs(scaled - Math.rint(scaled)) < 1e-9) {
+                return String.format("%.3f", value);
             }
-            return m + "×10" + superscript(exp);
+            // 3 位小数丢精度 → 2 位有效数字科学计数法
+            return scientific(value);
         }
-        // 4 位有效数字（%.4g 对 <10000 的值输出定点形式），去尾随零：
-        // "0.3340" → "0.334"、"1124.0" → "1124"、整数保持 4 位宽度
-        String s = String.format("%.4g", value);
-        if (s.contains("e")) {
-            // 防御：理论上 |值| < 10000 时 %.4g 不会用科学计数，出现则退化
-            s = String.format("%.4f", value);
+        // 1 ≤ |值| < 10000：4 位有效数字，尾随零保留（如 1.000、1.500、
+        // 999.9、1124）——先 BigDecimal HALF_UP 舍入到 4 位有效数字，
+        // 溢出成 5 位整数/指数形式（如 9999.5 → 1.000E+4）转科学计数，
+        // 未溢出则按"整数位数 + 补齐小数位到 4 位有效数字"格式化
+        java.math.BigDecimal bd = new java.math.BigDecimal(Double.toString(value))
+                .round(new java.math.MathContext(4, java.math.RoundingMode.HALF_UP));
+        if (bd.toString().indexOf('E') >= 0 || bd.toString().indexOf('e') >= 0) {
+            return scientific(value);
         }
-        if (s.contains(".")) {
-            s = s.replaceAll("0+$", "");
-            if (s.endsWith(".")) {
-                s = s.substring(0, s.length() - 1);
-            }
+        int intDigits = (int) Math.floor(Math.log10(abs)) + 1;
+        int decimals = Math.max(0, 4 - intDigits);
+        return String.format("%." + decimals + "f", value);
+    }
+
+    /**
+     * 2 位有效数字 + 科学计数法（指数上标，如 1.2×10⁴、5.0×10⁻²）
+     * <p>
+     * 四舍五入进位处理：尾数舍入到 10（如 9.96 → 10.0）时指数 +1、
+     * 尾数归一为 1.0，保证 mantissa 恒在 [1, 10)（显示 "1×10⁵" 而非
+     * "10×10⁴"）
+     *
+     * @param value 待格式化数值（非 0）
+     * @return 科学计数法文本
+     */
+    private static String scientific(double value) {
+        double abs = Math.abs(value);
+        int exp = (int) Math.floor(Math.log10(abs));
+        String m = String.format("%.1f", value / Math.pow(10, exp));
+        if (m.startsWith("10")) {
+            // 尾数舍入进位：10.0 → 1.0 × 10^(exp+1)
+            exp += 1;
+            m = String.format("%.1f", value / Math.pow(10, exp));
         }
-        return s;
+        if (m.endsWith(".0")) {
+            m = m.substring(0, m.length() - 2);
+        }
+        return m + "×10" + superscript(exp);
     }
 
     /**
