@@ -79,6 +79,12 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
         if (inSlot.isEmpty()) {
             canInsert = Math.min(limit, stack.getCount());
         } else {
+            // 槽位已有物品时必须同种才能合并（vanilla ItemStackHandler 同款语义）：
+            // 不同种直接拒绝插入，否则 grow 会静默吞掉入参物品并把槽内物品数量
+            // 错误累加（实测 Pipez 把 HK 插进已有 PGI 的酶槽 → PGI 数量 +1、HK 消失）
+            if (!ItemStack.isSameItemSameComponents(inSlot, stack)) {
+                return stack;
+            }
             canInsert = Math.min(limit - inSlot.getCount(), stack.getCount());
             if (canInsert <= 0) {
                 return stack;
