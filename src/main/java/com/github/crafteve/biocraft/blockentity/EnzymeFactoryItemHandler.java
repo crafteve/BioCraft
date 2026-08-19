@@ -15,8 +15,12 @@ import net.neoforged.neoforge.items.IItemHandlerModifiable;
  *   <li>物种过滤：insertItem/setStackInSlot 校验槽位对应物种，
  *       不匹配直接拒绝（返回原 stack / 置空），与 GUI 的 RestrictedSlot 同规则；
  *       酶槽物种校验 = 必须是酶蛋白物品（任意酶种，registry 由 BE 解析）</li>
- *   <li>全槽位可进可出：产物槽同样允许输入（可逆反应逆向供料）、
- *       反应物槽允许抽出（回收）、酶槽可抽出（换酶），不做方向/面区分</li>
+ *   <li>酶槽（0）管道侧单向：只可抽入（insertItem 接受任意酶 tag 物品），
+ *       禁止抽出（extractItem 恒返回空）——换酶只能走 GUI/漏斗手动操作，
+ *       防管道自动把酶抽走触发换酶清空物种槽（物流自动化意外清机）；
+ *       GUI 酶槽取出不受影响（走 RestrictedSlot，不经本类）</li>
+ *   <li>全槽位可进可出（除酶槽管道侧单向外）：产物槽同样允许输入（可逆
+ *       反应逆向供料）、反应物槽允许抽出（回收），不做方向/面区分</li>
  *   <li>复用 setChanged 链：容器操作 → BE.setChanged() → syncFromSlots()
  *       回写引擎浓度，零额外同步代码</li>
  *   <li>性能：全部方法 O(1) 直接索引，无循环扫描；每 BE 懒加载单例</li>
@@ -107,7 +111,11 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
     }
 
     /**
-     * 抽取物品：全槽位可抽（不限物种），支持模拟
+     * 抽取物品：物种槽全槽位可抽（不限物种），酶槽禁止抽出，支持模拟
+     * <p>
+     * 酶槽（0）管道侧单向：只可抽入不可抽出——换酶只能走 GUI/漏斗手动
+     * 操作，防管道自动把酶抽走触发换酶清空物种槽（物流自动化意外清机）；
+     * 管道"模拟抽 1 探测"（simulate=true）同样被拒 → 不会发起真实抽取
      * <p>
      * IO 模式门控：区域为"仅输入"时禁止抽出（INPUT_ONLY.allowsExtract=false），
      * 与 GUI mayPickup/漏斗 removeItem 同规则；模拟与真实抽取同样门控
@@ -121,6 +129,9 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
     @Override
     public ItemStack extractItem(int slot, int amount, boolean simulate) {
         if (amount <= 0 || slot < 0 || slot >= getSlots()) {
+            return ItemStack.EMPTY;
+        }
+        if (slot == EnzymeFactoryBlockEntity.ENZYME_SLOT) {
             return ItemStack.EMPTY;
         }
         if (!blockEntity.canExtractFromSlot(slot)) {
