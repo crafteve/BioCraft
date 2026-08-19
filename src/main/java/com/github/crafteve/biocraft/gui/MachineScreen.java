@@ -59,7 +59,7 @@ import java.util.List;
  *       物品与高亮仍自绘（renderSlot 对物种槽空实现 + isHighlightable
  *       =false，见 renderSlot 覆写说明）</li>
  *   <li>v-t 图：4x 超采样抗锯齿，Y 轴按刻度宽度自动定位、X 轴按
- *       vmax 比例定位（可逆居中/不可逆贴底），1s 一点 10 点折线，
+ *       vmax 比例定位（可逆居中/不可逆贴底），0.25s 一点 20 点折线（5 tick 窗口平均），
  *       刻度标注（/tick）</li>
  *   <li>平衡区：渐变平衡条（两端加深主题色中间白）+ log10(Q/Keq)
  *       缩放滑块 + Keq/Q 读数（左右对齐滑槽）</li>
@@ -141,8 +141,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 图表区浅色底 x 范围（与方程区浅色底 68~187 列对齐，fill 半开补 1px） */
     private static final int VT_BG_X0 = 68, VT_BG_X1 = 187;
 
-    /** 格子宽（1s/格，10px；10 点 9 段 = 90px，箭头尖端受限 ≤ 背景右缘−4px） */
-    private static final int VT_GRID_W = 10;
+    /** 格子宽（0.25s/格，5px；20 点 19 段 = 95px，箭头尖端受限 ≤ 背景右缘−4px） */
+    private static final int VT_GRID_W = 5;
 
     /** 刻度文字与 Y 轴左缘的间隙（显示 px） */
     private static final int VT_TICK_GAP = 2;
@@ -150,11 +150,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 速率实时显示区底部 y（GUI 相对，固定画到此处） */
     private static final int RATE_AREA_BOTTOM = 164;
 
-    /** 窗口点数（1s 一点，共 10 点 = 0~9s） */
-    private static final int VT_POINTS = 10;
+    /** 窗口点数（0.25s 一点，共 20 点 = 0~5s） */
+    private static final int VT_POINTS = 20;
 
-    /** 采样间隔（1s = 20 tick） */
-    private static final int VT_SAMPLE_TICKS = 20;
+    /** 采样间隔（5 tick = 0.25s，窗口平均：每点 = 连续 5 tick 的均值） */
+    private static final int VT_SAMPLE_TICKS = 5;
 
     /**
      * v-t 图超采样倍数：4x 分辨率绘制 + pose 缩放回 1x——fill 矩形边缘经
@@ -235,7 +235,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 输出滚动卡片区（产物，容器 x=193；无酶时空卡片区） */
     private CardScrollArea outputArea;
 
-    /** v-t 通量采样环形缓冲（每 1s 一点，窗口 VT_POINTS） */
+    /** v-t 通量采样环形缓冲（每 0.25s 一点，窗口 VT_POINTS；点 = 5 tick 窗口平均） */
     private final double[] vtFlux = new double[VT_POINTS];
 
     /** 环形缓冲写入下标 */
@@ -244,8 +244,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 已采样点数（窗口未满时决定绘制起点） */
     private int vtSampleCount;
 
-    /** 采样 tick 计数（每 VT_SAMPLE_TICKS 采样一点） */
+    /** 采样 tick 计数（每 VT_SAMPLE_TICKS 落一点） */
     private int vtTickCounter;
+
+    /** 当前 5 tick 采样窗口内的 flux 累加（窗口平均，落点后清零） */
+    private double vtWindowSum;
 
     /** 反应方程式行数（换行后动态，v-t 图定位依赖） */
     private int equationRowCount = 1;
@@ -399,28 +402,24 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /**
      * 用服务端下发的历史初始化 v-t 环形缓冲（打开瞬间折线图即有数据）
      * <p>
-     * 历史为每 tick 通量×1000（旧→新，200 tick = 10s）；从最新端往回
-     * 按 1s（20 tick）采样，收集后反序写入环形缓冲——最新样本落在
-     * vtIndex-1，与绘制循环"最新点在最左端"的取数逻辑一致；
-     * 从最新端采样保证打开瞬间左端显示的是最近状态而非 10 秒前
+     * 历史 = 服务端 5 tick 窗口平均后的点（旧→新，20 点 = 5s），
+     * 直接顺序铺入环形缓冲——最旧先入、最新最后落 vtIndex-1，
+     * 与绘制循环"最新点在最左端"的取数逻辑一致；
+     * 服务端已按窗口平均，客户端无需再采样（旧版在客户端按 20 tick
+     * 抽点降采样的逻辑已废弃）
      *
-     * @param history 历史快照（旧→新，可能为空数组）
+     * @param history 历史快照（旧→新，5 tick 平均点，可能为空数组）
      */
     private void initVtHistory(int[] history) {
         if (history.length == 0) {
             return;
         }
-        int max = Math.min((history.length + VT_SAMPLE_TICKS - 1) / VT_SAMPLE_TICKS, VT_POINTS);
-        double[] samples = new double[max];
-        int n = 0;
-        for (int t = history.length - 1; t >= 0 && n < max; t -= VT_SAMPLE_TICKS) {
-            samples[n++] = history[t] / 1000.0;
-        }
-        for (int i = n - 1; i >= 0; i--) {
-            vtFlux[vtIndex] = samples[i];
+        int max = Math.min(history.length, VT_POINTS);
+        for (int i = 0; i < max; i++) {
+            vtFlux[vtIndex] = history[i] / 1000.0;
             vtIndex = (vtIndex + 1) % VT_POINTS;
         }
-        vtSampleCount = n;
+        vtSampleCount = max;
     }
 
     /**
@@ -972,7 +971,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      *       可逆居中、不可逆贴底；右端箭头屁股 = 最右点消失处</li>
      *   <li>y 轴满刻度 = 饱和可达速率（可逆共享分母 / 不可逆米氏积），
      *       满堆工况恰好顶到 y 最大/最小值</li>
-     *   <li>折线：1s 一点共 10 点，从左往右滚动（最新在左端）；
+     *   <li>折线：0.25s 一点共 20 点（5 tick 窗口平均），从左往右滚动（最新在左端）；
      *       2.5px 主题色方形点 + 1.25px 主题色折线（中心对齐穿点）</li>
      *   <li>刻度：每 10px 一条，值 = v×3.2（/tick），2x 文字（显示 4px）</li>
      * </ul>
@@ -1009,7 +1008,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         for (int step = 0; step <= VT_H / 10; step++) {
             int p = step * 10;
             double v = vmaxFShow - span * p / VT_H;
-            int w = this.font.width(formatTickValue(v * 3.2));
+            int w = this.font.width(formatAxisLabel(v * 3.2));
             maxTickW = Math.max(maxTickW, w);
         }
         int axisX = maxTickW * 2 + VT_TICK_GAP * ss;
@@ -1076,11 +1075,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         graphics.fill(tailX + ss * 3 - 1, zeroY - ss / 2, tailX + ss * 4 - 1, zeroY + ss / 2, AXIS_COLOR);
 
         // 刻度：每 10px 一条（0..60），值 = v×3.2（个物品/tick，1 tick = 64 个物品 × 0.05s），
-        // 两位有效数字，右对齐 Y 轴左缘，2x 放大绘制（缩小后 4px 高）
+        // 位数超 4 走科学计数法（formatAxisLabel），右对齐 Y 轴左缘，2x 放大绘制（缩小后 4px 高）
         for (int step = 0; step <= VT_H / 10; step++) {
             int p = step * 10;
             double v = vmaxFShow - span * p / VT_H;
-            String label = formatTickValue(v * 3.2);
+            String label = formatAxisLabel(v * 3.2);
             int textW = this.font.width(label);
             int tx = axisX - VT_TICK_GAP * ss - textW * 2;
             int ty = p * ss - ss * 2;
@@ -1136,6 +1135,66 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             s = String.format("%.3f", value);
         }
         return s;
+    }
+
+    /** 上标数字（科学计数法指数用，Minecraft 字体含 unifont 字形） */
+    private static final char[] SUPERSCRIPT_DIGITS = {'⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'};
+
+    /** 上标负号（U+207B） */
+    private static final char SUPERSCRIPT_MINUS = '⁻';
+
+    /**
+     * v-t 图 Y 轴刻度标注格式化
+     * <p>
+     * 位数超过 4（|值| ≥ 10000，含负向）时改用 2 位有效数字 + 科学
+     * 计数法，指数用上标数字（如 1.2×10⁴）——可达通量 × [E] 活性
+     * 倍率下刻度可上万（如 ALDO 64 酶），长整数字符串撑爆刻度区；
+     * 其余数值与 formatTickValue 同规则（3 位有效数字）
+     *
+     * @param value 刻度值（个/tick 口径）
+     * @return 显示文本
+     */
+    private static String formatAxisLabel(double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value) || Math.abs(value) >= 1e6) {
+            return "inf";
+        }
+        if (value != 0.0 && Math.abs(value) < 1e-4) {
+            return "0";
+        }
+        double abs = Math.abs(value);
+        if (abs >= 10000.0) {
+            // 2 位有效数字 + 科学计数法（指数上标）
+            int exp = (int) Math.floor(Math.log10(abs));
+            double mantissa = value / Math.pow(10, exp);
+            String m = String.format("%.1f", mantissa);
+            if (m.endsWith(".0")) {
+                m = m.substring(0, m.length() - 2);
+            }
+            return m + "×10" + superscript(exp);
+        }
+        String s = String.format("%.3g", value);
+        if (s.contains("e")) {
+            s = String.format("%.3f", value);
+        }
+        return s;
+    }
+
+    /**
+     * 整数指数 → 上标字符串（如 4 → "⁴"、-3 → "⁻³"）
+     *
+     * @param exp 十进制指数
+     * @return 上标表示
+     */
+    private static String superscript(int exp) {
+        StringBuilder sb = new StringBuilder();
+        if (exp < 0) {
+            sb.append(SUPERSCRIPT_MINUS);
+            exp = -exp;
+        }
+        for (char c : Integer.toString(exp).toCharArray()) {
+            sb.append(SUPERSCRIPT_DIGITS[c - '0']);
+        }
+        return sb.toString();
     }
 
     /**
@@ -1338,11 +1397,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         clearSpeciesSlotPositions();
         inputArea.tick();
         outputArea.tick();
-        // v-t 采样：每 1s（20 tick）取当前净通量一点入环形缓冲
+        // v-t 采样：每 5 tick（0.25s）落一点，点为窗口平均（连续 5 tick
+        // 的 flux 均值）——与服务端历史/折线图数据点同口径，平滑瞬时抖动
         vtTickCounter++;
+        vtWindowSum += menu.getFlux();
         if (vtTickCounter >= VT_SAMPLE_TICKS) {
             vtTickCounter = 0;
-            vtFlux[vtIndex] = menu.getFlux();
+            vtFlux[vtIndex] = vtWindowSum / VT_SAMPLE_TICKS;
+            vtWindowSum = 0.0;
             vtIndex = (vtIndex + 1) % VT_POINTS;
             vtSampleCount = Math.min(vtSampleCount + 1, VT_POINTS);
         }

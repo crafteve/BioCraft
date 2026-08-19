@@ -141,10 +141,26 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     /** OUTPUT 区域（产物槽）IO 模式，默认仅输出（只允许物品抽出） */
     private IoMode outputIoMode = IoMode.OUTPUT_ONLY;
 
-    /** v-t 通量历史环形缓冲（200 tick = 10 秒，打开 GUI 时一次性下发，不存档） */
-    private static final int HISTORY_LENGTH = 200;
+    /**
+     * v-t 通量历史（环形缓冲，打开 GUI 时一次性下发，不存档）
+     * <p>
+     * 每点 = 5 tick 窗口平均（HISTORY_INTERVAL_TICKS 个 tick 的
+     * cachedFluxX1000 均值，主产物个/tick 口径），共 20 点 =
+     * 100 tick = 5 秒窗口；客户端折线图直接铺 20 点，无需再采样
+     */
+    private static final int HISTORY_LENGTH = 20;
+
+    /** 每个历史点的 tick 窗口宽度（窗口平均口径，与客户端采样一致） */
+    private static final int HISTORY_INTERVAL_TICKS = 5;
+
     private final int[] fluxHistory = new int[HISTORY_LENGTH];
     private int historyIndex;
+
+    /** 当前历史窗口内的 fluxX1000 累加（每 HISTORY_INTERVAL_TICKS tick 落点一次） */
+    private long fluxWindowSum;
+
+    /** 当前历史窗口已计 tick 数（窗口平均的除数） */
+    private int fluxWindowCount;
 
     /** 酶槽当前酶 id 快照（换酶检测：对比本值与 0 槽解析结果） */
     private String enzymeSnapshot = "";
@@ -886,8 +902,16 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
             setChanged();
             notifyEnergyCapabilityChange();
         }
-        fluxHistory[historyIndex] = cachedFluxX1000;
-        historyIndex = (historyIndex + 1) % HISTORY_LENGTH;
+        // v-t 历史：5 tick 窗口平均落点（每点 = 窗口内 fluxX1000 均值，
+        // 平滑瞬时抖动；客户端折线图直接铺 20 点，与实时采样同口径）
+        fluxWindowSum += cachedFluxX1000;
+        fluxWindowCount++;
+        if (fluxWindowCount >= HISTORY_INTERVAL_TICKS) {
+            fluxHistory[historyIndex] = (int) Math.round(fluxWindowSum / (double) fluxWindowCount);
+            historyIndex = (historyIndex + 1) % HISTORY_LENGTH;
+            fluxWindowSum = 0;
+            fluxWindowCount = 0;
+        }
 
         if (level.getGameTime() % 20 == 0) {
             BioCraft.LOGGER.debug("enzyme chamber [{}] slots: {}, concentrations: {}, fluxX1000: {}, FE: {}/{}",
