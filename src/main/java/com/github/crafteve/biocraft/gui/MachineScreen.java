@@ -1146,10 +1146,14 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /**
      * v-t 图 Y 轴刻度标注格式化
      * <p>
-     * 位数超过 4（|值| ≥ 10000，含负向）时改用 2 位有效数字 + 科学
-     * 计数法，指数用上标数字（如 1.2×10⁴）——可达通量 × [E] 活性
-     * 倍率下刻度可上万（如 ALDO 64 酶），长整数字符串撑爆刻度区；
-     * 其余数值与 formatTickValue 同规则（3 位有效数字）
+     * 分档显示（保证各档位文本宽度大致相等，刻度区美观）：
+     * <ul>
+     *   <li>|值| ≥ 10000（5 位及以上，4 位有效数字装不下）→ 2 位有效
+     *       数字 + 科学计数法，指数上标（如 1.2×10⁴、1×10⁴）</li>
+     *   <li>|值| < 10000 → 4 位有效数字（去尾随零），如 1124、0.334、
+     *       1000——整数与小数都保持约 4 个字符的宽度，与科学计数法
+     *       档宽度接近（旧 %.3f 会把 1124 显示成 "1124.000" 撑爆）</li>
+     * </ul>
      *
      * @param value 刻度值（个/tick 口径）
      * @return 显示文本
@@ -1172,9 +1176,18 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             }
             return m + "×10" + superscript(exp);
         }
-        String s = String.format("%.3g", value);
+        // 4 位有效数字（%.4g 对 <10000 的值输出定点形式），去尾随零：
+        // "0.3340" → "0.334"、"1124.0" → "1124"、整数保持 4 位宽度
+        String s = String.format("%.4g", value);
         if (s.contains("e")) {
-            s = String.format("%.3f", value);
+            // 防御：理论上 |值| < 10000 时 %.4g 不会用科学计数，出现则退化
+            s = String.format("%.4f", value);
+        }
+        if (s.contains(".")) {
+            s = s.replaceAll("0+$", "");
+            if (s.endsWith(".")) {
+                s = s.substring(0, s.length() - 1);
+            }
         }
         return s;
     }
