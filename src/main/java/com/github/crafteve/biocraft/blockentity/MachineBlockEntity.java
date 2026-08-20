@@ -35,74 +35,7 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
      */
     protected MachineBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state, int containerSize) {
         super(type, pos, state);
-        this.inventory = new SimpleContainer(containerSize) {
-            /**
-             * 容器内容变化时向方块实体转发标记
-             * <p>
-             * 父容器的默认 setChanged 不联动 BlockEntity，
-             * 不转发会导致内容变化（含漏斗/菜单操作）不触发存档
-             */
-            @Override
-            public void setChanged() {
-                super.setChanged();
-                MachineBlockEntity.this.setChanged();
-            }
-
-            /**
-             * 槽位堆叠上限：委托子类钩子
-             * <p>
-             * 酶工厂按槽位组数放大容量（n 组 = n×64 个，见
-             * EnzymeFactoryBlockEntity.slotStackLimit）；其余机器
-             * （DNA 编码器）保持 vanilla 64
-             */
-            @Override
-            public int getMaxStackSize() {
-                return MachineBlockEntity.this.slotStackLimit();
-            }
-
-            /**
-             * 槽位堆叠上限（按物品查询）：返回槽位容量而非与物品上限取 min
-             * <p>
-             * vanilla 默认实现是 min(容器容量, 物品自身 getMaxStackSize)——
-             * 分子物品自身上限是 64，会把容量参数化后的 128 钳回 64
-             * （用户实测"槽位还是只能放一组"的根因）。容量放大后
-             * 必须直接返回槽位上限，否则 setItem 的 limitSize 截断堆叠
-             */
-            @Override
-            public int getMaxStackSize(ItemStack stack) {
-                return MachineBlockEntity.this.slotStackLimit();
-            }
-
-            /**
-             * 槽位插入许可（原版漏斗 canPlaceItem 询问路径）：
-             * 委托子类钩子（酶工厂按 IO 模式门控，见 canPlaceItemInternal）
-             *
-             * @param index 目标槽位
-             * @param stack 待插入物品堆
-             * @return true 表示允许
-             */
-            @Override
-            public boolean canPlaceItem(int index, ItemStack stack) {
-                return MachineBlockEntity.this.canPlaceItemInternal(index, stack);
-            }
-
-            /**
-             * 槽位抽出执行（原版漏斗 removeItem 直接调用，无权限询问）：
-             * 委托子类钩子拦截（酶工厂按 IO 模式门控，见 canTakeItemInternal），
-             * 模式禁止抽出时返回空堆——物品原地不动，调用方视为无可抽
-             *
-             * @param index 源槽位
-             * @param count 请求抽出数量
-             * @return 抽出的物品堆（被门控拦截时为空堆）
-             */
-            @Override
-            public ItemStack removeItem(int index, int count) {
-                if (!MachineBlockEntity.this.canTakeItemInternal(index)) {
-                    return ItemStack.EMPTY;
-                }
-                return super.removeItem(index, count);
-            }
-        };
+        this.inventory = new MachineContainer(this, containerSize);
     }
 
     /**

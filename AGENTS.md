@@ -30,6 +30,7 @@
 
 - 只写一个通用 `MachineBlock` 类，**不要为每种机器单独建方块类**；酶工厂方块时代结束后机器收敛为唯一的"酶反应腔"（enzyme_chamber）——一个方块 + 一个 BE 类型 + 一个 MenuType，酶由 0 槽（酶蛋白物品）动态解析，`EnzymeFactoryBlockEntity` 随插入的酶种构建对应引擎模拟器
 - 序列机家族为**第二方块类**（`SequenceMachineBlock`）：信息处理设备，与酶反应腔外观/交互/职责不同；每台序列机一个方块实例共享一个类（`SequenceMachineKind` **硬绑定处理器**，不做 0 槽动态解析——一台机器干一件事），共享一个 BE 类型 + 每机一个 MenuType
+- 两类机器方块共享 `AbstractMachineBlock` 抽象基类：朝向/放置/旋转/镜像/右键开 GUI/破坏掉落等公共行为在基类统一实现，子类仅实现 BE 创建与 tick 调度，消除重复
 - 配方由 **enzymes.json 结构化数据表**驱动（反应物/产物直接写物品注册名 + 化学计量系数 + Km，Keq/ΔH/kcat 等热力学与动力学参数随表直填），**绝不硬编码**；引擎在注册期对每条数据执行断言校验，失败即快速失败
 - 性能设计宗旨："事件驱动 + 睡眠"机制（睡眠已实现：无酶或全部物种浓度≈0 时跳过引擎步进；**酶槽事件驱动已实现**——容器 setChanged 立即触发酶槽解析/引擎构建/回收，tick 兜底保留，429fc95；输入槽变动唤醒引擎步进仍为设计方向，当前为每 tick 步进）
 - 细胞器（**尚未实现**）：相邻机器检测 + 控制核心方块（线粒体 = 基质控制器 + 十字排列的 4 个 ETC 模块；内质网 = 腔体机器紧邻堆叠实现速度线性叠加；膜 = 装饰性透明无碰撞方块，提供区室化增益）；ATP合酶的 H⁺ 浓度机制同样未实现
@@ -197,10 +198,12 @@ com.github.crafteve.biocraft
 │   ├── MoleculeTooltipComponent.java # TooltipComponent+ClientTooltipComponent：blit 结构图
 │   ├── MoleculeTooltipLayout.java # 标签页标题移置 tooltip 末尾（GatherComponents 事件）
 │   └── MoleculeItemDecorator.java # 图标左上角缩写标注（IItemDecorator，白字黑阴影、z=200；超长缩写按可用宽度自适应缩小）
-├── block/MachineBlock.java       # 唯一机器方块类：统一酶反应腔形态（无酶数据字段——酶由 BE 从 0 槽物品动态解析）+ 水平 FACING（放置正面朝玩家，4 向旋转/镜像支持）
-├── block/SequenceMachineBlock.java # 序列机方块类（第二方块类）：信息处理设备，一台机器一个方块实例（SequenceMachineKind 硬绑定处理器）+ 水平 FACING；方块类只承载放置/右键/掉落/tick/模型
+├── block/AbstractMachineBlock.java # 机器方块抽象基类：抽取酶反应腔与序列机公共的朝向/放置/旋转/镜像/右键开 GUI/破坏掉落（按 64 拆堆），子类仅实现 BE 创建与 tick 调度
+├── block/MachineBlock.java       # 唯一机器方块类：继承 AbstractMachineBlock，统一酶反应腔形态（无酶数据字段——酶由 BE 从 0 槽物品动态解析）
+├── block/SequenceMachineBlock.java # 序列机方块类：继承 AbstractMachineBlock，第二方块类，一台机器一个方块实例（SequenceMachineKind 硬绑定处理器）
 ├── blockentity/
-│   ├── MachineBlockEntity.java   # 机器 BE 基类：SimpleContainer（setChanged 转发 + getMaxStackSize 委托 slotStackLimit 钩子 + canPlaceItem/removeItem 门控钩子）+ NBT 存档 + MenuProvider + dropExtraContents 钩子
+│   ├── MachineBlockEntity.java   # 机器 BE 基类：持 MachineContainer 具名容器（原匿名内部类已抽离）+ NBT 存档 + MenuProvider + dropExtraContents 钩子
+│   ├── MachineContainer.java     # 机器容器具名封装：SimpleContainer 子类，委托 BE 的 slotStackLimit/canPlaceItemInternal/canTakeItemInternal 与 setChanged 转发
 │   ├── EnzymeFactoryBlockEntity.java # 酶反应腔：0 槽酶槽动态解析（换酶清空/同种增减只改活性）+ 浓度-槽位双向投影 + 每 tick 引擎步进 + 睡眠机制 + v-t 历史环形缓冲 + 定点存档 + 懒加载 IO 适配器单例 + fe 槽位映射/能量镜像结算 + 侧向 IO 模式（canInsertIntoSlot/canExtractFromSlot 三路门控统一入口）+ 主题色缓存（液体/灯 ARGB，换酶更新，客户端 BlockColor 数据源）
 │   ├── EnzymeFactoryItemHandler.java # 工业 IO 适配器（IItemHandlerModifiable）：0 槽酶槽过滤/物种过滤/全槽位可进可出（受 IO 模式门控）/O(1) 索引，复用 setChanged 浓度回写链
 │   ├── IoMode.java               # 侧向 IO 模式枚举（仅输入/仅输出/双向，GUI 按钮/管道/漏斗三路门控共用）
