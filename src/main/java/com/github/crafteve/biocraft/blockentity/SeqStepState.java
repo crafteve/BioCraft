@@ -26,7 +26,10 @@ public final class SeqStepState {
     /**
      * 分子余量（0~1，每槽一个，酶工厂同款模式）：
      * 1 分子 = 10 碱基时，每碱基余量 +0.1，满 1.0 才真正从槽位消耗/向槽位产出——
-     * 槽位物品是整数，小数余量存这里（BE 权威），GUI 显示 count + 余量
+     * 槽位物品是整数，小数余量存这里（BE 权威），GUI 显示 count + 余量。
+     * 余量是槽位分子的连续消耗状态（64 个 dATP 用了 0.9 个 = 63.1 个），
+     * 跨编码批次/换程序**保留**（化学计量：清零等于白送分子）；
+     * 转录仪 1:1 消耗恒为 0
      */
     private final double[] remainders = new double[REMAINDER_SLOTS];
 
@@ -82,14 +85,17 @@ public final class SeqStepState {
         this.stage = Stage.EXTENDING;
     }
 
-    /** 完全复位（换模板/换程序）：链源状态与分子余量一并清零 */
+    /**
+     * 链源复位（换模板/换程序）：stage/position/total/chain/pendingProgram
+     * 归零；**分子余量保留**——余量是槽位分子的连续消耗状态（如 64 个
+     * dATP 用了 0.9 = 63.1），跨程序接着用，清零等于白送分子
+     */
     public void reset() {
         this.stage = Stage.IDLE;
         this.position = 0;
         this.total = 0;
         this.chain = "";
         this.pendingProgram = "";
-        java.util.Arrays.fill(remainders, 0.0);
     }
 
     public CompoundTag save(CompoundTag tag) {

@@ -117,7 +117,8 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
 
     /**
      * 编码器提交程序文本（网络包到达）：换文本 = 换模板语义
-     * <p>先编码验证（超上限直接拒绝）；旧产物弹出；状态归零 + 写入新程序</p>
+     * <p>先编码验证（超上限直接拒绝）；旧产物弹出；链源状态归零 + 写入新程序；
+     * 分子余量保留（槽位连续消耗状态，跨程序接着用）</p>
      */
     public void submitProgram(String program) {
         if (program == null || program.isEmpty()) {
