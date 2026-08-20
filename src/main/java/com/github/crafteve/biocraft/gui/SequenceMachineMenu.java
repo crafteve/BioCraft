@@ -310,12 +310,12 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                     {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
             };
             case TRANSCRIBER -> new int[][]{
-                    // 状态栏模板槽（9,35 输入标签上方，不挡标题/进度）+ 左4 NTP（纵向，y60 起避开模板）+ 右 mRNA/ADP/PPi（横向）
-                    {9, 35},
-                    {INPUT_SCROLL_X + SLOT_X, 60 + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, 60 + SLOT_Y + CARD_STEP},
-                    {INPUT_SCROLL_X + SLOT_X, 60 + SLOT_Y + CARD_STEP * 2},
-                    {INPUT_SCROLL_X + SLOT_X, 60 + SLOT_Y + CARD_STEP * 3},
+                    // 顶栏状态槽（120,8 不挡标题/进度，进度条下移至26避 3px 重叠）+ 左4 NTP（纵向 41 起，与编码器同区）+ 右 mRNA/ADP/PPi（横向）
+                    {120, 8},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP * 2},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP * 3},
                     {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
                     {OUT_X + SLOT_X + 57, OUT_Y + SLOT_Y},
                     {OUT_X + SLOT_X + 114, OUT_Y + SLOT_Y},

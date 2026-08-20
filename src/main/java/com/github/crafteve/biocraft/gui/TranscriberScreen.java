@@ -46,11 +46,12 @@ public class TranscriberScreen extends SequenceMachineScreen {
             default -> "IDLE";
         };
         graphics.drawString(font, status, leftPos + imageWidth - 8 - font.width(status), topPos + 13, CONC_TEXT_COLOR, false);
+        // 进度条下移至 26-29，避开顶栏槽 7-25 的 3px 重叠（槽 120,8 占 7-25）
         int fill = total > 0 ? (int) ((imageWidth - 16) * pos / (double) total) : 0;
-        graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + imageWidth - 16, topPos + 25, BAR_TRACK);
-        if (fill > 0) graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + fill, topPos + 25, 0xFF7ED6DF);
-        // 模板槽背景（移到 9,55 输入标签上方，不挡标题/进度）
-        graphics.blit(SLOT_TEX, leftPos + 9 - 1, topPos + 35 - 1, 0, 0, 18, 18, 18, 18);
+        graphics.fill(leftPos + 8, topPos + 26, leftPos + 8 + imageWidth - 16, topPos + 29, BAR_TRACK);
+        if (fill > 0) graphics.fill(leftPos + 8, topPos + 26, leftPos + 8 + fill, topPos + 29, 0xFF7ED6DF);
+        // 模板槽背景（顶栏中部 120,8，不挡标题/进度，INPUT 保持 9,30）
+        graphics.blit(SLOT_TEX, leftPos + 120 - 1, topPos + 8 - 1, 0, 0, 18, 18, 18, 18);
     }
 
     private void drawTranscriptionPanel(GuiGraphics graphics) {
@@ -71,13 +72,16 @@ public class TranscriberScreen extends SequenceMachineScreen {
         if (!seq.isEmpty()) {
             String head = seq.length() > 30 ? seq.substring(0, 30) + "…" : seq;
             graphics.drawString(font, head, x + 6, y + 18, 0xFFB0BEC5, false);
-            // 启动子高亮
-            String prom = com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE;
-            int idx = seq.indexOf(prom);
-            if (idx >= 0) {
-                graphics.drawString(font, "启动子@" + idx, x + 6, y + 30, 0xFF7ED6DF, false);
+            if (isTemplate != null && isTemplate) {
+                graphics.drawString(font, "编码链不可转录，请放入模板链(3'→5')", x + 6, y + 30, 0xFFE53935, false);
             } else {
-                graphics.drawString(font, "未找到启动子 " + prom, x + 6, y + 30, 0xFFE53935, false);
+                String prom = com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE;
+                int idx = seq.indexOf(prom);
+                if (idx >= 0) {
+                    graphics.drawString(font, "启动子@" + idx, x + 6, y + 30, 0xFF7ED6DF, false);
+                } else {
+                    graphics.drawString(font, "未找到启动子 " + prom + "（旧链请重制）", x + 6, y + 30, 0xFFE53935, false);
+                }
             }
         } else {
             graphics.drawString(font, "放入模板 dna_single（模板链）", x + 6, y + 18, 0xFF6A9955, false);
@@ -118,19 +122,23 @@ public class TranscriberScreen extends SequenceMachineScreen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
         if (menu.getKind() == SequenceMachineKind.TRANSCRIBER) {
-            // 启动子缺失红叹号（同 encoder 左下角）
-            TranscriptionOperation op = new TranscriptionOperation();
-            // 直接读 BE 的 lastError 需要通过 menu 的 data？简化：检查模板槽是否有启动子
             Slot tmplSlot = menu.getSlot(TranscriptionOperation.SLOT_TEMPLATE);
             ItemStack tmpl = tmplSlot.getItem();
             SequenceData data = tmpl.get(ModDataComponents.SEQUENCE.get());
+            Boolean isTemplate = tmpl.get(ModDataComponents.IS_TEMPLATE.get());
             String err = "";
-            if (data != null && !data.seq().contains(com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE)) {
-                err = "未找到启动子 " + com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE;
+            if (data != null) {
+                if (isTemplate != null && isTemplate) {
+                    err = "编码链不可转录，请放入模板链(3'→5')";
+                } else if (!data.seq().contains(com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE)) {
+                    err = "未找到启动子 " + com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE + "（旧链请重制）";
+                }
             }
             if (!err.isEmpty()) {
                 int x = leftPos + SequenceMachineMenu.EDIT_X + 3;
                 int y = topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9;
+                graphics.fill(x, y, x + 1, y + 8, 0xFFE53935);
+                graphics.drawString(font, "!", x + 3, y, 0xFFFFFFFF, false);
                 if (mouseX >= x && mouseX < x + 8 && mouseY >= y && mouseY < y + 8) {
                     graphics.renderTooltip(font, java.util.List.of(Component.literal("§c" + err)), java.util.Optional.empty(), mouseX, mouseY);
                 }

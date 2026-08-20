@@ -56,14 +56,18 @@ public class TranscriptionOperation implements SequenceOperation {
         Boolean isTemplate = tmpl.get(ModDataComponents.IS_TEMPLATE.get());
         if (tmpl.isEmpty() || data == null || !data.complete() || data.type() != SequenceData.SeqType.DNA
                 || data.strand() != SequenceData.Strand.SS || !SeqOps.isValidDna(data.seq())
-                || isTemplate == null || isTemplate) {
+                || isTemplate == null) {
+            return false;
+        }
+        if (isTemplate) {
+            lastError = "编码链不可转录，请放入模板链(3'→5')";
             return false;
         }
         if (!container.getItem(SLOT_OUT_MRNA).isEmpty() || !hasRoom(container, SLOT_OUT_ADP) || !hasRoom(container, SLOT_OUT_PPI)) {
             return false;
         }
         if (!data.seq().contains(SeqOps.PROMOTER_TEMPLATE)) {
-            lastError = "未找到启动子 " + SeqOps.PROMOTER_TEMPLATE + "（模板链 3'→5'）";
+            lastError = "未找到启动子 " + SeqOps.PROMOTER_TEMPLATE + "（模板链 3'→5'，旧链请用新编码器重制）";
             return false;
         }
         lastError = "";
@@ -74,13 +78,18 @@ public class TranscriptionOperation implements SequenceOperation {
     public boolean init(SimpleContainer container, SeqStepState state) {
         ItemStack tmpl = container.getItem(SLOT_TEMPLATE);
         SequenceData data = tmpl.get(ModDataComponents.SEQUENCE.get());
+        Boolean isTemplate = tmpl.get(ModDataComponents.IS_TEMPLATE.get());
+        if (isTemplate != null && isTemplate) {
+            lastError = "编码链不可转录，请放入模板链(3'→5')";
+            return false;
+        }
         if (data == null || !SeqOps.isValidDna(data.seq())) {
             return false;
         }
-        String template = data.seq(); // 3'→5' 串
+        String template = data.seq();
         int start = template.indexOf(SeqOps.PROMOTER_TEMPLATE);
         if (start < 0) {
-            lastError = "未找到启动子 " + SeqOps.PROMOTER_TEMPLATE;
+            lastError = "未找到启动子 " + SeqOps.PROMOTER_TEMPLATE + "（模板链 3'→5'，旧链请用新编码器重制）";
             return false;
         }
         int from = start + SeqOps.PROMOTER_TEMPLATE.length();
@@ -196,7 +205,7 @@ public class TranscriptionOperation implements SequenceOperation {
                 Boolean isTemplate = stack.get(ModDataComponents.IS_TEMPLATE.get());
                 yield data != null && data.complete() && data.type() == SequenceData.SeqType.DNA
                         && data.strand() == SequenceData.Strand.SS && SeqOps.isValidDna(data.seq())
-                        && isTemplate != null && !isTemplate;
+                        && isTemplate != null;
             }
             case SLOT_ATP -> SequenceContainerUtil.matchesId(stack, "atp");
             case SLOT_UTP -> SequenceContainerUtil.matchesId(stack, "utp");
