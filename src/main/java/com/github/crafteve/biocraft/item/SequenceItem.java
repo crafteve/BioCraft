@@ -85,23 +85,23 @@ public class SequenceItem extends Item implements AbbreviationProvider {
     /**
      * DNA（双链/单链）tooltip 三态：
      * <ul>
-     *   <li>默认：5'-前 10 碱基…-3'（简略预览 + 长度标注 + 合成中标记）</li>
+     *   <li>默认：第一行灰白 5'-前 10 碱基…-3'（含 bp 数，合成中并入行尾）；
+     *       第二行"按住 Shift 显示碱基序列"；第三行"按住 Ctrl 显示程序"</li>
      *   <li>Shift：完整碱基序列，逐碱基按 dNTP 主题色着色（A/T/C/G =
-     *       dATP/dTTP/dCTP/dGTP 物品色），每行 64 碱基分行显示</li>
+     *       dATP/dTTP/dCTP/dGTP 物品色），首行 5' 白标、末行 3' 白标，
+     *       每行碱基数按 tooltip 可用宽度自适应（防 MC 超宽自动折行
+     *       打乱彩色换行）</li>
      *   <li>Ctrl：解码出的程序全文，语法高亮 + 保留缩进格式
      *       （ProgramHighlight，与编辑器配色一致）</li>
      * </ul>
      */
     private static void appendDnaTooltip(SequenceData data, List<Component> tooltip) {
         String seq = data.seq();
-        String kind = data.strand() == SequenceData.Strand.DS ? "dsDNA" : "ssDNA";
         if (Screen.hasShiftDown()) {
-            tooltip.add(Component.literal("§7" + kind + " 完整序列（" + seq.length() + " bp，Shift）"));
             tooltip.addAll(coloredBases(seq));
             return;
         }
         if (Screen.hasControlDown()) {
-            tooltip.add(Component.literal("§7" + kind + " 程序（Ctrl）"));
             SeqCodec.DecodeResult r = SeqCodec.decodeText(seq);
             if (r.ok()) {
                 tooltip.addAll(ProgramHighlight.highlight(r.text()));
@@ -110,27 +110,38 @@ public class SequenceItem extends Item implements AbbreviationProvider {
             }
             return;
         }
-        // 默认三行：序列行（灰白 5'-前10碱基…-3'，合成中并入行尾）+
-        // Shift 提示（含 bp 数）+ Ctrl 提示
         String head = seq.length() <= 10 ? seq : seq.substring(0, 10) + "…";
         MutableComponent line1 = Component.literal("§75'-" + head + "-3'  §8(" + seq.length() + " bp)");
         if (!data.complete()) {
             line1.append(Component.literal(" §7合成中"));
         }
         tooltip.add(line1);
-        tooltip.add(Component.literal("§8按住 Shift 显示全部碱基序列（" + seq.length() + " bp）"));
+        tooltip.add(Component.literal("§8按住 Shift 显示碱基序列"));
         tooltip.add(Component.literal("§8按住 Ctrl 显示程序"));
     }
 
     /**
      * 完整碱基序列逐碱基着色（Shift 查看）：A/T/C/G 取对应 dNTP 物品主题色
-     * （substances.json 数据表色，与 GUI 卡片同源），每行 64 碱基分行
+     * （substances.json 数据表色，与 GUI 卡片同源）。
+     * <p>
+     * 分行规则：每行碱基数 = (屏幕可用宽度 / 6px 每字符)——MC 会对超宽的
+     * tooltip 行自动折行（折行位置在字符中间、打乱彩色换行 = "换行错乱"），
+     * 按屏宽分行保证单行不超可用宽度、永不被 MC 二次折行；
+     * 首行 5' 白标、末行 3' 白标
      */
     private static List<Component> coloredBases(String seq) {
+        // 可用宽度 = 屏幕宽度 - 40（tooltip 左右边距）；最小 120px 兜底
+        int avail = Math.max(120, net.minecraft.client.Minecraft.getInstance()
+                .getWindow().getGuiScaledWidth() - 40);
+        int perLine = Math.max(20, avail / 6);
+        Style white = Style.EMPTY.withColor(TextColor.fromRgb(0xFFFFFF));
         List<Component> lines = new ArrayList<>();
-        for (int start = 0; start < seq.length(); start += 64) {
-            String part = seq.substring(start, Math.min(seq.length(), start + 64));
+        for (int start = 0; start < seq.length(); start += perLine) {
+            String part = seq.substring(start, Math.min(seq.length(), start + perLine));
             MutableComponent line = Component.empty();
+            if (start == 0) {
+                line.append(Component.literal("5'").withStyle(white));
+            }
             for (int i = 0; i < part.length(); i++) {
                 char base = part.charAt(i);
                 int color = switch (base) {
@@ -142,6 +153,9 @@ public class SequenceItem extends Item implements AbbreviationProvider {
                 };
                 line.append(Component.literal(String.valueOf(base))
                         .withStyle(Style.EMPTY.withColor(TextColor.fromRgb(color))));
+            }
+            if (start + perLine >= seq.length()) {
+                line.append(Component.literal("3'").withStyle(white));
             }
             lines.add(line);
         }

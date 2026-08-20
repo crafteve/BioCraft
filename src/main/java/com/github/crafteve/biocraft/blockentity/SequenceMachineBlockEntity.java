@@ -159,6 +159,51 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         if (tag.contains("seqState", Tag.TAG_COMPOUND)) {
             stepState.load(tag.getCompound("seqState"));
         }
+        if (kind() == SequenceMachineKind.DNA_ENCODER) {
+            restoreOutputSlots();
+        }
+    }
+
+    /**
+     * 读档后校正编码器输出槽（防御 + 日志定位）：
+     * <ul>
+     *   <li><b>副产物归位</b>：ADP 槽（6）只存 adp、PPi 槽（7）只存 ppi——
+     *       机器语义下槽 6/7 只可能由 step 的 addOne 放入对应物品（GUI
+     *       mayPlace=false + 漏斗 canPlaceItem=false 堵死外部塞入），
+     *       读档出现异类物品（实测：ADP 进 DNA 槽、PPi 进 ADP 槽）即存档
+     *       错位，按物品 id 归位（堆叠整体搬移/合并）</li>
+     *   <li><b>DNA 槽重物化</b>：DNA 槽是链前缀的物化镜像（唯一真相在
+     *       stepState），若槽 5 被污染/缺失则覆盖为正确的物化内容</li>
+     * </ul>
+     * 两端（服务端/客户端）都执行：无副作用，客户端容器随后被服务端广播覆盖
+     */
+    private void restoreOutputSlots() {
+        int a = DnaSynthesisOperation.SLOT_OUT_ADP;
+        int p = DnaSynthesisOperation.SLOT_OUT_PPI;
+        ItemStack s6 = inventory.getItem(a);
+        ItemStack s7 = inventory.getItem(p);
+        boolean sixAdp = !s6.isEmpty() && SequenceOperation.matchesId(s6, "adp");
+        boolean sixPpi = !s6.isEmpty() && SequenceOperation.matchesId(s6, "ppi");
+        boolean sevenAdp = !s7.isEmpty() && SequenceOperation.matchesId(s7, "adp");
+        boolean sevenPpi = !s7.isEmpty() && SequenceOperation.matchesId(s7, "ppi");
+        boolean wrong = (!s6.isEmpty() && !sixAdp && !sixPpi)
+                || (!s7.isEmpty() && !sevenAdp && !sevenPpi)
+                || (sixPpi && !sevenPpi)      // ppi 错位在 ADP 槽
+                || (sevenAdp && !sixAdp);     // adp 错位在 PPi 槽
+        if (wrong) {
+            com.github.crafteve.biocraft.BioCraft.LOGGER.warn(
+                    "编码器读档输出槽错位校正: slot5={} slot6={} slot7={}",
+                    inventory.getItem(DnaSynthesisOperation.SLOT_OUT_DNA), s6, s7);
+            // 归位：adp → 槽6、ppi → 槽7（整体搬移/保留原堆叠）
+            ItemStack adpStack = sixAdp ? s6 : (sevenAdp ? s7 : ItemStack.EMPTY);
+            ItemStack ppiStack = sixPpi ? s6 : (sevenPpi ? s7 : ItemStack.EMPTY);
+            inventory.setItem(a, adpStack);
+            inventory.setItem(p, ppiStack);
+        }
+        // DNA 槽重新物化（覆盖污染/缺失；IDLE 不物化——无链可物化）
+        if (stepState.stage() != SeqStepState.Stage.IDLE) {
+            operation.materialize(inventory, stepState);
+        }
     }
 
     @Override
