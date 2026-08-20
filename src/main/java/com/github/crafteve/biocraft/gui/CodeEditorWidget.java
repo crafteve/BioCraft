@@ -31,10 +31,24 @@ public class CodeEditorWidget {
     private static final int LOCKED_LINE_COLOR = 0xFF6A6A6A;
     /** 酶设计单字段关键词（DSL：id/name/kcat/input/output，大小写不敏感） */
     private static final String[] FIELD_KEYWORDS = {"id", "name", "kcat", "input", "output"};
-    /** 已编码字符底色（暗绿，逐字符动画：编码到哪个字符哪个变底色） */
-    private static final int ENCODED_BG = 0xFF2E4A2E;
-    /** 已编码字符色（亮绿，逐字符动画：变色） */
-    private static final int ENCODED_TEXT = 0xFF8FD9A8;
+
+    // ---- 逐字符编码动画配色（编码波峰 → 渐变冷却） ----
+    /** 波峰字符文字（金色，正在编码） */
+    private static final int ENCODED_PEAK_TEXT = 0xFFFFE08A;
+    /** 波峰字符发光晕（半透明金，外扩 1px） */
+    private static final int ENCODED_PEAK_GLOW = 0x44FFE08A;
+    /** 波峰背景脉动上限色（亮绿） */
+    private static final int ENCODED_PEAK_BG = 0xFF3E9E52;
+    /** 新鲜已编码文字（亮绿白） */
+    private static final int ENCODED_FRESH_TEXT = 0xFFC9F5D2;
+    /** 陈旧已编码文字（暗绿，冷却后） */
+    private static final int ENCODED_OLD_TEXT = 0xFF5E9E6E;
+    /** 新鲜已编码底色（亮绿） */
+    private static final int ENCODED_FRESH_BG = 0xFF2E7A3E;
+    /** 陈旧已编码底色（深绿，冷却后） */
+    private static final int ENCODED_OLD_BG = 0xFF14291A;
+    /** 渐变跨度（字符数，波峰向后多少个字符完成冷却） */
+    private static final int FADE_CHARS = 15;
 
     private final int x;
     private final int y;
@@ -47,6 +61,7 @@ public class CodeEditorWidget {
     private int firstVisibleLine;  // 纵向滚动
     private boolean active = true; // 输入焦点
     private double progress = 1.0; // 编码进度 0..1（1 = 未编码/已完成）
+    private int flashTicks;        // 编码完成闪光倒计时（完成瞬间全文本闪白）
     private long tickCount;
 
     public CodeEditorWidget(int x, int y, int width, int height) {
@@ -81,8 +96,11 @@ public class CodeEditorWidget {
         return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
     }
 
-    /** 编码进度（0~1），驱动扫描线动画 */
+    /** 编码进度（0~1），驱动逐字符动画；从 <1 变为 1 时触发完成闪光 */
     public void setProgress(double progress) {
+        if (this.progress < 1.0 && progress >= 1.0) {
+            this.flashTicks = 25; // 编码完成：全文本白光闪烁
+        }
         this.progress = progress;
     }
 
@@ -302,8 +320,8 @@ public class CodeEditorWidget {
         for (int i = firstVisibleLine; i < Math.min(lines.length, firstVisibleLine + visibleLines); i++) {
             int lineY = textY + (i - firstVisibleLine) * lineHeight();
             String lineText = lines[i];
-            // 本行已编码字符数（行首连续段，编码顺序逐字符）
-            int lineEncoded = progress < 1.0
+            // 本行已编码字符数（行首连续段，编码顺序逐字符；完成闪光期间按全长）
+            int lineEncoded = (progress < 1.0 || flashTicks > 0)
                     ? Math.max(0, Math.min(lineText.length(), encodedChars - globalChar))
                     : 0;
             // 未解锁字段（kcat）整行灰显 + 行尾"（未解锁）"提示（教学引导，不阻止输入）
@@ -314,7 +332,19 @@ public class CodeEditorWidget {
             } else {
                 drawHighlightedLine(graphics, lineText, textX, lineY, lineEncoded);
             }
+            // 编码完成闪光：已编码区域叠加白色脉动光
+            if (flashTicks > 0 && lineEncoded > 0) {
+                int encW = font.width(lineText.substring(0, Math.min(lineEncoded, lineText.length())));
+                float f = flashTicks / 25.0f;
+                int alpha = (int) (0x50 * f * (0.6 + 0.4 * Math.sin(tickCount * 0.6)));
+                if (alpha > 0) {
+                    graphics.fill(textX, lineY, textX + encW, lineY + lineHeight(), (alpha << 24) | 0xFFFFFF);
+                }
+            }
             globalChar += lineText.length() + 1; // +1 换行符
+        }
+        if (flashTicks > 0) {
+            flashTicks--;
         }
 
         // 光标（闪烁方块）
@@ -332,67 +362,59 @@ public class CodeEditorWidget {
     }
 
     /**
-     * 逐行绘制：行首 encodedCount 个字符为"已编码"（整体变色 + 变底色，
-     * 逐字符动画），其余字符正常语法高亮
+     * 逐行绘制：行首 encodedCount 个字符为"已编码"——逐字符渐变动画
+     * （波峰金色发光 + 向后冷却成暗绿），其余字符正常语法高亮
      */
     private void drawHighlightedLine(GuiGraphics graphics, String line, int x, int y, int encodedCount) {
-        if (encodedCount >= line.length()) {
-            // 整行已编码
-            if (encodedCount > 0) {
-                int w = font.width(line);
-                graphics.fill(x, y, x + w, y + lineHeight(), ENCODED_BG);
-                graphics.drawString(font, line, x, y, ENCODED_TEXT, false);
-            }
+        // 已编码段：逐字符绘制（age = 该字符已编码多久，1 = 最新/波峰）
+        int encoded = Math.min(encodedCount, line.length());
+        for (int i = 0; i < encoded; i++) {
+            int age = encoded - i;
+            x = drawEncodedChar(graphics, line.charAt(i), x, y, age);
+        }
+        if (encoded >= line.length()) {
             return;
         }
-        if (encodedCount > 0) {
-            // 已编码段：整体变底色 + 变色
-            String encoded = line.substring(0, encodedCount);
-            int w = font.width(encoded);
-            graphics.fill(x, y, x + w, y + lineHeight(), ENCODED_BG);
-            graphics.drawString(font, encoded, x, y, ENCODED_TEXT, false);
-            x += w;
-            line = line.substring(encodedCount);
-        }
+        String rest = line.substring(encoded);
         int i = 0;
-        int len = line.length();
+        int len = rest.length();
         while (i < len) {
-            char c = line.charAt(i);
+            char c = rest.charAt(i);
             if (c == '#') {
-                drawRun(graphics, line.substring(i), x, y, COLOR_COMMENT);
+                drawRun(graphics, rest.substring(i), x, y, COLOR_COMMENT);
                 return;
             }
             if (c == '"') {
-                int end = line.indexOf('"', i + 1);
+                int end = rest.indexOf('"', i + 1);
                 if (end < 0) {
                     end = len - 1;
                 }
-                drawRun(graphics, line.substring(i, end + 1), x, y, COLOR_STRING);
-                x += font.width(line.substring(i, end + 1));
+                drawRun(graphics, rest.substring(i, end + 1), x, y, COLOR_STRING);
+                x += font.width(rest.substring(i, end + 1));
                 i = end + 1;
                 continue;
             }
             if (Character.isDigit(c)) {
                 int end = i;
-                while (end < len && (Character.isDigit(line.charAt(end)) || line.charAt(end) == '.')) {
+                while (end < len && (Character.isDigit(rest.charAt(end)) || rest.charAt(end) == '.')) {
                     end++;
                 }
-                drawRun(graphics, line.substring(i, end), x, y, COLOR_NUMBER);
-                x += font.width(line.substring(i, end));
+                drawRun(graphics, rest.substring(i, end), x, y, COLOR_NUMBER);
+                x += font.width(rest.substring(i, end));
                 i = end;
                 continue;
             }
             if (Character.isLetter(c) || c == '_') {
                 int end = i;
-                while (end < len && (Character.isLetterOrDigit(line.charAt(end)) || line.charAt(end) == '_')) {
+                while (end < len && (Character.isLetterOrDigit(rest.charAt(end)) || rest.charAt(end) == '_')) {
                     end++;
                 }
-                String word = line.substring(i, end);
+                String word = rest.substring(i, end);
                 int color = COLOR_PLAIN;
                 if (word.equals("import") || word.equals("as") || word.equals("修饰")
                         || isFieldKeyword(word)) {
                     color = COLOR_KEYWORD;
-                } else if (end < len && line.charAt(end) == '(') {
+                } else if (end < len && rest.charAt(end) == '(') {
                     color = COLOR_FUNCTION;
                 }
                 drawRun(graphics, word, x, y, color);
@@ -412,6 +434,47 @@ public class CodeEditorWidget {
             x += font.width(ch);
             i++;
         }
+    }
+
+    /**
+     * 单字符"已编码"绘制（华丽逐字符动画）：
+     * <ul>
+     *   <li>波峰（age=1，正在编码）：金色文字 + 外扩 1px 半透明金发光晕 +
+     *       背景随 tick 脉动（呼吸灯）</li>
+     *   <li>次新（age=2）：新鲜亮绿白 + 亮绿底</li>
+     *   <li>更旧（age&gt;2）：按 FADE_CHARS 跨度从新鲜渐变冷却为暗绿</li>
+     * </ul>
+     *
+     * @return 下一个字符的 x（本字符右缘）
+     */
+    private int drawEncodedChar(GuiGraphics graphics, char c, int x, int y, int age) {
+        String s = String.valueOf(c);
+        int w = font.width(s);
+        int h = lineHeight();
+        if (age == 1) {
+            // 波峰：发光晕 + 脉动背景 + 金色文字
+            graphics.fill(x - 1, y - 1, x + w + 1, y + h + 1, ENCODED_PEAK_GLOW);
+            double pulse = 0.5 + 0.5 * Math.sin(tickCount * 0.3);
+            int bg = lerpColor(ENCODED_FRESH_BG, ENCODED_PEAK_BG, (float) pulse);
+            graphics.fill(x, y, x + w, y + h, bg);
+            graphics.drawString(font, s, x, y, ENCODED_PEAK_TEXT, false);
+            return x + w;
+        }
+        // 冷却渐变：新鲜 → 陈旧（文字与底色同步插值）
+        float t = Math.min((float) (age - 1) / FADE_CHARS, 1.0f);
+        int text = lerpColor(ENCODED_FRESH_TEXT, ENCODED_OLD_TEXT, t);
+        int bg = lerpColor(ENCODED_FRESH_BG, ENCODED_OLD_BG, t);
+        graphics.fill(x, y, x + w, y + h, bg);
+        graphics.drawString(font, s, x, y, text, false);
+        return x + w;
+    }
+
+    /** 两色线性插值（alpha 恒 0xFF） */
+    private static int lerpColor(int c1, int c2, float t) {
+        int r = (c1 >> 16 & 0xFF) + (int) (((c2 >> 16 & 0xFF) - (c1 >> 16 & 0xFF)) * t);
+        int g = (c1 >> 8 & 0xFF) + (int) (((c2 >> 8 & 0xFF) - (c1 >> 8 & 0xFF)) * t);
+        int b = (c1 & 0xFF) + (int) (((c2 & 0xFF) - (c1 & 0xFF)) * t);
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
     private void drawRun(GuiGraphics graphics, String s, int x, int y, int color) {
