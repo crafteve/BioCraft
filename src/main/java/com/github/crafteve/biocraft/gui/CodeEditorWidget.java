@@ -27,16 +27,14 @@ public class CodeEditorWidget {
     private static final int COLOR_COMMENT = 0xFF6A9955;   // 注释灰绿
     private static final int COLOR_SYMBOL = 0xFFD7BA7D;    // 符号金
     private static final int COLOR_PLAIN = 0xFFD4D4D4;     // 普通文字白
-    /** 已完成（已编码）行的淡化色：与暗绿混合 */
-    private static final int SCANNED_MIX = 0xFF2E4A2E;
     /** 未解锁字段行颜色（暗灰，kcat 等后续解锁字段） */
     private static final int LOCKED_LINE_COLOR = 0xFF6A6A6A;
     /** 酶设计单字段关键词（DSL：id/name/kcat/input/output，大小写不敏感） */
     private static final String[] FIELD_KEYWORDS = {"id", "name", "kcat", "input", "output"};
-    /** 扫描线颜色 */
-    private static final int COLOR_SCANNER = 0xFF00E5FF;
-    /** 当前行高亮底色 */
-    private static final int COLOR_CURRENT_LINE = 0x22FFFFFF;
+    /** 已编码字符底色（暗绿，逐字符动画：编码到哪个字符哪个变底色） */
+    private static final int ENCODED_BG = 0xFF2E4A2E;
+    /** 已编码字符色（亮绿，逐字符动画：变色） */
+    private static final int ENCODED_TEXT = 0xFF8FD9A8;
 
     private final int x;
     private final int y;
@@ -293,33 +291,30 @@ public class CodeEditorWidget {
         // 主动触发，render 不再自动拉回——滚轮浏览的 firstVisibleLine 不被覆盖）
         int curLine = currentLine();
 
-        // 扫描线所在行（编码中）
-        int scanLine = (int) (progress * lines.length);
+        // 逐字符编码动画（动画 A）：全局字符配额（含换行符），进度推进时
+        // 字符逐个进入编码态（变色 + 变底色）——取代旧"整行扫描线"动画
+        int totalChars = text.length();
+        int encodedChars = progress < 1.0 ? (int) Math.round(progress * totalChars) : 0;
 
         int textX = x + 3;
         int textY = y + 2;
+        int globalChar = 0;
         for (int i = firstVisibleLine; i < Math.min(lines.length, firstVisibleLine + visibleLines); i++) {
             int lineY = textY + (i - firstVisibleLine) * lineHeight();
-            boolean scanned = progress < 1.0 && i < scanLine;
-            boolean isScanLine = progress < 1.0 && i == scanLine;
-            if (isScanLine) {
-                graphics.fill(x, lineY - 1, x + width, lineY + lineHeight(), COLOR_CURRENT_LINE);
-            }
+            String lineText = lines[i];
+            // 本行已编码字符数（行首连续段，编码顺序逐字符）
+            int lineEncoded = progress < 1.0
+                    ? Math.max(0, Math.min(lineText.length(), encodedChars - globalChar))
+                    : 0;
             // 未解锁字段（kcat）整行灰显 + 行尾"（未解锁）"提示（教学引导，不阻止输入）
-            if (isLockedFieldLine(lines[i])) {
-                graphics.drawString(font, lines[i], textX, lineY, LOCKED_LINE_COLOR, false);
-                int textW = font.width(lines[i]);
+            if (isLockedFieldLine(lineText)) {
+                graphics.drawString(font, lineText, textX, lineY, LOCKED_LINE_COLOR, false);
+                int textW = font.width(lineText);
                 graphics.drawString(font, "（未解锁）", textX + textW + 6, lineY, LOCKED_LINE_COLOR, false);
             } else {
-                drawHighlightedLine(graphics, lines[i], textX, lineY, scanned);
+                drawHighlightedLine(graphics, lineText, textX, lineY, lineEncoded);
             }
-        }
-
-        // 扫描线（编码中，画在当前扫描行下缘）
-        if (progress < 1.0) {
-            int scanY = textY + Math.min(scanLine, lines.length - 1) * lineHeight() + lineHeight() - 1;
-            scanY = Math.min(scanY, y + height - 2);
-            graphics.fill(x + 1, scanY, x + width - 1, scanY + 2, COLOR_SCANNER);
+            globalChar += lineText.length() + 1; // +1 换行符
         }
 
         // 光标（闪烁方块）
@@ -336,14 +331,35 @@ public class CodeEditorWidget {
         }
     }
 
-    /** 逐词语法高亮绘制（简单分词器） */
-    private void drawHighlightedLine(GuiGraphics graphics, String line, int x, int y, boolean scanned) {
+    /**
+     * 逐行绘制：行首 encodedCount 个字符为"已编码"（整体变色 + 变底色，
+     * 逐字符动画），其余字符正常语法高亮
+     */
+    private void drawHighlightedLine(GuiGraphics graphics, String line, int x, int y, int encodedCount) {
+        if (encodedCount >= line.length()) {
+            // 整行已编码
+            if (encodedCount > 0) {
+                int w = font.width(line);
+                graphics.fill(x, y, x + w, y + lineHeight(), ENCODED_BG);
+                graphics.drawString(font, line, x, y, ENCODED_TEXT, false);
+            }
+            return;
+        }
+        if (encodedCount > 0) {
+            // 已编码段：整体变底色 + 变色
+            String encoded = line.substring(0, encodedCount);
+            int w = font.width(encoded);
+            graphics.fill(x, y, x + w, y + lineHeight(), ENCODED_BG);
+            graphics.drawString(font, encoded, x, y, ENCODED_TEXT, false);
+            x += w;
+            line = line.substring(encodedCount);
+        }
         int i = 0;
         int len = line.length();
         while (i < len) {
             char c = line.charAt(i);
             if (c == '#') {
-                drawRun(graphics, line.substring(i), x, y, COLOR_COMMENT, scanned);
+                drawRun(graphics, line.substring(i), x, y, COLOR_COMMENT);
                 return;
             }
             if (c == '"') {
@@ -351,7 +367,7 @@ public class CodeEditorWidget {
                 if (end < 0) {
                     end = len - 1;
                 }
-                drawRun(graphics, line.substring(i, end + 1), x, y, COLOR_STRING, scanned);
+                drawRun(graphics, line.substring(i, end + 1), x, y, COLOR_STRING);
                 x += font.width(line.substring(i, end + 1));
                 i = end + 1;
                 continue;
@@ -361,7 +377,7 @@ public class CodeEditorWidget {
                 while (end < len && (Character.isDigit(line.charAt(end)) || line.charAt(end) == '.')) {
                     end++;
                 }
-                drawRun(graphics, line.substring(i, end), x, y, COLOR_NUMBER, scanned);
+                drawRun(graphics, line.substring(i, end), x, y, COLOR_NUMBER);
                 x += font.width(line.substring(i, end));
                 i = end;
                 continue;
@@ -379,38 +395,27 @@ public class CodeEditorWidget {
                 } else if (end < len && line.charAt(end) == '(') {
                     color = COLOR_FUNCTION;
                 }
-                drawRun(graphics, word, x, y, color, scanned);
+                drawRun(graphics, word, x, y, color);
                 x += font.width(word);
                 i = end;
                 continue;
             }
             if (c == '=' || c == ',' || c == '(' || c == ')' || c == ';' || c == ':') {
-                drawRun(graphics, String.valueOf(c), x, y, COLOR_SYMBOL, scanned);
+                drawRun(graphics, String.valueOf(c), x, y, COLOR_SYMBOL);
                 x += font.width(String.valueOf(c));
                 i++;
                 continue;
             }
             // 空格与其余字符
             String ch = String.valueOf(c);
-            drawRun(graphics, ch, x, y, COLOR_PLAIN, scanned);
+            drawRun(graphics, ch, x, y, COLOR_PLAIN);
             x += font.width(ch);
             i++;
         }
     }
 
-    private void drawRun(GuiGraphics graphics, String s, int x, int y, int color, boolean scanned) {
-        if (scanned) {
-            color = mix(color, SCANNED_MIX);
-        }
+    private void drawRun(GuiGraphics graphics, String s, int x, int y, int color) {
         graphics.drawString(font, s, x, y, color, false);
-    }
-
-    /** 与已完成色混合（已编码行的淡化） */
-    private static int mix(int base, int target) {
-        int r = (((base >> 16) & 0xFF) + ((target >> 16) & 0xFF)) / 2;
-        int g = (((base >> 8) & 0xFF) + ((target >> 8) & 0xFF)) / 2;
-        int b = ((base & 0xFF) + (target & 0xFF)) / 2;
-        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
     /** 单词是否为酶设计单字段关键词（大小写不敏感） */

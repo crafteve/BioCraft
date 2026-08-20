@@ -165,7 +165,11 @@ public class MachineBlock extends Block implements EntityBlock {
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hitResult) {
         if (!level.isClientSide && level.getBlockEntity(pos) instanceof MachineBlockEntity machine) {
-            player.openMenu(machine, pos);
+            // NeoForge 打开数据：BlockPos + 子类钩子（编码器追加编辑器草稿）
+            player.openMenu(machine, buf -> {
+                buf.writeBlockPos(pos);
+                machine.writeMenuOpeningData(buf);
+            });
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }

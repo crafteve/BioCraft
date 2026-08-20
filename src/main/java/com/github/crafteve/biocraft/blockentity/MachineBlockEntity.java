@@ -223,6 +223,17 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
     }
 
     /**
+     * 打开数据包追加写入钩子（子类覆写）：NeoForge openMenu(machine, buf -> ...)
+     * 写方块位置后调用本方法——序列机编码器用于下发编辑器草稿
+     * （MachineBlock.useWithoutItem 写入顺序：BlockPos → 本钩子）
+     *
+     * @param buf 打开数据包缓冲
+     */
+    public void writeMenuOpeningData(net.minecraft.network.FriendlyByteBuf buf) {
+        // 基类空实现：无需追加数据（酶工厂等）
+    }
+
+    /**
      * MenuProvider 实现：返回当前玩家使用的菜单容器
      * <p>
      * 方块类右键交互时调用 openMenu，最终到达本方法创建菜单

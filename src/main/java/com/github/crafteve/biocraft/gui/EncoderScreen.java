@@ -1,6 +1,7 @@
 package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.data.EnzymeProgramChecker;
+import com.github.crafteve.biocraft.network.ServerboundProgramDraftPacket;
 import com.github.crafteve.biocraft.network.ServerboundSequenceProgramPacket;
 import com.github.crafteve.biocraft.program.EnzymeProgramParser;
 import com.github.crafteve.biocraft.program.ProgramError;
@@ -46,6 +47,9 @@ public class EncoderScreen extends SequenceMachineScreen {
     /** 程序校验错误缓存（脏检测：文本变化才跑解析 + 完整校验） */
     private List<ProgramError> programErrors = List.of();
 
+    /** 已发送服务端的草稿快照（脏检测：编辑器文本变化才发包保存） */
+    private String lastSentDraft = null;
+
     public EncoderScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
     }
@@ -60,7 +64,9 @@ public class EncoderScreen extends SequenceMachineScreen {
                 topPos + SequenceMachineMenu.EDIT_Y + 1,
                 SequenceMachineMenu.EDIT_W - 6,
                 SequenceMachineMenu.EDIT_H - 12);
-        this.editor.setText(TEMPLATE);
+        // 恢复服务端存档的编辑器草稿（无草稿用默认模板）
+        String draft = this.menu.getProgramDraft();
+        this.editor.setText(draft == null || draft.isEmpty() ? TEMPLATE : draft);
         this.editor.setActive(true);
 
         // 模板/编码按钮：面板底部行（y = 面板底 - 11，高 11，与 bp 预览同行）
@@ -86,11 +92,17 @@ public class EncoderScreen extends SequenceMachineScreen {
     public void containerTick() {
         super.containerTick();
         this.editor.tick();
-        // 编码进度 → 扫描线动画（动画 A）；未编码/完成 = 1.0（无扫描线）
+        // 编码进度 → 逐字符动画（动画 A：编码到哪个字符哪个变色+变底色）
         int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
         int position = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
         double progress = total > 0 ? position / (double) total : 1.0;
         this.editor.setProgress(progress);
+        // 编辑器草稿保存（脏检测：文本变化才发包，跨 GUI 打开保留）
+        String text = this.editor.getText();
+        if (!text.equals(this.lastSentDraft)) {
+            this.lastSentDraft = text;
+            PacketDistributor.sendToServer(new ServerboundProgramDraftPacket(this.menu.getPos(), text));
+        }
     }
 
     // ---- 输入路由：编辑器有焦点时优先，否则交还基类（背包快捷键/槽位） ----
@@ -171,20 +183,49 @@ public class EncoderScreen extends SequenceMachineScreen {
             }
         }
         int maxBp = SequenceConstants.MAX_DNA_BP;
-        String msg;
-        int color;
-        if (this.bpOverLimit) {
-            msg = "§c程序过长，超出" + maxBp + "bp 上限";
-            color = 0xFFFFFF;
-        } else if (!this.programErrors.isEmpty()) {
-            msg = "§c" + this.programErrors.size() + " 处错误：" + this.programErrors.get(0).describe();
-            color = 0xFFFFFF;
+        boolean hasIssue = this.bpOverLimit || !this.programErrors.isEmpty();
+        // 报错提示：左下角红色感叹号（悬停 tooltip 显示详情，见 render 覆写）——
+        // 不直接在编码区打印错误文本（会与按钮/编辑器重叠）
+        String bpText = "§7" + this.cachedBp + "bp/" + maxBp + "bp";
+        if (hasIssue) {
+            graphics.drawString(this.font, Component.literal("§c!"),
+                    SequenceMachineMenu.EDIT_X + 3, SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9,
+                    0xFFFFFF, false);
+            graphics.drawString(this.font, Component.literal(bpText),
+                    SequenceMachineMenu.EDIT_X + 3 + 10, SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9,
+                    0xFFFFFF, false);
         } else {
-            msg = "§7" + this.cachedBp + "bp/" + maxBp + "bp";
-            color = 0xFFFFFF;
+            graphics.drawString(this.font, Component.literal(bpText),
+                    SequenceMachineMenu.EDIT_X + 3, SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9,
+                    0xFFFFFF, false);
         }
-        graphics.drawString(this.font, Component.literal(msg),
-                SequenceMachineMenu.EDIT_X + 3, SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9,
-                color, false);
+    }
+
+    /**
+     * render 覆写：super 之后补画报错感叹号的悬停 tooltip——
+     * 有错误且鼠标悬停在左下角感叹号上时，显示全部错误详情（每行一条）
+     */
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        super.render(graphics, mouseX, mouseY, partialTick);
+        if (isHoveringWarning(mouseX, mouseY)) {
+            java.util.List<Component> lines = new java.util.ArrayList<>();
+            if (this.bpOverLimit) {
+                lines.add(Component.literal("§c程序过长，超出 " + SequenceConstants.MAX_DNA_BP + "bp 上限"));
+            }
+            for (ProgramError e : this.programErrors) {
+                lines.add(Component.literal("§c" + e.describe()));
+            }
+            if (!lines.isEmpty()) {
+                graphics.renderTooltip(this.font, lines, java.util.Optional.empty(), mouseX, mouseY);
+            }
+        }
+    }
+
+    /** 悬停判定：左下角感叹号矩形（8×8，与 bp 预览同行） */
+    private boolean isHoveringWarning(double mouseX, double mouseY) {
+        int x = this.leftPos + SequenceMachineMenu.EDIT_X + 3;
+        int y = this.topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9;
+        return mouseX >= x && mouseX < x + 8 && mouseY >= y && mouseY < y + 8;
     }
 }

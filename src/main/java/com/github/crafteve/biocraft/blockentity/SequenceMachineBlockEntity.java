@@ -32,6 +32,9 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
     private final SeqStepState stepState = new SeqStepState();
     private int stepCooldown = 0;
 
+    /** 编辑器草稿（未提交的程序文本，跨 GUI 打开保留；NBT 存档） */
+    private String programDraft = "";
+
     public SequenceMachineBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state, resolveContainerSize(state));
         this.operation = resolveOperation(state);
@@ -67,6 +70,27 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
 
     public SeqStepState stepState() {
         return stepState;
+    }
+
+    /** 读取编辑器草稿（打开 GUI 时客户端恢复用） */
+    public String programDraft() {
+        return programDraft;
+    }
+
+    /** 写入编辑器草稿（客户端文本变化经网络包保存） */
+    public void setProgramDraft(String draft) {
+        if (draft != null && !draft.equals(this.programDraft)) {
+            this.programDraft = draft;
+            setChanged();
+        }
+    }
+
+    /** 打开数据包追加编辑器草稿（编码器；MachineBlock 写入顺序：pos → 本钩子） */
+    @Override
+    public void writeMenuOpeningData(net.minecraft.network.FriendlyByteBuf buf) {
+        if (kind() == SequenceMachineKind.DNA_ENCODER) {
+            buf.writeUtf(programDraft);
+        }
     }
 
     /** 服务端每 tick 调度（SequenceMachineBlock.getTicker 挂载） */
@@ -151,6 +175,7 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
     public void saveAdditional(CompoundTag tag, net.minecraft.core.HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         tag.put("seqState", stepState.save(new CompoundTag()));
+        tag.putString("draft", programDraft);
     }
 
     @Override
@@ -158,6 +183,9 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         super.loadAdditional(tag, registries);
         if (tag.contains("seqState", Tag.TAG_COMPOUND)) {
             stepState.load(tag.getCompound("seqState"));
+        }
+        if (tag.contains("draft", Tag.TAG_STRING)) {
+            programDraft = tag.getString("draft");
         }
         if (kind() == SequenceMachineKind.DNA_ENCODER) {
             restoreOutputSlots();

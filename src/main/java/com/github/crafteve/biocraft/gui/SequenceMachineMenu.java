@@ -101,6 +101,9 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
     /** 机器槽数量（Screen 绘制槽位底时区分玩家背包槽） */
     public final int machineSlotCount;
 
+    /** 编辑器草稿（编码器打开数据包下发；转录仪恒空串） */
+    private final String programDraft;
+
     /** 服务端构造（BE.createMenu 调用），data 实时读 BE 状态 */
     public SequenceMachineMenu(SequenceMachineKind kind, int containerId,
                                Inventory playerInventory, SequenceMachineBlockEntity be) {
@@ -128,7 +131,7 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                     public int getCount() {
                         return DATA_COUNT;
                     }
-                });
+                }, be.programDraft());
     }
 
     /** 客户端构造（MenuType 数据包工厂）：读 BlockPos → 客户端 BE 容器 */
@@ -142,33 +145,37 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
     /** 客户端统一构造 */
     private SequenceMachineMenu(MenuType<?> menuType, SequenceMachineKind kind, int containerId,
                                 Inventory playerInventory, ClientInit init, ContainerData data) {
-        this(menuType, kind, containerId, playerInventory, init.container(), init.pos(), data);
+        this(menuType, kind, containerId, playerInventory, init.container(), init.pos(), data, init.draft());
     }
 
     /** 统一私有构造 */
     private SequenceMachineMenu(MenuType<?> menuType, SequenceMachineKind kind, int containerId,
-                                Inventory playerInventory, Container container, BlockPos pos, ContainerData data) {
+                                Inventory playerInventory, Container container, BlockPos pos, ContainerData data,
+                                String programDraft) {
         super(menuType, containerId);
         this.kind = kind;
         this.pos = pos;
         this.data = data;
+        this.programDraft = programDraft;
         addDataSlots(data);
         this.machineSlotCount = containerSizeFor(kind);
         addMachineSlots(container, kind);
         addPlayerInventory(playerInventory);
     }
 
-    private record ClientInit(Container container, BlockPos pos) {
+    private record ClientInit(Container container, BlockPos pos, String draft) {
     }
 
     private static ClientInit parseClientInit(Inventory playerInventory, RegistryFriendlyByteBuf buffer,
                                               SequenceMachineKind kind) {
         BlockPos pos = buffer.readBlockPos();
+        // 编码器打开数据包追加草稿（MachineBlock 写入顺序：pos → writeMenuOpeningData）
+        String draft = kind == SequenceMachineKind.DNA_ENCODER ? buffer.readUtf() : "";
         if (playerInventory.player.level().getBlockEntity(pos) instanceof SequenceMachineBlockEntity be) {
-            return new ClientInit(be.getContainer(), pos);
+            return new ClientInit(be.getContainer(), pos, draft);
         }
         // 方块已破坏：占位空容器（防御降级，避免菜单崩溃）
-        return new ClientInit(new SimpleContainer(containerSizeFor(kind)), pos);
+        return new ClientInit(new SimpleContainer(containerSizeFor(kind)), pos, draft);
     }
 
     private static int containerSizeFor(SequenceMachineKind kind) {
@@ -319,6 +326,11 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
 
     public BlockPos getPos() {
         return pos;
+    }
+
+    /** 编辑器草稿（编码器：服务端 BE 存档的未提交文本；转录仪/无草稿恒空串） */
+    public String getProgramDraft() {
+        return programDraft;
     }
 
     public ContainerData getData() {
