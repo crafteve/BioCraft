@@ -110,11 +110,16 @@ public class SequenceItem extends Item implements AbbreviationProvider {
             }
             return;
         }
+        // 默认三行：序列行（灰白 5'-前10碱基…-3'，合成中并入行尾）+
+        // Shift 提示（含 bp 数）+ Ctrl 提示
         String head = seq.length() <= 10 ? seq : seq.substring(0, 10) + "…";
-        tooltip.add(Component.literal("§7" + kind + " 5'-" + head + "-3'  §8(" + seq.length() + " bp)"));
+        MutableComponent line1 = Component.literal("§75'-" + head + "-3'  §8(" + seq.length() + " bp)");
         if (!data.complete()) {
-            tooltip.add(Component.literal("§7合成中…"));
+            line1.append(Component.literal(" §7合成中"));
         }
+        tooltip.add(line1);
+        tooltip.add(Component.literal("§8按住 Shift 显示全部碱基序列（" + seq.length() + " bp）"));
+        tooltip.add(Component.literal("§8按住 Ctrl 显示程序"));
     }
 
     /**

@@ -82,6 +82,10 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         this.imageHeight = SequenceMachineMenu.WINDOW_H;
         this.inputCards = buildInputCards(menu.getKind());
         this.outputCards = buildOutputCards(menu.getKind());
+        // 立即同步滚动槽坐标（酶工厂同款修复：CardScrollArea 构造后先 tick 一次）——
+        // 否则首帧渲染发生在 containerTick 之前，槽位停在 Menu 占位坐标
+        // （5 个输入槽叠在同一位置"闪一下"再摊开，实测现象）
+        tickScrolls();
     }
 
     protected List<InputCard> buildInputCards(SequenceMachineKind kind) {
@@ -222,7 +226,10 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             case EXTENDING -> "EXT " + position + "/" + total;
             case DONE -> "DONE";
         };
-        graphics.drawString(this.font, status, this.leftPos + 150, this.topPos + 13, CONC_TEXT_COLOR, false);
+        // 状态文本右对齐（右缘 8px 边距）
+        graphics.drawString(this.font, status,
+                this.leftPos + imageWidth - 8 - this.font.width(status),
+                this.topPos + 13, CONC_TEXT_COLOR, false);
         // 细进度条（y22-25，全宽）
         int fill = total > 0 ? (int) ((imageWidth - 16) * position / (double) total) : 0;
         graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + imageWidth - 16, topPos + 25, BAR_TRACK);
