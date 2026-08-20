@@ -310,8 +310,8 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                     {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
             };
             case TRANSCRIBER -> new int[][]{
-                    // 顶栏状态槽（120,8 不挡标题/进度，进度条下移至26避 3px 重叠）+ 左4 NTP（纵向 41 起，与编码器同区）+ 右 mRNA/ADP/PPi（横向）
-                    {120, 8},
+                    // 模板链槽位仿酶工厂 slot0 (9,8) 顶栏位；左4 NTP 纵向 41 起，右 mRNA/ADP/PPi 横向
+                    {9, 8},
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP},
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP * 2},

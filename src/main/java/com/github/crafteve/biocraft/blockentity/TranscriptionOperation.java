@@ -127,40 +127,89 @@ public class TranscriptionOperation implements SequenceOperation {
             case 'G' -> SLOT_GTP;
             default -> SLOT_ATP;
         };
-        // 输入仅需 NTP，功能 ATP 从原料 atp 池同步扣除；输出 ADP+PPi
-        boolean needExtraAtp = base != 'A';
-        if (!hasAny(container, ntpSlot) || !hasRoom(container, SLOT_OUT_ADP) || !hasRoom(container, SLOT_OUT_PPI)) {
-            return StepResult.STALLED;
+        // 仿 dnaEncoder：每碱基 0.1 NTP + 0.1 ATP，满 1.0 才真正消耗/产出（10 碱基 = 1 组）
+        double inc = 0.1;
+        boolean isA = base == 'A';
+        double ntpRem, atpRem, adpRem, ppiRem;
+        if (isA) {
+            ntpRem = state.remainder(SLOT_ATP) + 0.2;
+            atpRem = ntpRem;
+        } else {
+            ntpRem = state.remainder(ntpSlot) + inc;
+            atpRem = state.remainder(SLOT_ATP) + inc;
         }
-        if (needExtraAtp && !hasAny(container, SLOT_ATP)) {
-            return StepResult.STALLED;
+        adpRem = state.remainder(SLOT_OUT_ADP) + inc;
+        ppiRem = state.remainder(SLOT_OUT_PPI) + inc;
+        boolean needNtp = ntpRem >= 1.0 - 1e-9;
+        boolean needAtp = isA ? needNtp : atpRem >= 1.0 - 1e-9;
+        boolean needAdp = adpRem >= 1.0 - 1e-9;
+        boolean needPpi = ppiRem >= 1.0 - 1e-9;
+        if (needNtp && !hasAny(container, ntpSlot)) return StepResult.STALLED;
+        if (!isA && needAtp && !hasAny(container, SLOT_ATP)) return StepResult.STALLED;
+        if (needAdp && !hasRoom(container, SLOT_OUT_ADP)) return StepResult.STALLED;
+        if (needPpi && !hasRoom(container, SLOT_OUT_PPI)) return StepResult.STALLED;
+        // 消耗 NTP
+        if (needNtp) {
+            if (!SequenceContainerUtil.consumeOne(container, ntpSlot, ntp)) return StepResult.STALLED;
+            if (isA) state.setRemainder(SLOT_ATP, 0.0);
+            else state.setRemainder(ntpSlot, 0.0);
+        } else {
+            if (isA) state.setRemainder(SLOT_ATP, ntpRem);
+            else state.setRemainder(ntpSlot, ntpRem);
         }
-        // 对于 A，atp 槽的 1 个 atp 同时作 NTP 与功能 ATP，需保证 atp 槽至少 1 个（已检查）
-        if (!SequenceContainerUtil.consumeOne(container, ntpSlot, ntp)) {
-            return StepResult.STALLED;
+        // 消耗 ATP（非 A 时独立）
+        if (!isA) {
+            if (needAtp) {
+                if (!SequenceContainerUtil.consumeOne(container, SLOT_ATP, "atp")) {
+                    if (needNtp) {
+                        SequenceContainerUtil.addOne(container, ntpSlot, ntp);
+                        state.setRemainder(ntpSlot, ntpRem);
+                    } else {
+                        state.setRemainder(SLOT_ATP, atpRem);
+                    }
+                    return StepResult.STALLED;
+                }
+                state.setRemainder(SLOT_ATP, 0.0);
+            } else {
+                state.setRemainder(SLOT_ATP, atpRem);
+            }
         }
-        // 功能 ATP：A 时已随 NTP 消耗同步扣除，不另扣；非 A 时另扣 1 atp
-        if (needExtraAtp) {
-            if (!SequenceContainerUtil.consumeOne(container, SLOT_ATP, "atp")) {
-                SequenceContainerUtil.addOne(container, ntpSlot, ntp);
+        if (needAdp) {
+            if (!SequenceContainerUtil.addOne(container, SLOT_OUT_ADP, "adp")) {
+                // 回滚 NTP/ATP
+                if (needNtp) {
+                    SequenceContainerUtil.addOne(container, ntpSlot, ntp);
+                    if (isA) state.setRemainder(SLOT_ATP, ntpRem);
+                    else state.setRemainder(ntpSlot, 0.0);
+                }
+                if (!isA && needAtp) {
+                    SequenceContainerUtil.addOne(container, SLOT_ATP, "atp");
+                    state.setRemainder(SLOT_ATP, 0.0);
+                }
                 return StepResult.STALLED;
             }
+            state.setRemainder(SLOT_OUT_ADP, 0.0);
+        } else {
+            state.setRemainder(SLOT_OUT_ADP, adpRem);
         }
-        if (!SequenceContainerUtil.addOne(container, SLOT_OUT_ADP, "adp")) {
-            SequenceContainerUtil.addOne(container, ntpSlot, ntp);
-            if (needExtraAtp) SequenceContainerUtil.addOne(container, SLOT_ATP, "atp");
-            return StepResult.STALLED;
-        }
-        if (!SequenceContainerUtil.addOne(container, SLOT_OUT_PPI, "ppi")) {
-            // 回滚 ADP 与 NTP/ATP
-            ItemStack adp = container.getItem(SLOT_OUT_ADP);
-            if (!adp.isEmpty()) {
-                adp.shrink(1);
-                if (adp.isEmpty()) container.setItem(SLOT_OUT_ADP, net.minecraft.world.item.ItemStack.EMPTY);
+        if (needPpi) {
+            if (!SequenceContainerUtil.addOne(container, SLOT_OUT_PPI, "ppi")) {
+                if (needAdp) {
+                    ItemStack adp = container.getItem(SLOT_OUT_ADP);
+                    if (!adp.isEmpty()) { adp.shrink(1); if (adp.isEmpty()) container.setItem(SLOT_OUT_ADP, ItemStack.EMPTY); }
+                    state.setRemainder(SLOT_OUT_ADP, 0.0);
+                }
+                if (needNtp) {
+                    SequenceContainerUtil.addOne(container, ntpSlot, ntp);
+                    if (isA) state.setRemainder(SLOT_ATP, ntpRem);
+                    else state.setRemainder(ntpSlot, 0.0);
+                }
+                if (!isA && needAtp) { SequenceContainerUtil.addOne(container, SLOT_ATP, "atp"); state.setRemainder(SLOT_ATP, 0.0); }
+                return StepResult.STALLED;
             }
-            SequenceContainerUtil.addOne(container, ntpSlot, ntp);
-            if (needExtraAtp) SequenceContainerUtil.addOne(container, SLOT_ATP, "atp");
-            return StepResult.STALLED;
+            state.setRemainder(SLOT_OUT_PPI, 0.0);
+        } else {
+            state.setRemainder(SLOT_OUT_PPI, ppiRem);
         }
         state.setPosition(state.position() + 1);
         return state.position() >= state.total() ? StepResult.DONE : StepResult.ADVANCED;

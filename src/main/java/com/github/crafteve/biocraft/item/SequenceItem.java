@@ -139,18 +139,9 @@ public class SequenceItem extends Item implements AbbreviationProvider {
      * 首行 5' 白标、末行 3' 白标（非模板链则 3'/5' 对调，显示 3'→5'）
      */
     private static List<Component> coloredBases(String seq, Boolean isTemplate) {
-        // helicase 单链（带 IS_TEMPLATE）一行完整显示，避免莫名换行；其余按屏宽自适应
-        int perLine;
-        boolean dirIsTemplate;
-        if (isTemplate == null) {
-            int avail = Math.max(120, net.minecraft.client.Minecraft.getInstance()
-                    .getWindow().getGuiScaledWidth() - 40);
-            perLine = Math.max(20, avail / 6);
-            dirIsTemplate = true;
-        } else {
-            perLine = seq.length();
-            dirIsTemplate = isTemplate;
-        }
+        // 仿 ssDNA 修复：全部单行完整显示，避免 MC 对超宽彩色行的二次折行错乱（原 DS 按屏宽分行仍异常换行）
+        int perLine = seq.length();
+        boolean dirIsTemplate = isTemplate != null ? isTemplate : true;
         Style white = Style.EMPTY.withColor(TextColor.fromRgb(0xFFFFFF));
         List<Component> lines = new ArrayList<>();
         String leftMark = dirIsTemplate ? "5'" : "3'";

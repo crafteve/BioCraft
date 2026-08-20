@@ -35,7 +35,8 @@ public class TranscriberScreen extends SequenceMachineScreen {
     }
 
     private void drawStatusBarWithTemplate(GuiGraphics graphics) {
-        graphics.drawString(font, title, leftPos + 8, topPos + 13, NAME_COLOR, false);
+        // 标题仿酶工厂 slot0 右侧 28 起，避免 9,8 槽覆盖
+        graphics.drawString(font, title, leftPos + 28, topPos + 13, NAME_COLOR, false);
         int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
         int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
         int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
@@ -46,12 +47,11 @@ public class TranscriberScreen extends SequenceMachineScreen {
             default -> "IDLE";
         };
         graphics.drawString(font, status, leftPos + imageWidth - 8 - font.width(status), topPos + 13, CONC_TEXT_COLOR, false);
-        // 进度条下移至 26-29，避开顶栏槽 7-25 的 3px 重叠（槽 120,8 占 7-25）
+        // 模板槽背景仿酶工厂 slot0 (9,8)；进度条保持 22-25，标题 8,13 避开槽左侧 9-26 区
         int fill = total > 0 ? (int) ((imageWidth - 16) * pos / (double) total) : 0;
-        graphics.fill(leftPos + 8, topPos + 26, leftPos + 8 + imageWidth - 16, topPos + 29, BAR_TRACK);
-        if (fill > 0) graphics.fill(leftPos + 8, topPos + 26, leftPos + 8 + fill, topPos + 29, 0xFF7ED6DF);
-        // 模板槽背景（顶栏中部 120,8，不挡标题/进度，INPUT 保持 9,30）
-        graphics.blit(SLOT_TEX, leftPos + 120 - 1, topPos + 8 - 1, 0, 0, 18, 18, 18, 18);
+        graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + imageWidth - 16, topPos + 25, BAR_TRACK);
+        if (fill > 0) graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + fill, topPos + 25, 0xFF7ED6DF);
+        graphics.blit(SLOT_TEX, leftPos + 9 - 1, topPos + 8 - 1, 0, 0, 18, 18, 18, 18);
     }
 
     private void drawTranscriptionPanel(GuiGraphics graphics) {
@@ -61,51 +61,92 @@ public class TranscriberScreen extends SequenceMachineScreen {
         int h = SequenceMachineMenu.EDIT_H;
         graphics.fill(x, y, x + w, y + h, EDIT_PANEL_COLOR);
         graphics.fill(x, y, x + w, y + 1, 0xFF3A3A3A);
-        // 模板序列预览（取状态栏模板槽）
+        // 顶部状态：标题 + 聚合酶图标
+        graphics.drawString(font, "转录", x + 6, y + 6, 0xFFE0E0E0, false);
+        int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
+        int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
+        int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
+        boolean running = stage == 1 && total > 0;
+        // 聚合酶图标（右上角圆 + P）
+        int px = x + w - 18;
+        int py = y + 6;
+        graphics.fill(px, py, px + 10, py + 10, 0xFF4FC3F7);
+        graphics.fill(px + 1, py + 1, px + 9, py + 9, 0xFF0288D1);
+        graphics.drawString(font, "P", px + 3, py + 1, 0xFFFFFFFF, false);
+        String status = running ? pos + "/" + total : stage == 2 ? "完成" : "待机";
+        graphics.drawString(font, status, px - 6 - font.width(status), py + 1, 0xFF9E9E9E, false);
+
         Slot tmplSlot = menu.getSlot(TranscriptionOperation.SLOT_TEMPLATE);
         ItemStack tmpl = tmplSlot.getItem();
         SequenceData data = tmpl.get(ModDataComponents.SEQUENCE.get());
         String seq = data != null ? data.seq() : "";
         Boolean isTemplate = tmpl.get(ModDataComponents.IS_TEMPLATE.get());
-        String label = isTemplate != null && !isTemplate ? "模板 3'→5'" : "模板 5'→3'";
-        graphics.drawString(font, label, x + 6, y + 6, 0xFFE0E0E0, false);
-        if (!seq.isEmpty()) {
-            String head = seq.length() > 30 ? seq.substring(0, 30) + "…" : seq;
-            graphics.drawString(font, head, x + 6, y + 18, 0xFFB0BEC5, false);
-            if (isTemplate != null && isTemplate) {
-                graphics.drawString(font, "编码链不可转录，请放入模板链(3'→5')", x + 6, y + 30, 0xFFE53935, false);
-            } else {
-                String prom = com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE;
-                int idx = seq.indexOf(prom);
-                if (idx >= 0) {
-                    graphics.drawString(font, "启动子@" + idx, x + 6, y + 30, 0xFF7ED6DF, false);
-                } else {
-                    graphics.drawString(font, "未找到启动子 " + prom + "（旧链请重制）", x + 6, y + 30, 0xFFE53935, false);
-                }
-            }
-        } else {
-            graphics.drawString(font, "放入模板 dna_single（模板链）", x + 6, y + 18, 0xFF6A9955, false);
+        if (seq.isEmpty()) {
+            graphics.drawString(font, "放入模板 dna_single（模板链）", x + 6, y + 22, 0xFF6A9955, false);
+            return;
         }
-        // 当前转录碱基
-        int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
-        int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
-        int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
-        if (stage == 1 && total > 0) {
-            String chain = "";
-            Slot out = menu.getSlot(TranscriptionOperation.SLOT_OUT_MRNA);
-            SequenceData outData = out.getItem().get(ModDataComponents.SEQUENCE.get());
-            if (outData != null) chain = outData.seq();
-            if (!chain.isEmpty()) {
-                char base = chain.charAt(Math.min(pos - 1, chain.length() - 1));
-                int color = switch (base) {
-                    case 'A' -> BASE_A;
-                    case 'U' -> BASE_T;
-                    case 'C' -> BASE_C;
-                    case 'G' -> BASE_G;
-                    default -> 0xFFE0E0E0;
-                };
-                graphics.drawString(font, "当前 " + base, x + w - 40, y + 6, color, false);
+        if (isTemplate != null && isTemplate) {
+            graphics.drawString(font, "编码链不可转录，请放入模板链(3'→5')", x + 6, y + 22, 0xFFE53935, false);
+            return;
+        }
+        String prom = com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE;
+        int idx = seq.indexOf(prom);
+        if (idx < 0) {
+            graphics.drawString(font, "未找到启动子 " + prom + "（旧链请重制）", x + 6, y + 22, 0xFFE53935, false);
+            String head = seq.length() > 28 ? seq.substring(0, 28) + "…" : seq;
+            graphics.drawString(font, head, x + 6, y + 34, 0xFFB0BEC5, false);
+            return;
+        }
+        graphics.drawString(font, "启动子@" + idx, x + 6, y + 22, 0xFF7ED6DF, false);
+        // 中央双链可视化：上排模板 3'→5'，下排 mRNA 5'→3'，中线配对，当前碱基发光
+        int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
+        double pulse = (Math.sin(tick * 0.4) * 0.3 + 0.7);
+        int window = Math.min(18, seq.length() - (idx + prom.length()));
+        int from = idx + prom.length();
+        int to = Math.min(seq.length(), from + window);
+        String templateSeg = seq.substring(from, to);
+        String mrnaSeg = "";
+        Slot out = menu.getSlot(TranscriptionOperation.SLOT_OUT_MRNA);
+        SequenceData outData = out.getItem().get(ModDataComponents.SEQUENCE.get());
+        if (outData != null) mrnaSeg = outData.seq();
+        int baseX0 = x + 10;
+        int templY = y + 42;
+        int mrnaY = y + 62;
+        int pairY = y + 50;
+        // 背景轨道
+        graphics.fill(x + 6, templY - 2, x + w - 6, templY + 10, 0xFF2A2A2E);
+        graphics.fill(x + 6, mrnaY - 2, x + w - 6, mrnaY + 10, 0xFF2A2A2E);
+        graphics.drawString(font, "模板", x + 6, templY - 10, 0xFF81C784, false);
+        graphics.drawString(font, "mRNA", x + 6, mrnaY - 10, 0xFFF1C40F, false);
+        for (int i = 0; i < templateSeg.length() && baseX0 + i * 8 < x + w - 10; i++) {
+            char tBase = templateSeg.charAt(i);
+            char mBase = i < mrnaSeg.length() ? mrnaSeg.charAt(Math.min(i, mrnaSeg.length() - 1)) : '?';
+            // 若转录中且当前位为发光位
+            boolean isCurrent = running && i == Math.max(0, pos - idx - prom.length() - 1) && i < mrnaSeg.length();
+            int tColor = switch (tBase) {
+                case 'A' -> BASE_A; case 'T' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFF9E9E9E;
+            };
+            int mColor = switch (mBase) {
+                case 'A' -> BASE_A; case 'U' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFF5A5A5A;
+            };
+            int bx = baseX0 + i * 8;
+            if (isCurrent) {
+                int glow = (int) (180 * pulse) << 24 | 0x00FFFFFF;
+                graphics.fill(bx - 1, templY - 1, bx + 7, templY + 9, glow);
+                graphics.fill(bx - 1, mrnaY - 1, bx + 7, mrnaY + 9, glow);
             }
+            graphics.drawString(font, String.valueOf(tBase), bx, templY, tColor, false);
+            graphics.drawString(font, String.valueOf(mBase == '?' ? "·" : mBase), bx, mrnaY, isCurrent ? 0xFFFFFFFF : mColor, false);
+            // 配对竖线
+            int lineColor = isCurrent ? 0xFFFFFF00 : 0xFF555555;
+            graphics.fill(bx + 3, pairY, bx + 4, pairY + 4, lineColor);
+        }
+        // 底部进度细条
+        int barY = y + h - 6;
+        graphics.fill(x + 6, barY, x + w - 6, barY + 2, BAR_TRACK);
+        if (total > 0) {
+            int fill = (int) ((w - 12) * pos / (double) total);
+            graphics.fill(x + 6, barY, x + 6 + fill, barY + 2, 0xFF7ED6DF);
         }
     }
 

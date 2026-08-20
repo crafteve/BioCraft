@@ -163,8 +163,16 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
                         - vOffset + SequenceMachineMenu.SLOT_Y;
             }
         }
-        // 输出（横向）
+        // 输出
         if (!outputCards.isEmpty()) {
+            if (menu.getKind() == SequenceMachineKind.HELICASE) {
+                for (int i = 0; i < outputCards.size(); i++) {
+                    Slot slot = menu.getSlot(outputCards.get(i).containerSlot());
+                    slot.x = 193 + SequenceMachineMenu.SLOT_X;
+                    slot.y = 41 + i * SequenceMachineMenu.CARD_STEP + SequenceMachineMenu.SLOT_Y;
+                }
+                return;
+            }
             this.outputScrollOffset += (this.outputScrollTarget - this.outputScrollOffset) * SCROLL_LERP;
             if (Math.abs(this.outputScrollTarget - this.outputScrollOffset) < 0.5) {
                 this.outputScrollOffset = this.outputScrollTarget;
@@ -190,9 +198,14 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             scrollInput(verticalAmount);
             return true;
         }
-        if (inArea(lx, ly, SequenceMachineMenu.OUT_X, SequenceMachineMenu.OUT_Y,
+        if (menu.getKind() == SequenceMachineKind.HELICASE) {
+            if (inArea(lx, ly, 193, 41, 56, 112)) {
+                scrollInput(verticalAmount);
+                return true;
+            }
+        } else if (inArea(lx, ly, SequenceMachineMenu.OUT_X, SequenceMachineMenu.OUT_Y,
                 SequenceMachineMenu.OUT_W, SequenceMachineMenu.OUT_H)) {
-            scrollOutput(verticalAmount); // 横向滚动用滚轮（方向改为横向）
+            scrollOutput(verticalAmount);
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
@@ -388,7 +401,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
         graphics.drawString(font, "DNA", textX, pngY, NAME_COLOR, false);
         graphics.drawString(font, position + "/" + total, textX + 30, pngY, CONC_TEXT_COLOR, false);
-        // 第二行：四色碱基末端窗口 + 聚合酶标记
+        // 第二行：四色碱基末端窗口 + 聚合酶标记（U 与 T 同色黄）
         ItemStack stack = slot.getItem();
         SequenceData data = stack.get(ModDataComponents.SEQUENCE.get());
         String seq = data != null ? data.seq() : "";
@@ -402,7 +415,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
                 char base = seq.charAt(i);
                 int color = switch (base) {
                     case 'A' -> BASE_A;
-                    case 'T' -> BASE_T;
+                    case 'T', 'U' -> BASE_T;
                     case 'C' -> BASE_C;
                     case 'G' -> BASE_G;
                     default -> CONC_TEXT_COLOR;
@@ -437,18 +450,17 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     }
 
     /**
-     * renderSlot 覆写：编码器机器槽（0-7）经 scissor 自绘物品（滚动裁剪）；
-     * 转录仪与玩家背包交 vanilla。分支按 kind+index（不再按 isActive——
-     * 槽位现在 isActive=true 保证命中）
+     * renderSlot 覆写：所有序列机机器槽经 scissor 自绘（仿 dnaEncoder），玩家背包交 vanilla
      */
     @Override
     protected void renderSlot(GuiGraphics graphics, Slot slot) {
-        if (menu.getKind() != SequenceMachineKind.DNA_ENCODER || slot.index >= 8) {
+        if (slot.index >= menu.machineSlotCount) {
             super.renderSlot(graphics, slot);
             return;
         }
-        if (slot.index < 5) {
-            // 输入区 scissor
+        boolean isInput = inputCards.stream().anyMatch(c -> c.containerSlot() == slot.index);
+        boolean isOutput = outputCards.stream().anyMatch(c -> c.containerSlot() == slot.index);
+        if (isInput) {
             int x = leftPos + SequenceMachineMenu.INPUT_SCROLL_X;
             int y = topPos + SequenceMachineMenu.INPUT_SCROLL_Y;
             graphics.enableScissor(x, y, x + SequenceMachineMenu.INPUT_SCROLL_W, y + SequenceMachineMenu.INPUT_SCROLL_H);
@@ -456,12 +468,25 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             graphics.disableScissor();
             return;
         }
-        // 输出区 scissor
-        int x = leftPos + SequenceMachineMenu.OUT_X;
-        int y = topPos + SequenceMachineMenu.OUT_Y;
-        graphics.enableScissor(x, y, x + SequenceMachineMenu.OUT_W, y + SequenceMachineMenu.OUT_H);
-        renderScrollSlot(graphics, slot);
-        graphics.disableScissor();
+        if (isOutput) {
+            // helicase 输出为右侧垂直双卡，非底部横向
+            if (menu.getKind() == SequenceMachineKind.HELICASE) {
+                int x = leftPos + 193;
+                int y = topPos + 41;
+                graphics.enableScissor(x, y, x + 56, y + 112);
+                renderScrollSlot(graphics, slot);
+                graphics.disableScissor();
+                return;
+            }
+            int x = leftPos + SequenceMachineMenu.OUT_X;
+            int y = topPos + SequenceMachineMenu.OUT_Y;
+            graphics.enableScissor(x, y, x + SequenceMachineMenu.OUT_W, y + SequenceMachineMenu.OUT_H);
+            renderScrollSlot(graphics, slot);
+            graphics.disableScissor();
+            return;
+        }
+        // 模板槽等非滚动槽（如转录仪 0 槽顶栏）交 vanilla
+        super.renderSlot(graphics, slot);
     }
 
     /**

@@ -230,22 +230,23 @@ public class HelicaseScreen extends SequenceMachineScreen {
         }
     }
 
-    /** 中央大动画区：待机双螺旋/解旋中分叉+逐碱基对显示/完成平行 */
+    /** 中央大动画区：待机双螺旋/解旋中分叉+逐碱基对显示/完成平行（优化：网格+阴影+平滑波） */
     private void drawHelicaseAnimation(GuiGraphics graphics) {
         int x = leftPos + ANIM_X;
         int y = topPos + ANIM_Y;
         int w = ANIM_W;
         int h = ANIM_H;
-        // 背景
         graphics.fill(x, y, x + w, y + h, EDIT_PANEL_COLOR);
         graphics.fill(x, y, x + w, y + 1, 0xFF3A3A3A);
+        // 细网格
+        for (int gx = x + 12; gx < x + w; gx += 14) graphics.fill(gx, y + 12, gx + 1, y + h, 0x0FFFFFFF);
+        for (int gy = y + 18; gy < y + h; gy += 14) graphics.fill(x + 6, gy, x + w, gy + 1, 0x0FFFFFFF);
 
         int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
         int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
         int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
         boolean isUnwinding = stage == 1;
         boolean isDone = stage == 2;
-        // 标题
         graphics.drawString(font, "解旋", x + 6, y + 6, 0xFFE0E0E0, false);
         String status = isUnwinding ? "解旋中 " + pos + "/" + total : isDone ? "完成" : "待机";
         graphics.drawString(font, status, x + w - 6 - font.width(status), y + 6, 0xFF9E9E9E, false);
@@ -253,9 +254,8 @@ public class HelicaseScreen extends SequenceMachineScreen {
         int cx = x + w / 2;
         int cy = y + h / 2 + 10;
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
-        double wave = Math.sin(tick * 0.25) * 2;
+        double wave = Math.sin(tick * 0.22) * 2.5;
 
-        // 获取当前解旋序列与当前碱基对（用于动态显示）——取编码链当前末位碱基，随 pos 每 tick 变化
         String chain = "";
         char aBase = '?', bBase = '?';
         if (isUnwinding && total > 0) {
@@ -273,60 +273,58 @@ public class HelicaseScreen extends SequenceMachineScreen {
         }
 
         if (isUnwinding) {
-            // 解旋中：中央分叉，两链分开 + 当前碱基对高亮
+            // 阴影
+            graphics.fill(cx - 31, cy - 15, cx - 29, cy + 29, 0x40000000);
+            graphics.fill(cx + 31, cy - 15, cx + 33, cy + 29, 0x40000000);
+            // 双链
             graphics.fill(cx - 32, cy - 16, cx - 30, cy + 28, 0xFF4FC3F7);
+            graphics.fill(cx + 30, cy - 16, cx + 32, cy + 28, 0xFF81C784);
             for (int i = 0; i < 4; i++) {
                 int by = cy - 12 + i * 10;
-                graphics.fill(cx - 28 + (int) wave, by, cx - 22 + (int) wave, by + 2, BASE_A);
-                graphics.fill(cx + 22 - (int) wave, by, cx + 28 - (int) wave, by + 2, BASE_T);
+                int off = (int) wave;
+                graphics.fill(cx - 28 + off, by, cx - 22 + off, by + 2, 0xFFEF5350);
+                graphics.fill(cx + 22 - off, by, cx + 28 - off, by + 2, 0xFFFFEB3B);
             }
-            graphics.fill(cx + 30, cy - 16, cx + 32, cy + 28, 0xFF81C784);
-            // 分叉点闪烁 + 当前碱基对（AUCG 主题色）
-            int flash = (tick / 6) % 2 == 0 ? 0xFFFFFF00 : 0xFFFFE082;
+            int flash = (tick / 5) % 2 == 0 ? 0xFFFFFF00 : 0xFFFFE082;
+            graphics.fill(cx - 4, cy - 4, cx + 4, cy + 4, 0x40000000);
             graphics.fill(cx - 3, cy - 3, cx + 3, cy + 3, flash);
             if (aBase != '?') {
-                int colorA = switch (aBase) {
-                    case 'A' -> BASE_A;
-                    case 'T' -> BASE_T;
-                    case 'C' -> BASE_C;
-                    case 'G' -> BASE_G;
-                    default -> 0xFFFFF59D;
-                };
-                int colorB = switch (bBase) {
-                    case 'A' -> BASE_A;
-                    case 'T' -> BASE_T;
-                    case 'C' -> BASE_C;
-                    case 'G' -> BASE_G;
-                    default -> 0xFFFFF59D;
-                };
-                String aStr = String.valueOf(aBase);
-                String bStr = String.valueOf(bBase);
+                int colorA = switch (aBase) { case 'A' -> BASE_A; case 'T' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFFFFF59D; };
+                int colorB = switch (bBase) { case 'A' -> BASE_A; case 'T' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFFFFF59D; };
+                String aStr = String.valueOf(aBase), bStr = String.valueOf(bBase);
                 int pw = font.width(aStr) + font.width("–") + font.width(bStr);
                 int px = cx - pw / 2;
+                // 发光底
+                graphics.fill(px - 2, cy - 30, px + pw + 2, cy - 20, 0x33FFFFFF);
                 graphics.drawString(font, aStr, px, cy - 28, colorA, false);
                 px += font.width(aStr);
                 graphics.drawString(font, "–", px, cy - 28, 0xFFE0E0E0, false);
                 px += font.width("–");
                 graphics.drawString(font, bStr, px, cy - 28, colorB, false);
-                // 两链末端碱基小标签（同主题色）
                 graphics.drawString(font, aStr, cx - 36, cy + 30, colorA, false);
                 graphics.drawString(font, bStr, cx + 30, cy + 30, colorB, false);
             }
         } else if (isDone) {
+            graphics.fill(cx - 27, cy - 15, cx - 25, cy + 29, 0x40000000);
+            graphics.fill(cx + 27, cy - 15, cx + 29, cy + 29, 0x40000000);
             graphics.fill(cx - 28, cy - 16, cx - 26, cy + 28, 0xFF4FC3F7);
             graphics.fill(cx + 26, cy - 16, cx + 28, cy + 28, 0xFF81C784);
-            // 完成态：两链平行，上方各写 ssDNA（DNA 同色字体，一左一右）
             String ss = "ssDNA";
             int pw = font.width(ss);
             graphics.drawString(font, ss, cx - 32 - pw / 2, cy - 32, 0xFFE0E0E0, false);
             graphics.drawString(font, ss, cx + 32 - pw / 2, cy - 32, 0xFFE0E0E0, false);
         } else {
-            // 待机：双螺旋波浪
             for (int i = 0; i < 6; i++) {
                 int by = cy - 18 + i * 8;
-                int off = (int) (Math.sin((tick + i * 8) * 0.15) * 10);
-                graphics.fill(cx + off - 1, by, cx + off + 1, by + 2, i % 2 == 0 ? 0xFF4FC3F7 : 0xFF81C784);
-                graphics.fill(cx - off - 1, by, cx - off + 1, by + 2, i % 2 == 0 ? 0xFF81C784 : 0xFF4FC3F7);
+                double t = (tick + i * 7) * 0.14;
+                int off = (int) (Math.sin(t) * 10);
+                int c1 = i % 2 == 0 ? 0xFF4FC3F7 : 0xFF81C784;
+                int c2 = i % 2 == 0 ? 0xFF81C784 : 0xFF4FC3F7;
+                // 阴影
+                graphics.fill(cx + off, by + 1, cx + off + 2, by + 3, 0x40000000);
+                graphics.fill(cx + off - 1, by, cx + off + 1, by + 2, c1);
+                graphics.fill(cx - off, by + 1, cx - off + 2, by + 3, 0x40000000);
+                graphics.fill(cx - off - 1, by, cx - off + 1, by + 2, c2);
             }
             graphics.drawString(font, "DNA", cx - 10, cy - 34, 0xFF90A4AE, false);
         }
