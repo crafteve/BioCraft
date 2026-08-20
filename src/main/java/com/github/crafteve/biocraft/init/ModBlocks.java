@@ -105,14 +105,17 @@ public final class ModBlocks {
             MENUS.register("transcriber", () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(
                     (id, inv, buf) -> new SequenceMachineMenu(SequenceMachineKind.TRANSCRIBER, id, inv, buf)));
 
+    static {
+        SequenceMachineKind.DNA_ENCODER.setMenuHolder(DNA_ENCODER_MENU);
+        SequenceMachineKind.TRANSCRIBER.setMenuHolder(TRANSCRIBER_MENU);
+    }
+
     /**
-     * 序列机 kind → 菜单类型（BE.createMenu 查表；未知 kind 回落编码器）
+     * 序列机 kind → 菜单类型（委托 kind 持有的 holder，新增机器只需在 kind 枚举与本类注册处各加一行，无需改 switch）
      */
     public static MenuType<SequenceMachineMenu> sequenceMenuType(SequenceMachineKind kind) {
-        return switch (kind) {
-            case DNA_ENCODER -> DNA_ENCODER_MENU.get();
-            case TRANSCRIBER -> TRANSCRIBER_MENU.get();
-        };
+        MenuType<SequenceMachineMenu> type = kind.menuType();
+        return type != null ? type : DNA_ENCODER_MENU.get();
     }
 
     private ModBlocks() {

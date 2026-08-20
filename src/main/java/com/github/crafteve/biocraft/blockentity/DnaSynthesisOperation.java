@@ -106,7 +106,7 @@ public class DnaSynthesisOperation implements SequenceOperation {
             return StepResult.STALLED;
         }
         if (needDntp) {
-            if (!SequenceOperation.consumeOne(container, slot, dnTP)) {
+            if (!SequenceContainerUtil.consumeOne(container, slot, dnTP)) {
                 return StepResult.STALLED;
             }
             state.setRemainder(slot, 0.0);
@@ -114,7 +114,7 @@ public class DnaSynthesisOperation implements SequenceOperation {
             state.setRemainder(slot, dRem);
         }
         if (needAtp) {
-            if (!SequenceOperation.consumeOne(container, SLOT_ATP, "atp")) {
+            if (!SequenceContainerUtil.consumeOne(container, SLOT_ATP, "atp")) {
                 return StepResult.STALLED;
             }
             state.setRemainder(SLOT_ATP, 0.0);
@@ -122,7 +122,7 @@ public class DnaSynthesisOperation implements SequenceOperation {
             state.setRemainder(SLOT_ATP, aRem);
         }
         if (makeAdp) {
-            if (!SequenceOperation.addOne(container, SLOT_OUT_ADP, "adp")) {
+            if (!SequenceContainerUtil.addOne(container, SLOT_OUT_ADP, "adp")) {
                 return StepResult.STALLED;
             }
             state.setRemainder(SLOT_OUT_ADP, 0.0);
@@ -130,7 +130,7 @@ public class DnaSynthesisOperation implements SequenceOperation {
             state.setRemainder(SLOT_OUT_ADP, adpRem);
         }
         if (makePpi) {
-            if (!SequenceOperation.addOne(container, SLOT_OUT_PPI, "ppi")) {
+            if (!SequenceContainerUtil.addOne(container, SLOT_OUT_PPI, "ppi")) {
                 return StepResult.STALLED;
             }
             state.setRemainder(SLOT_OUT_PPI, 0.0);
@@ -191,11 +191,11 @@ public class DnaSynthesisOperation implements SequenceOperation {
     @Override
     public boolean isItemValidForSlot(int slot, ItemStack stack) {
         return switch (slot) {
-            case SLOT_DATP -> SequenceOperation.matchesId(stack, "datp");
-            case SLOT_DTTP -> SequenceOperation.matchesId(stack, "dttp");
-            case SLOT_DCTP -> SequenceOperation.matchesId(stack, "dctp");
-            case SLOT_DGTP -> SequenceOperation.matchesId(stack, "dgtp");
-            case SLOT_ATP -> SequenceOperation.matchesId(stack, "atp");
+            case SLOT_DATP -> SequenceContainerUtil.matchesId(stack, "datp");
+            case SLOT_DTTP -> SequenceContainerUtil.matchesId(stack, "dttp");
+            case SLOT_DCTP -> SequenceContainerUtil.matchesId(stack, "dctp");
+            case SLOT_DGTP -> SequenceContainerUtil.matchesId(stack, "dgtp");
+            case SLOT_ATP -> SequenceContainerUtil.matchesId(stack, "atp");
             default -> false; // 产物/副产物槽机器自治，玩家只取不放
         };
     }

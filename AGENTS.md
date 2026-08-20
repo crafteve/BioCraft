@@ -208,11 +208,12 @@ com.github.crafteve.biocraft
 │   ├── EnzymeFactoryItemHandler.java # 工业 IO 适配器（IItemHandlerModifiable）：0 槽酶槽过滤/物种过滤/全槽位可进可出（受 IO 模式门控）/O(1) 索引，复用 setChanged 浓度回写链
 │   ├── IoMode.java               # 侧向 IO 模式枚举（仅输入/仅输出/双向，GUI 按钮/管道/漏斗三路门控共用）
 │   ├── MachineEnergyStorage.java  # 能量存储适配器（IEnergyStorage）：产物侧 fe 只可抽/反应物侧只可充，懒加载单例
-│   ├── SequenceOperation.java     # 序列机处理器接口（硬绑定）：canStart/init/step/materialize/finish + 槽位过滤 + 单体消耗（接口静态方法需前缀调用，欠账 33）
+│   ├── SequenceOperation.java     # 序列机处理器接口（硬绑定）：canStart/init/step/materialize/finish + 槽位过滤
+│   ├── SequenceContainerUtil.java # 序列机容器工具：consumeOne/addOne/matchesId（原接口静态方法已抽离，语义更直观）
 │   ├── SeqStepState.java          # 序列机步进状态（stage/position/chain/pendingProgram，NBT 存档）
 │   ├── DnaSynthesisOperation.java # 编码器操作：程序文本 → 程序 DNA（每步消耗 dNTP，链源延伸）
 │   ├── TranscriptionOperation.java # 转录操作：DNA 模板 KEEP → mRNA 互补链（每步消耗 NTP，RNA 聚合酶 0 槽催化）
-│   ├── SequenceMachineKind.java   # 序列机类型注册表：方块实例 ↔ 处理器硬绑定 + 容器容量
+│   ├── SequenceMachineKind.java   # 序列机类型注册表：方块实例 ↔ 处理器/容器容量/菜单类型硬绑定（menuHolder 注入消除 ModBlocks switch）
 │   └── SequenceMachineBlockEntity.java # 序列机 BE 基类：链源模型编排（物化/停摆/取走重建/换模板归零 + 旧产物弹出/完成取走自动回 IDLE）+ 每 K tick 步进 + NBT 存档 + ContainerData 进度同步
 ├── program/                     # 酶设计单 DSL 纯核心（纯 Java 零 MC 依赖，已完成 + 32 用例单测）
 │   ├── ProgramField.java        # 字段硬编码枚举（id/name/kcat/input/output + 值类型 + 解锁标记，非 JSON 查表）
@@ -234,9 +235,10 @@ com.github.crafteve.biocraft
 │   ├── ThermoUtil.java           # Keq 换算/van't Hoff+Q10/Arrhenius
 │   └── KineticConstants.java     # 缩放常量（TIME_SCALE=1000 唯一节奏旋钮，待 M6 调参；SLOT_GROUPS=2 槽位容量组数 + MAX_CONCENTRATION 浓度上限；FIXED_ACTIVITY_SPECIES 含 fe）
 ├── gui/
-│   ├── MachineMenu.java          # 酶反应腔菜单：0 槽酶槽（isActive=true vanilla 全权）+ 滚动卡片物种槽（isActive=false 全接管）+ DATA_ENZYME/IO 模式同步 + 打开数据包解析 + RestrictedSlot（mayPlace/mayPickup 双门控 IO 模式）
+│   ├── BiocraftSlot.java         # 槽位基类：统一堆叠上限与 isActive，消除 MachineMenu/SequenceMachineMenu 重复样板
+│   ├── MachineMenu.java          # 酶反应腔菜单：0 槽酶槽 + 滚动卡片物种槽 + DATA_ENZYME/IO 模式同步 + 打开数据包解析 + RestrictedSlot 继承 BiocraftSlot（mayPlace/mayPickup 双门控 IO 模式）
 │   ├── MachineScreen.java        # 酶反应腔屏幕：gui_v1.png 手绘基底 + 滚动卡片 + v-t 折线图 + 平衡区 + 速率区 + IO 模式按钮（三态循环/悬停遮罩动画/tooltip）+ 无酶态（[unknown] 占位缩写框 + 三栏标签照常）
-│   ├── SequenceMachineMenu.java  # 序列机通用菜单：槽位布局按 kind（服务端 data 实时读 BE，客户端 SimpleContainerData 收广播）+ quickMoveStack
+│   ├── SequenceMachineMenu.java  # 序列机通用菜单：槽位布局按 kind（服务端 data 实时读 BE，客户端 SimpleContainerData 收广播）+ MachineSlot 继承 BiocraftSlot + quickMoveStack
 │   ├── SequenceMachineScreen.java # 序列机通用屏幕：机器槽 + 进度条 + 阶段文本（纯色面板 MVP，正式基底待 texturegen）
 │   ├── EncoderScreen.java        # DNA 编码器屏幕：文本编辑器 + 模板按钮 + 客户端编码预览（seq/ 纯核心即时算 bp）
 │   └── CodeEditorWidget.java     # 编码器文本编辑器控件（多行/光标/自动缩进/语法高亮，ProgramHighlight 共用分词）

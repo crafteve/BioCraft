@@ -214,11 +214,11 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
      * 无 128 容量参数化（64 上限无需 remove 钳制）——只保留方向门控与
      * DNA 完成态门控
      */
-    private final class MachineSlot extends Slot {
+    private final class MachineSlot extends BiocraftSlot {
         private final SequenceOperation op;
 
         MachineSlot(Container container, int index, int x, int y, SequenceOperation op) {
-            super(container, index, x, y);
+            super(container, index, x, y, 64);
             this.op = op;
         }
 
@@ -271,18 +271,8 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
         }
 
         @Override
-        public boolean isActive() {
-            return true; // 命中/渲染前提（vanilla findSlot 源码实证）
-        }
-
-        @Override
         public boolean isHighlightable() {
             return true; // 方向 B：高亮交 vanilla renderSlotHighlight（与酶工厂统一）
-        }
-
-        @Override
-        public int getMaxStackSize(ItemStack stack) {
-            return 64; // 序列机无容量参数化，显式化与容器一致
         }
     }
 

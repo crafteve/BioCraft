@@ -596,18 +596,16 @@ public class MachineMenu extends AbstractContainerMenu {
      *       漏斗同规则（见 slotAllowsInsert/slotAllowsExtract）</li>
      * </ul>
      */
-    private static class RestrictedSlot extends Slot {
+    private static class RestrictedSlot extends BiocraftSlot {
         private final MachineMenu menu;
         private final EnzymeFactoryBlockEntity blockEntity;
-        private final int maxStack;
         private final boolean enzymeSlot;
 
         RestrictedSlot(MachineMenu menu, EnzymeFactoryBlockEntity blockEntity, int slot, int x, int y,
                        int maxStack, boolean enzymeSlot) {
-            super(blockEntity.getContainer(), slot, x, y);
+            super(blockEntity.getContainer(), slot, x, y, maxStack);
             this.menu = menu;
             this.blockEntity = blockEntity;
-            this.maxStack = maxStack;
             this.enzymeSlot = enzymeSlot;
         }
 
@@ -639,23 +637,6 @@ public class MachineMenu extends AbstractContainerMenu {
         @Override
         public boolean mayPickup(Player player) {
             return menu.slotAllowsExtract(index);
-        }
-
-        /**
-         * 槽位堆叠上限（按物品查询）：酶槽 64（[E] 上限），物种槽槽位容量
-         * <p>
-         * vanilla 默认是 min(容器容量, 物品自身 getMaxStackSize)——分子物品
-         * 自身上限 64 会把容量参数化后的 128 钳回 64；safeInsert（拖拽）与
-         * moveItemStackTo（shift）都经本方法取上限，必须返回槽位容量
-         */
-        @Override
-        public int getMaxStackSize(ItemStack stack) {
-            return maxStack;
-        }
-
-        @Override
-        public boolean isActive() {
-            return true;
         }
 
         /**

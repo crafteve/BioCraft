@@ -45,41 +45,21 @@ public interface SequenceOperation {
         return true;
     }
 
-    /** 从单体槽消耗 1 个指定物品（失败返回 false = 缺料停摆） */
+    /** 从单体槽消耗 1 个指定物品（失败返回 false = 缺料停摆） @deprecated 改用 {@link SequenceContainerUtil#consumeOne} */
+    @Deprecated
     static boolean consumeOne(SimpleContainer container, int slot, String itemId) {
-        ItemStack stack = container.getItem(slot);
-        if (stack.isEmpty() || !matchesId(stack, itemId)) {
-            return false;
-        }
-        stack.shrink(1);
-        if (stack.isEmpty()) {
-            container.setItem(slot, ItemStack.EMPTY);
-        }
-        return true;
+        return SequenceContainerUtil.consumeOne(container, slot, itemId);
     }
 
-    /** 向副产物槽追加 1 个指定物品（槽满返回 false = 产物回压停摆） */
+    /** 向副产物槽追加 1 个指定物品（槽满返回 false = 产物回压停摆） @deprecated 改用 {@link SequenceContainerUtil#addOne} */
+    @Deprecated
     static boolean addOne(SimpleContainer container, int slot, String itemId) {
-        ItemStack stack = container.getItem(slot);
-        if (stack.isEmpty()) {
-            net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.get(
-                    ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, itemId));
-            if (item == null || item == net.minecraft.world.item.Items.AIR) {
-                return false;
-            }
-            container.setItem(slot, new ItemStack(item, 1));
-            return true;
-        }
-        if (!matchesId(stack, itemId) || stack.getCount() >= stack.getMaxStackSize()) {
-            return false;
-        }
-        stack.grow(1);
-        return true;
+        return SequenceContainerUtil.addOne(container, slot, itemId);
     }
 
-    /** 物品注册名是否匹配（biocraft 命名空间内按注册名比对） */
+    /** 物品注册名是否匹配（biocraft 命名空间内按注册名比对） @deprecated 改用 {@link SequenceContainerUtil#matchesId} */
+    @Deprecated
     static boolean matchesId(ItemStack stack, String itemId) {
-        ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        return key.getNamespace().equals(BioCraft.MODID) && key.getPath().equals(itemId);
+        return SequenceContainerUtil.matchesId(stack, itemId);
     }
 }

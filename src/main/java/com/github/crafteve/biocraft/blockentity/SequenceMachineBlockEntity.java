@@ -263,18 +263,18 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         ItemStack s6 = inventory.getItem(a);
         ItemStack s7 = inventory.getItem(p);
         boolean fiveDna = !s5.isEmpty() && s5.get(ModDataComponents.SEQUENCE.get()) != null;
-        boolean sixAdp = !s6.isEmpty() && SequenceOperation.matchesId(s6, "adp");
-        boolean sevenPpi = !s7.isEmpty() && SequenceOperation.matchesId(s7, "ppi");
+        boolean sixAdp = !s6.isEmpty() && SequenceContainerUtil.matchesId(s6, "adp");
+        boolean sevenPpi = !s7.isEmpty() && SequenceContainerUtil.matchesId(s7, "ppi");
         boolean wrong = (!fiveDna && !s5.isEmpty())       // 槽5 非 DNA（如错位的 adp）
                 || (!sixAdp && !s6.isEmpty())             // 槽6 非 adp（如错位的 ppi）
                 || (!sevenPpi && !s7.isEmpty());          // 槽7 非 ppi
         if (wrong) {
             com.github.crafteve.biocraft.BioCraft.LOGGER.warn(
                     "编码器读档输出槽错位校正: slot5={} slot6={} slot7={}", s5, s6, s7);
-            ItemStack adpStack = SequenceOperation.matchesId(s5, "adp") ? s5
-                    : (sixAdp ? s6 : (SequenceOperation.matchesId(s7, "adp") ? s7 : ItemStack.EMPTY));
-            ItemStack ppiStack = SequenceOperation.matchesId(s5, "ppi") ? s5
-                    : (SequenceOperation.matchesId(s6, "ppi") ? s6
+            ItemStack adpStack = SequenceContainerUtil.matchesId(s5, "adp") ? s5
+                    : (sixAdp ? s6 : (SequenceContainerUtil.matchesId(s7, "adp") ? s7 : ItemStack.EMPTY));
+            ItemStack ppiStack = SequenceContainerUtil.matchesId(s5, "ppi") ? s5
+                    : (SequenceContainerUtil.matchesId(s6, "ppi") ? s6
                     : (sevenPpi ? s7 : ItemStack.EMPTY));
             inventory.setItem(DnaSynthesisOperation.SLOT_OUT_DNA, fiveDna ? s5 : ItemStack.EMPTY);
             inventory.setItem(a, adpStack);

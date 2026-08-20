@@ -42,7 +42,7 @@ public class TranscriptionOperation implements SequenceOperation {
         }
         // IDLE：催化剂在位 + 模板为完整 DNA
         if (container.getItem(SLOT_CATALYST).isEmpty()
-                || !SequenceOperation.matchesId(container.getItem(SLOT_CATALYST), catalystItemId())) {
+                || !SequenceContainerUtil.matchesId(container.getItem(SLOT_CATALYST), catalystItemId())) {
             return false;
         }
         SequenceData data = container.getItem(SLOT_TEMPLATE).get(ModDataComponents.SEQUENCE.get());
@@ -72,7 +72,7 @@ public class TranscriptionOperation implements SequenceOperation {
             case 'G' -> "gtp";
             default -> throw new IllegalStateException("非法碱基: " + base);
         };
-        if (!SequenceOperation.consumeOne(container, SLOT_MONOMER, ntp)) {
+        if (!SequenceContainerUtil.consumeOne(container, SLOT_MONOMER, ntp)) {
             return StepResult.STALLED;
         }
         state.setPosition(state.position() + 1);
@@ -99,13 +99,13 @@ public class TranscriptionOperation implements SequenceOperation {
     @Override
     public boolean isItemValidForSlot(int slot, ItemStack stack) {
         return switch (slot) {
-            case SLOT_CATALYST -> SequenceOperation.matchesId(stack, "rna_polymerase");
+            case SLOT_CATALYST -> SequenceContainerUtil.matchesId(stack, "rna_polymerase");
             case SLOT_TEMPLATE -> {
                 SequenceData data = stack.get(ModDataComponents.SEQUENCE.get());
                 yield data != null && data.complete() && SeqOps.isValidDna(data.seq());
             }
-            case SLOT_MONOMER -> SequenceOperation.matchesId(stack, "atp") || SequenceOperation.matchesId(stack, "utp")
-                    || SequenceOperation.matchesId(stack, "ctp") || SequenceOperation.matchesId(stack, "gtp");
+            case SLOT_MONOMER -> SequenceContainerUtil.matchesId(stack, "atp") || SequenceContainerUtil.matchesId(stack, "utp")
+                    || SequenceContainerUtil.matchesId(stack, "ctp") || SequenceContainerUtil.matchesId(stack, "gtp");
             default -> false; // 产物槽机器自治
         };
     }
