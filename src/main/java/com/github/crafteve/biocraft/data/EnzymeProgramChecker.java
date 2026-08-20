@@ -114,10 +114,19 @@ public final class EnzymeProgramChecker {
         return new SpeciesComposition(MoleculeDataCalculator.atomCounts(smiles));
     }
 
-    /** 酶 id → 数据档案（registry 顺序查找） */
+    /**
+     * 酶 id 解析：先按正式 id 精确匹配（hexokinase），
+     * 失败回退按缩写匹配（HK → hexokinase，玩家更熟悉缩写，大小写不敏感）
+     */
     private static EnzymeFactoryData findEnzyme(String id) {
         for (EnzymeFactoryData data : EnzymeFactoryRegistry.ordered()) {
             if (data.id().equals(id)) {
+                return data;
+            }
+        }
+        for (EnzymeFactoryData data : EnzymeFactoryRegistry.ordered()) {
+            String abbr = data.abbreviation();
+            if (abbr != null && abbr.equalsIgnoreCase(id)) {
                 return data;
             }
         }

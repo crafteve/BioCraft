@@ -29,10 +29,11 @@ import java.util.List;
 public class EncoderScreen extends SequenceMachineScreen {
 
     /**
-     * 默认模板（酶设计单 DSL）：id 锚定基酶 + name 显示名；
-     * kcat 等字段需后续解锁（TNT 诱变/翻译成就）
+     * 默认模板（酶设计单 DSL）：id 锚定基酶（正式 id，如 hexokinase；
+     * 缩写 HK 也能匹配）+ name 显示名；kcat 等字段需后续解锁
+     * （TNT 诱变/翻译成就）
      */
-    private static final String TEMPLATE = "id: HK\nname: 己糖激酶";
+    private static final String TEMPLATE = "id: hexokinase\nname: 己糖激酶";
 
     private CodeEditorWidget editor;
     private Button encodeButton;
