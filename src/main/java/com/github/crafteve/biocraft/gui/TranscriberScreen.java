@@ -67,9 +67,10 @@ public class TranscriberScreen extends SequenceMachineScreen {
         int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
         int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
         boolean running = stage == 1 && total > 0;
-        // 聚合酶图标（右上角圆 + P）
+        int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
+        // 聚合酶图标（右上角圆 + P，运行时上下浮动）
         int px = x + w - 18;
-        int py = y + 6;
+        int py = y + 6 + (running ? (int) (Math.sin(tick * 0.35) * 1.5) : 0);
         graphics.fill(px, py, px + 10, py + 10, 0xFF4FC3F7);
         graphics.fill(px + 1, py + 1, px + 9, py + 9, 0xFF0288D1);
         graphics.drawString(font, "P", px + 3, py + 1, 0xFFFFFFFF, false);
@@ -99,7 +100,6 @@ public class TranscriberScreen extends SequenceMachineScreen {
         }
         graphics.drawString(font, "启动子@" + idx, x + 6, y + 22, 0xFF7ED6DF, false);
         // 中央双链可视化：上排模板 3'→5'，下排 mRNA 5'→3'，中线配对，当前碱基发光
-        int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         double pulse = (Math.sin(tick * 0.4) * 0.3 + 0.7);
         int window = Math.min(18, seq.length() - (idx + prom.length()));
         int from = idx + prom.length();
@@ -112,17 +112,18 @@ public class TranscriberScreen extends SequenceMachineScreen {
         int baseX0 = x + 10;
         int templY = y + 42;
         int mrnaY = y + 62;
-        int pairY = y + 50;
+        int pairY = y + 52;
         // 背景轨道
         graphics.fill(x + 6, templY - 2, x + w - 6, templY + 10, 0xFF2A2A2E);
         graphics.fill(x + 6, mrnaY - 2, x + w - 6, mrnaY + 10, 0xFF2A2A2E);
         graphics.drawString(font, "模板", x + 6, templY - 10, 0xFF81C784, false);
-        graphics.drawString(font, "mRNA", x + 6, mrnaY - 10, 0xFFF1C40F, false);
+        graphics.drawString(font, "mRNA", x + 6, mrnaY + 11, 0xFFF1C40F, false);
         for (int i = 0; i < templateSeg.length() && baseX0 + i * 8 < x + w - 10; i++) {
             char tBase = templateSeg.charAt(i);
             char mBase = i < mrnaSeg.length() ? mrnaSeg.charAt(Math.min(i, mrnaSeg.length() - 1)) : '?';
-            // 若转录中且当前位为发光位
             boolean isCurrent = running && i == Math.max(0, pos - idx - prom.length() - 1) && i < mrnaSeg.length();
+            // 动起来：非当前位轻微波浪，当前位脉冲更强
+            int wave = running ? (int) (Math.sin(tick * 0.35 + i * 0.7) * 1.2) : 0;
             int tColor = switch (tBase) {
                 case 'A' -> BASE_A; case 'T' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFF9E9E9E;
             };
@@ -132,14 +133,14 @@ public class TranscriberScreen extends SequenceMachineScreen {
             int bx = baseX0 + i * 8;
             if (isCurrent) {
                 int glow = (int) (180 * pulse) << 24 | 0x00FFFFFF;
-                graphics.fill(bx - 1, templY - 1, bx + 7, templY + 9, glow);
-                graphics.fill(bx - 1, mrnaY - 1, bx + 7, mrnaY + 9, glow);
+                graphics.fill(bx - 1, templY + wave - 1, bx + 7, templY + wave + 9, glow);
+                graphics.fill(bx - 1, mrnaY - wave - 1, bx + 7, mrnaY - wave + 9, glow);
             }
-            graphics.drawString(font, String.valueOf(tBase), bx, templY, tColor, false);
-            graphics.drawString(font, String.valueOf(mBase == '?' ? "·" : mBase), bx, mrnaY, isCurrent ? 0xFFFFFFFF : mColor, false);
-            // 配对竖线
+            graphics.drawString(font, String.valueOf(tBase), bx, templY + wave, tColor, false);
+            graphics.drawString(font, String.valueOf(mBase == '?' ? "·" : mBase), bx, mrnaY - wave, isCurrent ? 0xFFFFFFFF : mColor, false);
             int lineColor = isCurrent ? 0xFFFFFF00 : 0xFF555555;
-            graphics.fill(bx + 3, pairY, bx + 4, pairY + 4, lineColor);
+            // 短箭头改为随波上下 1px，更居中
+            graphics.fill(bx + 3, pairY + wave, bx + 4, pairY + wave + 4, lineColor);
         }
         // 底部进度细条
         int barY = y + h - 6;
