@@ -97,7 +97,13 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
                 setChanged();
             }
             case DONE -> {
-                // 完成态：产物可被取走；取走后不自动重启（需要玩家换模板/重放程序）
+                // 完成态：产物可被取走；取走后自动回 IDLE——
+                // 转录仪（模板 KEEP）随即用同一模板自动开始新一轮；
+                // 编码器（pendingProgram 已空）停在 IDLE 等玩家重新提交程序
+                if (inventory.getItem(operation.outputSlot()).isEmpty()) {
+                    stepState.setStage(SeqStepState.Stage.IDLE);
+                    setChanged();
+                }
             }
         }
     }
