@@ -158,8 +158,13 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
 
     /**
      * 机器槽：编码器 = 5 输入（纵向滚动卡片）+ 3 输出（横向滚动卡片），
-     * 全部 isActive=false（坐标由 Screen 滚动区写入，自绘裁剪渲染）；
-     * 转录仪 = 4 固定槽（vanilla 渲染）
+     * 转录仪 = 4 固定槽。
+     * <p>
+     * 交互层（源码实证）：vanilla findSlot/render 循环要求 slot.isActive()==true
+     * 才命中/渲染——滚动槽必须 isActive=true（坐标由 Screen 每帧写入，AT 已拆
+     * final），否则点击放不进物品；isHighlightable=false 关闭 vanilla 高亮
+     * （renderSlotHighlight 是 static 且不裁剪，滚动边缘会溢出到视口外），
+     * 悬停高亮由 Screen 自绘
      */
     private void addMachineSlots(Container container, SequenceMachineKind kind) {
         SequenceOperation op = kind.createOperation();
@@ -175,7 +180,12 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
 
                 @Override
                 public boolean isActive() {
-                    return !scrollAll; // 编码器全部机器槽自绘；转录仪 vanilla 渲染
+                    return true; // 命中/渲染前提（vanilla findSlot 源码实证）
+                }
+
+                @Override
+                public boolean isHighlightable() {
+                    return !scrollAll; // 滚动槽高亮自绘（防 vanilla 高亮溢出视口）
                 }
             });
         }

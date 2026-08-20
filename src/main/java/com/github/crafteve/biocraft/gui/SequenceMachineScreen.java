@@ -376,15 +376,19 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         graphics.fill(x, y, x + SequenceMachineMenu.EDIT_W, y + 1, 0xFF3A3A3A);
     }
 
-    /** renderSlot 覆写：编码器机器槽（isActive=false）经 scissor 自绘物品；其余交 vanilla */
+    /**
+     * renderSlot 覆写：编码器机器槽（0-7）经 scissor 自绘物品（滚动裁剪）；
+     * 转录仪与玩家背包交 vanilla。分支按 kind+index（不再按 isActive——
+     * 槽位现在 isActive=true 保证命中）
+     */
     @Override
     protected void renderSlot(GuiGraphics graphics, Slot slot) {
-        if (slot.isActive()) {
+        if (menu.getKind() != SequenceMachineKind.DNA_ENCODER || slot.index >= 8) {
             super.renderSlot(graphics, slot);
             return;
         }
-        // 输入区 scissor
         if (slot.index < 5) {
+            // 输入区 scissor
             int x = leftPos + SequenceMachineMenu.INPUT_SCROLL_X;
             int y = topPos + SequenceMachineMenu.INPUT_SCROLL_Y;
             graphics.enableScissor(x, y, x + SequenceMachineMenu.INPUT_SCROLL_W, y + SequenceMachineMenu.INPUT_SCROLL_H);
@@ -419,6 +423,17 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     /** renderLabels 空实现：vanilla 标题/物品栏标识全部移除（文字全由 renderBg 自绘） */
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
+    }
+
+    /**
+     * render 覆写：super 之后显式调用 renderTooltip——1.21.1 的
+     * AbstractContainerScreen.render 本身不渲染 hoveredSlot 物品 tooltip
+     * （重构移除，源码实证），各子类 Screen 必须补调（欠账 13）
+     */
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        super.render(graphics, mouseX, mouseY, partialTick);
+        this.renderTooltip(graphics, mouseX, mouseY);
     }
 
     /** 物品色加深 1/5，与卡片底色亮度相近时改黑色（保证缩写可读） */
