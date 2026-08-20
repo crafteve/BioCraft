@@ -201,8 +201,16 @@ public class HelicaseScreen extends SequenceMachineScreen {
         int baseY = pngY + 11;
         if (!seq.isEmpty()) {
             int window = (cardW - 34) / 7;
-            int from = Math.max(0, seq.length() - window);
-            for (int i = from; i < seq.length() && baseX < cardX + cardW - 10; i++) {
+            // 模板链 3'→5' 显示首端窗口以产生滚动（rc 前缀首端随解旋前推进），其余 5'→3' 显示末端窗口
+            int from, to;
+            if ("模板链".equals(label)) {
+                from = 0;
+                to = Math.min(window, seq.length());
+            } else {
+                from = Math.max(0, seq.length() - window);
+                to = seq.length();
+            }
+            for (int i = from; i < to && baseX < cardX + cardW - 10; i++) {
                 char base = seq.charAt(i);
                 int color = switch (base) {
                     case 'A' -> BASE_A;
@@ -250,23 +258,21 @@ public class HelicaseScreen extends SequenceMachineScreen {
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         double wave = Math.sin(tick * 0.25) * 2;
 
-        // 获取当前解旋序列与当前碱基对（用于动态显示）
+        // 获取当前解旋序列与当前碱基对（用于动态显示）——取编码链当前末位碱基，随 pos 每 tick 变化
         String chain = "";
         char aBase = '?', bBase = '?';
         if (isUnwinding && total > 0) {
-            // 从 BE 的 chain 取当前碱基对：需读取输入序列的第 pos 个碱基
-            // menu 无法直接取 chain，改从输入槽或输出槽的序列反推：输出 A 的 seq 长度 = pos，取末位
-            Slot outA = menu.getSlot(1);
-            SequenceData outData = outA.getItem().get(ModDataComponents.SEQUENCE.get());
-            if (outData != null && !outData.seq().isEmpty()) {
-                chain = outData.seq();
+            Slot codingSlot = menu.getSlot(2);
+            SequenceData codingData = codingSlot.getItem().get(ModDataComponents.SEQUENCE.get());
+            if (codingData != null && !codingData.seq().isEmpty()) {
+                chain = codingData.seq();
                 aBase = chain.charAt(chain.length() - 1);
                 bBase = com.github.crafteve.biocraft.seq.SeqOps.complementDna(aBase);
             }
         } else if (isDone) {
-            Slot outA = menu.getSlot(1);
-            SequenceData outData = outA.getItem().get(ModDataComponents.SEQUENCE.get());
-            if (outData != null) chain = outData.seq();
+            Slot codingSlot = menu.getSlot(2);
+            SequenceData codingData = codingSlot.getItem().get(ModDataComponents.SEQUENCE.get());
+            if (codingData != null) chain = codingData.seq();
         }
 
         if (isUnwinding) {

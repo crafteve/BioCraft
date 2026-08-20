@@ -98,11 +98,10 @@ public class SequenceItem extends Item implements AbbreviationProvider {
     private static void appendDnaTooltip(SequenceData data, List<Component> tooltip, ItemStack stack, Boolean isTemplate) {
         String seq = data.seq();
         if (Screen.hasShiftDown()) {
-            boolean template = isTemplate == null || isTemplate;
-            tooltip.addAll(coloredBases(seq, template));
-            // 模板链/非模板链标注（helicase 产物）
+            boolean dirIsTemplate = isTemplate == null || isTemplate;
+            tooltip.addAll(coloredBases(seq, dirIsTemplate));
             if (isTemplate != null) {
-                tooltip.add(Component.literal(isTemplate ? "§7模板链 (5'→3')" : "§7非模板链 (3'→5')"));
+                tooltip.add(Component.literal(isTemplate ? "§7编码链 (5'→3')" : "§7模板链 (3'→5')"));
             }
             return;
         }
@@ -125,7 +124,7 @@ public class SequenceItem extends Item implements AbbreviationProvider {
         }
         tooltip.add(line1);
         if (isTemplate != null) {
-            tooltip.add(Component.literal(isTemplate ? "§7模板链" : "§7非模板链"));
+            tooltip.add(Component.literal(isTemplate ? "§7编码链" : "§7模板链"));
         }
         tooltip.add(Component.literal("§8按住 Shift 显示碱基序列"));
         tooltip.add(Component.literal("§8按住 Ctrl 显示程序"));
