@@ -170,7 +170,7 @@ tasks.register('mergeCdkJar', Jar) {
 
 dependencies {
     // CDK 化学开发套件：SMILES 解析、2D 坐标生成、分子式与质量计算
-    // 8 个实际使用的模块经 cdkDeps 解析后由 mergeCdkJar 合并为单个 cdk-all.jar，
+    // 9 个实际使用的模块经 cdkDeps 解析后由 mergeCdkJar 合并为单个 cdk-all.jar，
     // 编译期（implementation）、dev 运行期（additionalRuntimeClasspath）、
     // 发布打包（jarJar 嵌入 mod 产物 META-INF/jarjar/）三处统一引用合并产物
     cdkModules.each { module ->
