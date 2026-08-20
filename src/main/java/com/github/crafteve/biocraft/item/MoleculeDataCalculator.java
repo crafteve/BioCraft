@@ -8,6 +8,7 @@ import org.openscience.cdk.smiles.SmilesParser;
 import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
 import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
@@ -26,7 +27,37 @@ public final class MoleculeDataCalculator {
     /** SMILES -> 计算结果的缓存 */
     private static final Map<String, MoleculeData> CACHE = new HashMap<>();
 
+    /** SMILES -> 原子组成（元素 -> 计数）缓存（化学守恒校验用） */
+    private static final Map<String, Map<String, Integer>> COUNT_CACHE = new HashMap<>();
+
     private MoleculeDataCalculator() {
+    }
+
+    /**
+     * 解析 SMILES → 原子组成（元素符号 → 原子数，含隐氢；带缓存）
+     * <p>
+     * 化学守恒校验（酶设计单 input/output 字段）的装配输入；
+     * 解析失败返回空 Map（调用方视为未知组成）
+     *
+     * @param smiles SMILES 结构式
+     * @return 元素计数映射（不可变），解析失败为空 Map
+     */
+    public static synchronized Map<String, Integer> atomCounts(String smiles) {
+        return COUNT_CACHE.computeIfAbsent(smiles, s -> {
+            try {
+                SmilesParser parser = new SmilesParser(SilentChemObjectBuilder.getInstance());
+                IAtomContainer container = parser.parseSmiles(s);
+                AtomContainerManipulator.percieveAtomTypesAndConfigureAtoms(container);
+                IMolecularFormula formula = MolecularFormulaManipulator.getMolecularFormula(container);
+                Map<String, Integer> counts = new HashMap<>();
+                for (IIsotope isotope : formula.isotopes()) {
+                    counts.merge(isotope.getSymbol(), (int) formula.getIsotopeCount(isotope), Integer::sum);
+                }
+                return Collections.unmodifiableMap(counts);
+            } catch (Exception e) {
+                return Collections.emptyMap();
+            }
+        });
     }
 
     /**

@@ -29,6 +29,10 @@ public class CodeEditorWidget {
     private static final int COLOR_PLAIN = 0xFFD4D4D4;     // 普通文字白
     /** 已完成（已编码）行的淡化色：与暗绿混合 */
     private static final int SCANNED_MIX = 0xFF2E4A2E;
+    /** 未解锁字段行颜色（暗灰，kcat 等后续解锁字段） */
+    private static final int LOCKED_LINE_COLOR = 0xFF6A6A6A;
+    /** 酶设计单字段关键词（DSL：id/name/kcat/input/output，大小写不敏感） */
+    private static final String[] FIELD_KEYWORDS = {"id", "name", "kcat", "input", "output"};
     /** 扫描线颜色 */
     private static final int COLOR_SCANNER = 0xFF00E5FF;
     /** 当前行高亮底色 */
@@ -301,7 +305,14 @@ public class CodeEditorWidget {
             if (isScanLine) {
                 graphics.fill(x, lineY - 1, x + width, lineY + lineHeight(), COLOR_CURRENT_LINE);
             }
-            drawHighlightedLine(graphics, lines[i], textX, lineY, scanned);
+            // 未解锁字段（kcat）整行灰显 + 行尾"（未解锁）"提示（教学引导，不阻止输入）
+            if (isLockedFieldLine(lines[i])) {
+                graphics.drawString(font, lines[i], textX, lineY, LOCKED_LINE_COLOR, false);
+                int textW = font.width(lines[i]);
+                graphics.drawString(font, "（未解锁）", textX + textW + 6, lineY, LOCKED_LINE_COLOR, false);
+            } else {
+                drawHighlightedLine(graphics, lines[i], textX, lineY, scanned);
+            }
         }
 
         // 扫描线（编码中，画在当前扫描行下缘）
@@ -362,7 +373,8 @@ public class CodeEditorWidget {
                 }
                 String word = line.substring(i, end);
                 int color = COLOR_PLAIN;
-                if (word.equals("import") || word.equals("as") || word.equals("修饰")) {
+                if (word.equals("import") || word.equals("as") || word.equals("修饰")
+                        || isFieldKeyword(word)) {
                     color = COLOR_KEYWORD;
                 } else if (end < len && line.charAt(end) == '(') {
                     color = COLOR_FUNCTION;
@@ -372,7 +384,7 @@ public class CodeEditorWidget {
                 i = end;
                 continue;
             }
-            if (c == '=' || c == ',' || c == '(' || c == ')' || c == ';') {
+            if (c == '=' || c == ',' || c == '(' || c == ')' || c == ';' || c == ':') {
                 drawRun(graphics, String.valueOf(c), x, y, COLOR_SYMBOL, scanned);
                 x += font.width(String.valueOf(c));
                 i++;
@@ -399,6 +411,29 @@ public class CodeEditorWidget {
         int g = (((base >> 8) & 0xFF) + ((target >> 8) & 0xFF)) / 2;
         int b = ((base & 0xFF) + (target & 0xFF)) / 2;
         return 0xFF000000 | (r << 16) | (g << 8) | b;
+    }
+
+    /** 单词是否为酶设计单字段关键词（大小写不敏感） */
+    private static boolean isFieldKeyword(String word) {
+        for (String keyword : FIELD_KEYWORDS) {
+            if (keyword.equalsIgnoreCase(word)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 行是否为未解锁字段行（当前仅 kcat；整行灰显 + 行尾提示） */
+    private static boolean isLockedFieldLine(String line) {
+        String trimmed = line.trim();
+        if (trimmed.isEmpty()) {
+            return false;
+        }
+        int colon = trimmed.indexOf(':');
+        if (colon <= 0) {
+            return false;
+        }
+        return "kcat".equalsIgnoreCase(trimmed.substring(0, colon).trim());
     }
 
     public static Component title() {

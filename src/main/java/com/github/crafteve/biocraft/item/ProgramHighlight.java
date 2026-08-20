@@ -81,7 +81,8 @@ final class ProgramHighlight {
                 }
                 String word = line.substring(i, end);
                 int color = COLOR_PLAIN;
-                if (word.equals("import") || word.equals("as") || word.equals("修饰")) {
+                if (word.equals("import") || word.equals("as") || word.equals("修饰")
+                        || isFieldKeyword(word)) {
                     color = COLOR_KEYWORD;
                 } else if (end < len && line.charAt(end) == '(') {
                     color = COLOR_FUNCTION;
@@ -90,7 +91,7 @@ final class ProgramHighlight {
                 i = end;
                 continue;
             }
-            if (c == '=' || c == ',' || c == '(' || c == ')' || c == ';') {
+            if (c == '=' || c == ',' || c == '(' || c == ')' || c == ';' || c == ':') {
                 comp.append(run(String.valueOf(c), COLOR_SYMBOL));
                 i++;
                 continue;
@@ -104,5 +105,15 @@ final class ProgramHighlight {
     /** 单段文字着色 */
     private static MutableComponent run(String s, int color) {
         return Component.literal(s).withStyle(Style.EMPTY.withColor(TextColor.fromRgb(color)));
+    }
+
+    /** 酶设计单字段关键词（DSL：id/name/kcat/input/output，大小写不敏感，与编辑器同步） */
+    private static boolean isFieldKeyword(String word) {
+        for (String keyword : new String[]{"id", "name", "kcat", "input", "output"}) {
+            if (keyword.equalsIgnoreCase(word)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

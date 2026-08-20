@@ -1,6 +1,9 @@
 package com.github.crafteve.biocraft.gui;
 
+import com.github.crafteve.biocraft.data.EnzymeProgramChecker;
 import com.github.crafteve.biocraft.network.ServerboundSequenceProgramPacket;
+import com.github.crafteve.biocraft.program.EnzymeProgramParser;
+import com.github.crafteve.biocraft.program.ProgramError;
 import com.github.crafteve.biocraft.seq.SeqCodec;
 import com.github.crafteve.biocraft.seq.SequenceConstants;
 import net.minecraft.client.gui.GuiGraphics;
@@ -8,6 +11,8 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.neoforged.neoforge.network.PacketDistributor;
+
+import java.util.List;
 
 /**
  * DNA 编码器屏幕：编码区 = 自绘代码编辑器（CodeEditorWidget）
@@ -23,7 +28,11 @@ import net.neoforged.neoforge.network.PacketDistributor;
  */
 public class EncoderScreen extends SequenceMachineScreen {
 
-    private static final String TEMPLATE = "import 酶库 as 酶\nHK = 酶.HK\n修饰(HK, kcat=0.9)";
+    /**
+     * 默认模板（酶设计单 DSL）：id 锚定基酶 + name 显示名；
+     * kcat 等字段需后续解锁（TNT 诱变/翻译成就）
+     */
+    private static final String TEMPLATE = "id: HK\nname: 己糖激酶";
 
     private CodeEditorWidget editor;
     private Button encodeButton;
@@ -32,6 +41,9 @@ public class EncoderScreen extends SequenceMachineScreen {
     private int cachedBp;
     private boolean bpOverLimit;
     private String lastEditorText = "";
+
+    /** 程序校验错误缓存（脏检测：文本变化才跑解析 + 完整校验） */
+    private List<ProgramError> programErrors = List.of();
 
     public EncoderScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -149,14 +161,29 @@ public class EncoderScreen extends SequenceMachineScreen {
             } catch (IllegalArgumentException e) {
                 this.bpOverLimit = true;
             }
+            // 酶设计单校验（零依赖解析 + MC 侧装配校验，与折叠机同口径）
+            if (text.isBlank()) {
+                this.programErrors = List.of();
+            } else {
+                this.programErrors = EnzymeProgramChecker.check(
+                        EnzymeProgramParser.parse(text));
+            }
         }
-        // 简略形式：309bp/3000bp（上限 3000 = 1000 个整密码子，能被 3 整除）
         int maxBp = SequenceConstants.MAX_DNA_BP;
-        String msg = this.bpOverLimit
-                ? "§c程序过长，超出" + maxBp + "bp 上限"
-                : "§7" + this.cachedBp + "bp/" + maxBp + "bp";
+        String msg;
+        int color;
+        if (this.bpOverLimit) {
+            msg = "§c程序过长，超出" + maxBp + "bp 上限";
+            color = 0xFFFFFF;
+        } else if (!this.programErrors.isEmpty()) {
+            msg = "§c" + this.programErrors.size() + " 处错误：" + this.programErrors.get(0).describe();
+            color = 0xFFFFFF;
+        } else {
+            msg = "§7" + this.cachedBp + "bp/" + maxBp + "bp";
+            color = 0xFFFFFF;
+        }
         graphics.drawString(this.font, Component.literal(msg),
                 SequenceMachineMenu.EDIT_X + 3, SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9,
-                0xFFFFFF, false);
+                color, false);
     }
 }
