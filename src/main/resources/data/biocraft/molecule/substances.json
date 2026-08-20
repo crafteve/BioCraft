@@ -774,6 +774,16 @@
             "smiles":  "C1=NC2=C(N1[C@H]3C[C@H](O)[C@@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O3)N=C(NC2=O)N",
             "abbreviation":  "dGTP",
             "category":  "nucleotide"
+        },
+        {
+            "id":  "ppi",
+            "name_zn":  "焦磷酸",
+            "name_en":  "Pyrophosphate",
+            "container":  "test_tube",
+            "color":  "#D35400",
+            "smiles":  "OP(=O)(O)OP(=O)(O)O",
+            "abbreviation":  "PPi",
+            "category":  "ion"
         }
     ]
 }

@@ -12,7 +12,7 @@ import java.util.function.Supplier;
  * BE 从方块状态解析自身 kind（一台机器干一件事，不做 0 槽动态解析）
  */
 public enum SequenceMachineKind {
-    DNA_ENCODER("dna_encoder", DnaSynthesisOperation::new, 2),
+    DNA_ENCODER("dna_encoder", DnaSynthesisOperation::new, 8),
     TRANSCRIBER("transcriber", TranscriptionOperation::new, 4);
 
     private final String blockId;

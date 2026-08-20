@@ -126,9 +126,9 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         } catch (IllegalArgumentException e) {
             return; // 超上限：拒绝
         }
-        ItemStack old = inventory.getItem(DnaSynthesisOperation.SLOT_OUTPUT);
+        ItemStack old = inventory.getItem(DnaSynthesisOperation.SLOT_OUT_DNA);
         if (!old.isEmpty()) {
-            inventory.setItem(DnaSynthesisOperation.SLOT_OUTPUT, ItemStack.EMPTY);
+            inventory.setItem(DnaSynthesisOperation.SLOT_OUT_DNA, ItemStack.EMPTY);
             if (level != null) {
                 Containers.dropItemStack(level, worldPosition.getX() + 0.5, worldPosition.getY() + 0.5,
                         worldPosition.getZ() + 0.5, old);

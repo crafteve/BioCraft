@@ -58,6 +58,25 @@ public interface SequenceOperation {
         return true;
     }
 
+    /** 向副产物槽追加 1 个指定物品（槽满返回 false = 产物回压停摆） */
+    static boolean addOne(SimpleContainer container, int slot, String itemId) {
+        ItemStack stack = container.getItem(slot);
+        if (stack.isEmpty()) {
+            net.minecraft.world.item.Item item = BuiltInRegistries.ITEM.get(
+                    ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, itemId));
+            if (item == null || item == net.minecraft.world.item.Items.AIR) {
+                return false;
+            }
+            container.setItem(slot, new ItemStack(item, 1));
+            return true;
+        }
+        if (!matchesId(stack, itemId) || stack.getCount() >= stack.getMaxStackSize()) {
+            return false;
+        }
+        stack.grow(1);
+        return true;
+    }
+
     /** 物品注册名是否匹配（biocraft 命名空间内按注册名比对） */
     static boolean matchesId(ItemStack stack, String itemId) {
         ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
