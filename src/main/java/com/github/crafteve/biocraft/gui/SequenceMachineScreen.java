@@ -3,8 +3,10 @@ package com.github.crafteve.biocraft.gui;
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.SeqStepState;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
+import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
+import com.github.crafteve.biocraft.seq.SequenceData;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -19,11 +21,16 @@ import java.util.List;
 /**
  * 序列机通用屏幕（256×256 窗口，画布 = gui_encoder.png）
  * <p>
- * 通用部分：背景贴图、玩家背包（酶工厂坐标）、顶部状态栏（机器名 + 阶段 +
- * 进度条）、左侧输入滚动卡片区（isActive=false 槽位 + AT 坐标，自绘卡片）、
- * 右下输出卡片区（DNA 产物整行卡 + ADP/PPi 并排副产物卡，含四色碱基序列
- * 预览）、深色编码区面板（编码器子类填入编辑器）。
- * 各机器 Screen 子类只负责差异（编码器 = 代码编辑器 + 按钮）。
+ * 布局完全对齐酶工厂惯例：
+ * <ul>
+ *   <li>状态栏：机器名（y13，与酶工厂 displayname 同中轴）+ 状态 + 细进度条</li>
+ *   <li>INPUT 标签：(9,30) 英文大写（酶工厂同定位）；输入滚动卡片区 (7,41) 56×112</li>
+ *   <li>编码区面板：69,31-247,126（深色，编码器子类填编辑器）</li>
+ *   <li>OUTPUT 标签 + 输出横向滚动卡片：(70,133)-(246,161)，DNA 卡加宽显示序列号
+ *       （x数量 改为 序列号）+ 四色碱基，ADP/PPi 卡标准宽显示 x数量</li>
+ *   <li>卡片元素照抄酶工厂：卡片底色 + slot.png + 彩色缩写 + 进度条 + x数量</li>
+ *   <li>renderLabels 空实现（vanilla 标题/物品栏标识全部移除，文字全由 renderBg 自绘）</li>
+ * </ul>
  */
 public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachineMenu> {
 
@@ -36,12 +43,11 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     protected static final int CARD_COLOR = 0xFFC6C6C6;
     /** 深色编码区面板底色 */
     protected static final int EDIT_PANEL_COLOR = 0xFF1E1E22;
-    /** 状态文本颜色 */
-    protected static final int TEXT_MAIN = 0xFF3A3A3A;
-    protected static final int TEXT_SUB = 0xFF707070;
-    /** 进度条颜色 */
+    /** 文字颜色（酶工厂 NAME_COLOR 纯黑） */
+    protected static final int NAME_COLOR = 0xFF000000;
+    protected static final int CONC_TEXT_COLOR = 0xFF3A3A3A;
+    /** 进度条 */
     protected static final int BAR_TRACK = 0xFFB0B0B0;
-    protected static final int BAR_FILL = 0xFF4CAF50;
     /** DNA 四色碱基（动画 B 用） */
     protected static final int BASE_A = 0xFFE74C3C;
     protected static final int BASE_T = 0xFFF1C40F;
@@ -51,27 +57,30 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     private static final double SCROLL_LERP = 0.35;
     private static final double SCROLL_PIXELS_PER_NOTCH = 8.0;
 
-    /** 输入滚动卡片（编码器 5 张：dNTP×4 + ATP） */
+    /** 输入卡片（纵向滚动）：槽位 + 固定展示的物品 */
+    protected record InputCard(int containerSlot, String itemId) {
+    }
+
+    /** 输出卡片（横向滚动）：槽位 + 固定展示的物品 + 卡片宽 */
+    protected record OutputCard(int containerSlot, String itemId, int cardWidth, boolean dna) {
+    }
+
     protected final List<InputCard> inputCards;
-    private double scrollOffset;
-    private double scrollTarget;
+    protected final List<OutputCard> outputCards;
+
+    private double inputScrollOffset;
+    private double inputScrollTarget;
+    private double outputScrollOffset;
+    private double outputScrollTarget;
 
     public SequenceMachineScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
         this.imageWidth = SequenceMachineMenu.WINDOW_W;
         this.imageHeight = SequenceMachineMenu.WINDOW_H;
-        this.titleLabelX = 8;
-        this.titleLabelY = 6;
-        this.inventoryLabelX = 8;
-        this.inventoryLabelY = 156;
         this.inputCards = buildInputCards(menu.getKind());
+        this.outputCards = buildOutputCards(menu.getKind());
     }
 
-    /** 输入卡片（槽位 + 固定展示的物品缩写） */
-    protected record InputCard(int containerSlot, String itemId) {
-    }
-
-    /** 按机器类型构建输入卡片（编码器 = 5 张；转录仪暂固定槽无滚动） */
     protected List<InputCard> buildInputCards(SequenceMachineKind kind) {
         if (kind != SequenceMachineKind.DNA_ENCODER) {
             return List.of();
@@ -85,56 +94,100 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         return cards;
     }
 
+    protected List<OutputCard> buildOutputCards(SequenceMachineKind kind) {
+        if (kind != SequenceMachineKind.DNA_ENCODER) {
+            return List.of();
+        }
+        List<OutputCard> cards = new ArrayList<>();
+        cards.add(new OutputCard(5, "dna", SequenceMachineMenu.OUT_CARD_DNA_W, true));
+        cards.add(new OutputCard(6, "adp", SequenceMachineMenu.OUT_CARD_SUB_W, false));
+        cards.add(new OutputCard(7, "ppi", SequenceMachineMenu.OUT_CARD_SUB_W, false));
+        return cards;
+    }
+
     // ------------------------------------------------------------------
-    // tick：滚动插值 + 槽位坐标同步（AT 已拆 Slot.x/y final）
+    // tick：双滚动区插值 + 槽位坐标同步（AT 已拆 Slot.x/y final）
     // ------------------------------------------------------------------
 
     @Override
     public void containerTick() {
         super.containerTick();
-        tickScroll();
+        tickScrolls();
     }
 
-    private void tickScroll() {
-        if (inputCards.isEmpty()) {
-            return;
+    private void tickScrolls() {
+        // 输入（纵向）
+        if (!inputCards.isEmpty()) {
+            this.inputScrollOffset += (this.inputScrollTarget - this.inputScrollOffset) * SCROLL_LERP;
+            if (Math.abs(this.inputScrollTarget - this.inputScrollOffset) < 0.5) {
+                this.inputScrollOffset = this.inputScrollTarget;
+            }
+            int vOffset = (int) Math.round(inputScrollOffset);
+            for (int i = 0; i < inputCards.size(); i++) {
+                Slot slot = menu.getSlot(inputCards.get(i).containerSlot());
+                slot.x = SequenceMachineMenu.INPUT_SCROLL_X + SequenceMachineMenu.SLOT_X;
+                slot.y = SequenceMachineMenu.INPUT_SCROLL_Y + i * SequenceMachineMenu.CARD_STEP
+                        - vOffset + SequenceMachineMenu.SLOT_Y;
+            }
         }
-        this.scrollOffset += (this.scrollTarget - this.scrollOffset) * SCROLL_LERP;
-        if (Math.abs(this.scrollTarget - this.scrollOffset) < 0.5) {
-            this.scrollOffset = this.scrollTarget;
-        }
-        int offset = (int) Math.round(scrollOffset);
-        for (int i = 0; i < inputCards.size(); i++) {
-            Slot slot = menu.getSlot(inputCards.get(i).containerSlot());
-            slot.x = SequenceMachineMenu.INPUT_SCROLL_X + SequenceMachineMenu.SLOT_X;
-            slot.y = SequenceMachineMenu.INPUT_SCROLL_Y + i * SequenceMachineMenu.CARD_STEP
-                    - offset + SequenceMachineMenu.SLOT_Y;
+        // 输出（横向）
+        if (!outputCards.isEmpty()) {
+            this.outputScrollOffset += (this.outputScrollTarget - this.outputScrollOffset) * SCROLL_LERP;
+            if (Math.abs(this.outputScrollTarget - this.outputScrollOffset) < 0.5) {
+                this.outputScrollOffset = this.outputScrollTarget;
+            }
+            int hOffset = (int) Math.round(outputScrollOffset);
+            int cardX = SequenceMachineMenu.OUT_X;
+            for (int i = 0; i < outputCards.size(); i++) {
+                OutputCard card = outputCards.get(i);
+                Slot slot = menu.getSlot(card.containerSlot());
+                slot.x = cardX - hOffset + SequenceMachineMenu.SLOT_X;
+                slot.y = SequenceMachineMenu.OUT_Y + SequenceMachineMenu.SLOT_Y;
+                cardX += card.cardWidth() + SequenceMachineMenu.CARD_GAP;
+            }
         }
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (inputHover(mouseX, mouseY)) {
+        double lx = mouseX - leftPos;
+        double ly = mouseY - topPos;
+        if (inArea(lx, ly, SequenceMachineMenu.INPUT_SCROLL_X, SequenceMachineMenu.INPUT_SCROLL_Y,
+                SequenceMachineMenu.INPUT_SCROLL_W, SequenceMachineMenu.INPUT_SCROLL_H)) {
             scrollInput(verticalAmount);
+            return true;
+        }
+        if (inArea(lx, ly, SequenceMachineMenu.OUT_X, SequenceMachineMenu.OUT_Y,
+                SequenceMachineMenu.OUT_W, SequenceMachineMenu.OUT_H)) {
+            scrollOutput(verticalAmount); // 横向滚动用滚轮（方向改为横向）
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
-    private boolean inputHover(double mouseX, double mouseY) {
-        double lx = mouseX - leftPos;
-        double ly = mouseY - topPos;
-        return lx >= SequenceMachineMenu.INPUT_SCROLL_X
-                && lx < SequenceMachineMenu.INPUT_SCROLL_X + SequenceMachineMenu.INPUT_SCROLL_W
-                && ly >= SequenceMachineMenu.INPUT_SCROLL_Y
-                && ly < SequenceMachineMenu.INPUT_SCROLL_Y + SequenceMachineMenu.INPUT_SCROLL_H;
+    private static boolean inArea(double lx, double ly, int x, int y, int w, int h) {
+        return lx >= x && lx < x + w && ly >= y && ly < y + h;
     }
 
     private void scrollInput(double verticalAmount) {
         int maxScroll = Math.max(0, inputCards.size() * SequenceMachineMenu.CARD_STEP
                 - SequenceMachineMenu.CARD_GAP - SequenceMachineMenu.INPUT_SCROLL_H);
-        this.scrollTarget = Math.max(0,
-                Math.min(scrollTarget - verticalAmount * SCROLL_PIXELS_PER_NOTCH, maxScroll));
+        this.inputScrollTarget = Math.max(0,
+                Math.min(inputScrollTarget - verticalAmount * SCROLL_PIXELS_PER_NOTCH, maxScroll));
+    }
+
+    private void scrollOutput(double verticalAmount) {
+        int maxScroll = Math.max(0, outputContentWidth() - SequenceMachineMenu.OUT_W);
+        this.outputScrollTarget = Math.max(0,
+                Math.min(outputScrollTarget - verticalAmount * SCROLL_PIXELS_PER_NOTCH, maxScroll));
+    }
+
+    private int outputContentWidth() {
+        int w = 0;
+        for (OutputCard card : outputCards) {
+            w += card.cardWidth() + SequenceMachineMenu.CARD_GAP;
+        }
+        return Math.max(0, w - SequenceMachineMenu.CARD_GAP);
     }
 
     // ------------------------------------------------------------------
@@ -145,120 +198,173 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         // 背景贴图（256×256 全窗口）
         graphics.blit(BG, leftPos, topPos, 0, 0, imageWidth, imageHeight, imageWidth, imageHeight);
+        drawStatusBar(graphics);
+        drawInputLabel(graphics);
+        drawOutputLabel(graphics);
         drawInputCards(graphics);
         drawOutputCards(graphics);
         drawEditPanel(graphics);
-        drawProgressBar(graphics);
     }
 
-    /** 输入滚动卡片：卡片底色 + 槽位贴图 + 物品图标 + 缩写 + 数量（scissor 裁剪视口） */
+    /** 状态栏（y 与酶工厂 displayname 同中轴 y13）：机器名 + 状态 + 细进度条 */
+    private void drawStatusBar(GuiGraphics graphics) {
+        // 机器名（方块显示名）
+        graphics.drawString(this.font, this.title, this.leftPos + 8, this.topPos + 13, NAME_COLOR, false);
+        // 状态文本
+        int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
+        int position = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
+        int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
+        String status = switch (SeqStepState.Stage.values()[Math.min(stage, SeqStepState.Stage.values().length - 1)]) {
+            case IDLE -> "IDLE";
+            case EXTENDING -> "EXT " + position + "/" + total;
+            case DONE -> "DONE";
+        };
+        graphics.drawString(this.font, status, this.leftPos + 150, this.topPos + 13, CONC_TEXT_COLOR, false);
+        // 细进度条（y22-25，全宽）
+        int fill = total > 0 ? (int) ((imageWidth - 16) * position / (double) total) : 0;
+        graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + imageWidth - 16, topPos + 25, BAR_TRACK);
+        if (fill > 0) {
+            graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + fill, topPos + 25, 0xFF4CAF50);
+        }
+    }
+
+    /** INPUT 标签：酶工厂同定位 (9,30)，英文大写纯黑 */
+    private void drawInputLabel(GuiGraphics graphics) {
+        graphics.drawString(this.font, "INPUT", this.leftPos + 9, this.topPos + 30, NAME_COLOR, false);
+    }
+
+    /** OUTPUT 标签：英文大写（输出卡片区上方） */
+    private void drawOutputLabel(GuiGraphics graphics) {
+        graphics.drawString(this.font, "OUTPUT", this.leftPos + SequenceMachineMenu.OUTPUT_LABEL_X,
+                this.topPos + SequenceMachineMenu.OUTPUT_LABEL_Y, NAME_COLOR, false);
+    }
+
+    /** 输入滚动卡片（纵向，元素照抄酶工厂：底色 + slot.png + 彩色缩写 + 进度条 + x数量） */
     private void drawInputCards(GuiGraphics graphics) {
         if (inputCards.isEmpty()) {
             return;
         }
-        int x = leftPos + SequenceMachineMenu.INPUT_SCROLL_X;
-        int y = topPos + SequenceMachineMenu.INPUT_SCROLL_Y;
-        graphics.enableScissor(x, y, x + SequenceMachineMenu.INPUT_SCROLL_W, y + SequenceMachineMenu.INPUT_SCROLL_H);
-        int offset = (int) Math.round(scrollOffset);
+        int areaX = leftPos + SequenceMachineMenu.INPUT_SCROLL_X;
+        int areaY = topPos + SequenceMachineMenu.INPUT_SCROLL_Y;
+        graphics.enableScissor(areaX, areaY, areaX + SequenceMachineMenu.INPUT_SCROLL_W,
+                areaY + SequenceMachineMenu.INPUT_SCROLL_H);
+        int vOffset = (int) Math.round(inputScrollOffset);
         for (int i = 0; i < inputCards.size(); i++) {
             InputCard card = inputCards.get(i);
-            int cardY = y + i * SequenceMachineMenu.CARD_STEP - offset;
-            graphics.fill(x, cardY, x + SequenceMachineMenu.CARD_W, cardY + SequenceMachineMenu.CARD_H, CARD_COLOR);
-            // 槽位背景贴图
-            int pngX = x + SequenceMachineMenu.SLOT_PNG_X;
-            int pngY = cardY + SequenceMachineMenu.SLOT_PNG_Y;
-            graphics.blit(SLOT_TEX, pngX, pngY, 0, 0, 18, 18, 18, 18);
-            // 物品图标 + 数量（槽内容可能为空）
+            int cardY = areaY + i * SequenceMachineMenu.CARD_STEP - vOffset;
             Slot slot = menu.getSlot(card.containerSlot());
-            ItemStack stack = slot.getItem();
-            if (!stack.isEmpty()) {
-                graphics.renderItem(stack, pngX + 1, pngY + 1);
-                graphics.drawString(font, String.valueOf(stack.getCount()),
-                        pngX + 10, pngY + 10, 0xFFFFFF, true);
-            }
-            // 缩写（物品色或灰色）
-            MoleculeItem item = ModItems.byId(card.itemId()).get();
-            int color = stack.isEmpty() ? TEXT_SUB : cardTextColor(item.getTintColor());
-            graphics.drawString(font, item.getAbbreviation(),
-                    pngX + 18 + 4, pngY, color, false);
+            drawStockCard(graphics, areaX, cardY, SequenceMachineMenu.CARD_W, card.itemId(), slot);
         }
         graphics.disableScissor();
     }
 
-    /** 输出卡片区（编码器）：DNA 产物整行卡 + ADP/PPi 并排副产物卡（物品图标由 vanilla 渲染） */
-    protected void drawOutputCards(GuiGraphics graphics) {
-        if (menu.getKind() != SequenceMachineKind.DNA_ENCODER) {
+    /**
+     * 输出横向滚动卡片：DNA 卡（序列号 + 四色碱基）与 ADP/PPi 卡（x数量）
+     */
+    private void drawOutputCards(GuiGraphics graphics) {
+        if (outputCards.isEmpty()) {
             return;
         }
-        // DNA 产物卡（整行，含四色碱基序列预览——动画 B）
-        drawOutputCard(graphics, SequenceMachineMenu.OUT_DNA_X, SequenceMachineMenu.OUT_DNA_Y,
-                SequenceMachineMenu.OUT_DNA_W, 5, "DNA 产物", false);
-        // ADP / PPi 副产物卡
-        drawOutputCard(graphics, SequenceMachineMenu.OUT_SUB_X1, SequenceMachineMenu.OUT_SUB_Y,
-                SequenceMachineMenu.OUT_SUB_W, 6, "ADP", true);
-        drawOutputCard(graphics, SequenceMachineMenu.OUT_SUB_X2, SequenceMachineMenu.OUT_SUB_Y,
-                SequenceMachineMenu.OUT_SUB_W, 7, "PPi", true);
-    }
-
-    private void drawOutputCard(GuiGraphics graphics, int cardX, int cardY, int cardW, int slotIndex,
-                                String label, boolean small) {
-        int x = leftPos + cardX;
-        int y = topPos + cardY;
-        graphics.fill(x, y, x + cardW, y + SequenceMachineMenu.CARD_H, CARD_COLOR);
-        graphics.blit(SLOT_TEX, x + SequenceMachineMenu.SLOT_PNG_X, y + SequenceMachineMenu.SLOT_PNG_Y,
-                0, 0, 18, 18, 18, 18);
-        graphics.drawString(font, label,
-                x + SequenceMachineMenu.SLOT_PNG_X + 18 + 4, y + SequenceMachineMenu.SLOT_PNG_Y,
-                TEXT_MAIN, false);
-        if (!small && slotIndex == 5) {
-            drawDnaPreview(graphics, x + SequenceMachineMenu.SLOT_PNG_X + 18 + 4, y + 12);
+        int areaX = leftPos + SequenceMachineMenu.OUT_X;
+        int areaY = topPos + SequenceMachineMenu.OUT_Y;
+        graphics.enableScissor(areaX, areaY, areaX + SequenceMachineMenu.OUT_W,
+                areaY + SequenceMachineMenu.OUT_H);
+        int hOffset = (int) Math.round(outputScrollOffset);
+        int cardX = areaX;
+        for (int i = 0; i < outputCards.size(); i++) {
+            OutputCard card = outputCards.get(i);
+            int thisCardX = cardX - hOffset;
+            Slot slot = menu.getSlot(card.containerSlot());
+            if (card.dna()) {
+                drawDnaCard(graphics, thisCardX, areaY, card.cardWidth(), slot);
+            } else {
+                drawStockCard(graphics, thisCardX, areaY, card.cardWidth(), card.itemId(), slot);
+            }
+            cardX += card.cardWidth() + SequenceMachineMenu.CARD_GAP;
         }
+        graphics.disableScissor();
     }
 
     /**
-     * 动画 B：DNA 四色碱基序列预览（显示链末端窗口，最新碱基高亮 + 聚合酶标记）
-     * <p>
-     * 从 DNA 产物槽读链（客户端经容器同步），只显示末端 28 个碱基；
-     * 高亮 = 当前步刚加入的碱基（position 来自 ContainerData）
+     * 库存卡片（输入/输出副产物通用，元素照抄酶工厂物种卡）：
+     * 底色 + slot.png + 彩色缩写 + 进度条（count/64 归一化）+ x数量
      */
-    private void drawDnaPreview(GuiGraphics graphics, int startX, int startY) {
-        Slot slot = menu.getSlot(5);
+    private void drawStockCard(GuiGraphics graphics, int cardX, int cardY, int cardW,
+                               String itemId, Slot slot) {
+        graphics.fill(cardX, cardY, cardX + cardW, cardY + SequenceMachineMenu.CARD_H, CARD_COLOR);
+        int pngX = cardX + SequenceMachineMenu.SLOT_PNG_X;
+        int pngY = cardY + SequenceMachineMenu.SLOT_PNG_Y;
+        graphics.blit(SLOT_TEX, pngX, pngY, 0, 0, 18, 18, 18, 18);
         ItemStack stack = slot.getItem();
-        com.github.crafteve.biocraft.seq.SequenceData data =
-                stack.get(com.github.crafteve.biocraft.init.ModDataComponents.SEQUENCE.get());
-        String seq = data != null ? data.seq() : "";
-        if (seq.isEmpty()) {
-            return;
+        // 缩写：物品色加深（过亮改黑），空槽灰色
+        MoleculeItem item = ModItems.byId(itemId).get();
+        int color = stack.isEmpty() ? CONC_TEXT_COLOR : cardTextColor(item.getTintColor());
+        graphics.drawString(font, item.getAbbreviation(), pngX + 18 + 4, pngY, color, false);
+        // 进度条（3px 高，宽 cardW-2）：count/64 归一化（满 64 = 满格）
+        int barY = cardY + SequenceMachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
+        double count = stack.getCount();
+        int fill = (int) Math.min((cardW - 2) * count / 64.0, cardW - 2);
+        graphics.fill(cardX + 1, barY, cardX + 1 + cardW - 2, barY + 3, BAR_TRACK);
+        if (fill > 0) {
+            graphics.fill(cardX + 1, barY, cardX + 1 + fill, barY + 3, color);
         }
+        // x数量（酶工厂格式：≥100 一位小数，否则两位）
+        String countText = count >= 100.0 ? String.format("%.1f", count) : String.format("%.2f", count);
+        graphics.drawString(font, "x" + countText, pngX + 18 + 4, pngY + 18 + 1 - 8, CONC_TEXT_COLOR, false);
+    }
+
+    /**
+     * DNA 输出卡（加宽）：x数量改为序列号（position/total），并显示四色碱基
+     * 末端窗口 + 聚合酶标记（动画 B）
+     */
+    private void drawDnaCard(GuiGraphics graphics, int cardX, int cardY, int cardW, Slot slot) {
+        graphics.fill(cardX, cardY, cardX + cardW, cardY + SequenceMachineMenu.CARD_H, CARD_COLOR);
+        int pngX = cardX + SequenceMachineMenu.SLOT_PNG_X;
+        int pngY = cardY + SequenceMachineMenu.SLOT_PNG_Y;
+        graphics.blit(SLOT_TEX, pngX, pngY, 0, 0, 18, 18, 18, 18);
+        int textX = pngX + 18 + 4;
+        // 第一行：DNA + 序列号（position/total，代替 x数量）
         int position = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
         int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
-        boolean encoding = position < total;
-        int window = 28;
-        int from = Math.max(0, seq.length() - window);
-        int x = startX;
-        for (int i = from; i < seq.length(); i++) {
-            char base = seq.charAt(i);
-            int color = switch (base) {
-                case 'A' -> BASE_A;
-                case 'T' -> BASE_T;
-                case 'C' -> BASE_C;
-                case 'G' -> BASE_G;
-                default -> TEXT_SUB;
-            };
-            // 最新碱基（编码中且是链末端）高亮为白底
-            if (encoding && i == seq.length() - 1) {
-                graphics.fill(x - 1, startY - 1, x + 7, startY + 9, 0xFFFFFFFF);
-                color = 0xFF000000;
-            }
-            graphics.drawString(font, String.valueOf(base), x, startY, color, false);
-            x += 7;
-            if (x > leftPos + SequenceMachineMenu.OUT_DNA_X + SequenceMachineMenu.OUT_DNA_W - 12) {
-                break;
+        graphics.drawString(font, "DNA", textX, pngY, NAME_COLOR, false);
+        graphics.drawString(font, position + "/" + total, textX + 30, pngY, CONC_TEXT_COLOR, false);
+        // 第二行：四色碱基末端窗口 + 聚合酶标记
+        ItemStack stack = slot.getItem();
+        SequenceData data = stack.get(ModDataComponents.SEQUENCE.get());
+        String seq = data != null ? data.seq() : "";
+        int baseX = textX;
+        int baseY = pngY + 11;
+        boolean encoding = total > 0 && position < total;
+        if (!seq.isEmpty()) {
+            int window = (cardW - 34) / 7;
+            int from = Math.max(0, seq.length() - window);
+            for (int i = from; i < seq.length() && baseX < cardX + cardW - 10; i++) {
+                char base = seq.charAt(i);
+                int color = switch (base) {
+                    case 'A' -> BASE_A;
+                    case 'T' -> BASE_T;
+                    case 'C' -> BASE_C;
+                    case 'G' -> BASE_G;
+                    default -> CONC_TEXT_COLOR;
+                };
+                if (encoding && i == seq.length() - 1) {
+                    graphics.fill(baseX - 1, baseY - 1, baseX + 7, baseY + 9, 0xFFFFFFFF);
+                    color = 0xFF000000;
+                }
+                graphics.drawString(font, String.valueOf(base), baseX, baseY, color, false);
+                baseX += 7;
             }
         }
         // 聚合酶标记（编码中显示在链末端后方）
-        if (encoding && x < leftPos + SequenceMachineMenu.OUT_DNA_X + SequenceMachineMenu.OUT_DNA_W - 6) {
-            graphics.fill(x, startY + 4, x + 3, startY + 7, 0xFF00E5FF);
+        if (encoding && baseX < cardX + cardW - 4) {
+            graphics.fill(baseX, baseY + 4, baseX + 3, baseY + 7, 0xFF00E5FF);
+        }
+        // 进度条：序列进度（position/total 归一化）
+        int barY = cardY + SequenceMachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
+        int fill = total > 0 ? (int) Math.min((cardW - 2) * position / (double) total, cardW - 2) : 0;
+        graphics.fill(cardX + 1, barY, cardX + 1 + cardW - 2, barY + 3, BAR_TRACK);
+        if (fill > 0) {
+            graphics.fill(cardX + 1, barY, cardX + 1 + fill, barY + 3, 0xFF4CAF50);
         }
     }
 
@@ -270,35 +376,49 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         graphics.fill(x, y, x + SequenceMachineMenu.EDIT_W, y + 1, 0xFF3A3A3A);
     }
 
-    /** 顶部状态栏进度条（延伸进度） */
-    private void drawProgressBar(GuiGraphics graphics) {
-        int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
-        int position = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
-        int fill = total > 0 ? (int) ((imageWidth - 16) * position / (double) total) : 0;
-        int barY = topPos + 17;
-        graphics.fill(leftPos + 8, barY, leftPos + 8 + imageWidth - 16, barY + 3, BAR_TRACK);
-        if (fill > 0) {
-            graphics.fill(leftPos + 8, barY, leftPos + 8 + fill, barY + 3, BAR_FILL);
+    /** renderSlot 覆写：编码器机器槽（isActive=false）经 scissor 自绘物品；其余交 vanilla */
+    @Override
+    protected void renderSlot(GuiGraphics graphics, Slot slot) {
+        if (slot.isActive()) {
+            super.renderSlot(graphics, slot);
+            return;
+        }
+        // 输入区 scissor
+        if (slot.index < 5) {
+            int x = leftPos + SequenceMachineMenu.INPUT_SCROLL_X;
+            int y = topPos + SequenceMachineMenu.INPUT_SCROLL_Y;
+            graphics.enableScissor(x, y, x + SequenceMachineMenu.INPUT_SCROLL_W, y + SequenceMachineMenu.INPUT_SCROLL_H);
+            renderScrollSlot(graphics, slot);
+            graphics.disableScissor();
+            return;
+        }
+        // 输出区 scissor
+        int x = leftPos + SequenceMachineMenu.OUT_X;
+        int y = topPos + SequenceMachineMenu.OUT_Y;
+        graphics.enableScissor(x, y, x + SequenceMachineMenu.OUT_W, y + SequenceMachineMenu.OUT_H);
+        renderScrollSlot(graphics, slot);
+        graphics.disableScissor();
+    }
+
+    /** 滚动槽物品渲染：悬停高亮 + 物品图标 + 堆叠数 */
+    private void renderScrollSlot(GuiGraphics graphics, Slot slot) {
+        if (slot == this.hoveredSlot) {
+            graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0x80FFFFFF);
+        }
+        ItemStack stack = slot.getItem();
+        if (!stack.isEmpty()) {
+            graphics.renderItem(stack, slot.x, slot.y, slot.x + slot.y * imageWidth);
+            if (slot.index != 5) {
+                // DNA 槽不画堆叠数（序列号代替）
+                graphics.drawString(font, String.valueOf(stack.getCount()),
+                        slot.x + 10, slot.y + 10, 0xFFFFFF, true);
+            }
         }
     }
 
+    /** renderLabels 空实现：vanilla 标题/物品栏标识全部移除（文字全由 renderBg 自绘） */
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        super.renderLabels(graphics, mouseX, mouseY);
-        // 状态文本（机器名右侧）
-        int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
-        int position = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
-        int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
-        String status = switch (SeqStepState.Stage.values()[Math.min(stage, SeqStepState.Stage.values().length - 1)]) {
-            case IDLE -> "空闲 · 等待输入";
-            case EXTENDING -> "延伸中 " + position + " / " + total;
-            case DONE -> "完成";
-        };
-        graphics.drawString(font, Component.literal("§7" + status), 140, 6, 0xFFFFFF);
-        // 区域标签
-        graphics.drawString(font, Component.literal("§8输入"), 10, 32, 0xFFFFFF);
-        graphics.drawString(font, Component.literal("§8编码"), SequenceMachineMenu.EDIT_X, 16, 0xFFFFFF);
-        graphics.drawString(font, Component.literal("§8输出"), SequenceMachineMenu.OUT_DNA_X, 94, 0xFFFFFF);
     }
 
     /** 物品色加深 1/5，与卡片底色亮度相近时改黑色（保证缩写可读） */
@@ -311,14 +431,5 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         int db = (int) (b * 0.8);
         double lum = 0.299 * r + 0.587 * g + 0.114 * b;
         return lum > 200 ? 0xFF000000 : (0xFF000000 | (dr << 16) | (dg << 8) | db);
-    }
-
-    /** renderSlot 覆写：滚动输入槽（isActive=false）由本类自绘，vanilla 只渲染 active 槽 */
-    @Override
-    protected void renderSlot(GuiGraphics graphics, Slot slot) {
-        if (!slot.isActive()) {
-            return;
-        }
-        super.renderSlot(graphics, slot);
     }
 }

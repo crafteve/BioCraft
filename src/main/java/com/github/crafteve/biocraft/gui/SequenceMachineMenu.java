@@ -60,20 +60,25 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
     public static final int SLOT_X = SLOT_PNG_X + 1;
     public static final int SLOT_Y = SLOT_PNG_Y + 1;
 
-    /** 编码器输出区布局（两行）：DNA 卡整行 + ADP/PPi 并排 */
-    public static final int OUT_DNA_X = 67;
-    public static final int OUT_DNA_Y = 104;
-    public static final int OUT_DNA_W = 183;
-    public static final int OUT_SUB_X1 = 67;
-    public static final int OUT_SUB_X2 = 157;
-    public static final int OUT_SUB_Y = 136;
-    public static final int OUT_SUB_W = 86;
+    /** 编码区（深色编辑器面板，Screen 子类绘制内容）：用户定位 69,31-247,126 */
+    public static final int EDIT_X = 69;
+    public static final int EDIT_Y = 31;
+    public static final int EDIT_W = 178;
+    public static final int EDIT_H = 95;
 
-    /** 编码区（深色编辑器面板，Screen 子类绘制内容） */
-    public static final int EDIT_X = 67;
-    public static final int EDIT_Y = 24;
-    public static final int EDIT_W = 183;
-    public static final int EDIT_H = 72;
+    /** 输出横向滚动卡片区（用户定位 70,133-246,161）：176×28 视口，横向滚动 */
+    public static final int OUT_X = 70;
+    public static final int OUT_Y = 133;
+    public static final int OUT_W = 176;
+    public static final int OUT_H = 28;
+
+    /** 输出卡片宽度（DNA 加宽放序列预览，ADP/PPi 标准宽） */
+    public static final int OUT_CARD_DNA_W = 104;
+    public static final int OUT_CARD_SUB_W = 56;
+
+    /** 输出标签（英文大写，y 与 INPUT 同基准、左上角） */
+    public static final int OUTPUT_LABEL_X = 70;
+    public static final int OUTPUT_LABEL_Y = 129;
 
     private final SequenceMachineKind kind;
     private final BlockPos pos;
@@ -152,15 +157,16 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 机器槽：编码器 = 5 输入（滚动卡片，isActive=false 由 Screen 绘制）+
-     * 3 输出（固定位置，vanilla 渲染）；转录仪 = 4 固定槽
+     * 机器槽：编码器 = 5 输入（纵向滚动卡片）+ 3 输出（横向滚动卡片），
+     * 全部 isActive=false（坐标由 Screen 滚动区写入，自绘裁剪渲染）；
+     * 转录仪 = 4 固定槽（vanilla 渲染）
      */
     private void addMachineSlots(Container container, SequenceMachineKind kind) {
         SequenceOperation op = kind.createOperation();
         int[][] positions = slotPositions(kind);
+        boolean scrollAll = kind == SequenceMachineKind.DNA_ENCODER;
         for (int i = 0; i < positions.length; i++) {
             int index = i;
-            boolean scrollInput = kind == SequenceMachineKind.DNA_ENCODER && i < 5;
             addSlot(new Slot(container, index, positions[i][0], positions[i][1]) {
                 @Override
                 public boolean mayPlace(ItemStack stack) {
@@ -169,26 +175,26 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
 
                 @Override
                 public boolean isActive() {
-                    return !scrollInput; // 滚动输入槽自绘（Screen 接管），输出/转录槽 vanilla 渲染
+                    return !scrollAll; // 编码器全部机器槽自绘；转录仪 vanilla 渲染
                 }
             });
         }
     }
 
-    /** 每机器的槽位坐标（GUI 相对；编码器输入槽坐标由 Screen 滚动区覆写） */
+    /** 每机器的槽位坐标（GUI 相对；编码器输入/输出槽坐标由 Screen 滚动区覆写） */
     private static int[][] slotPositions(SequenceMachineKind kind) {
         return switch (kind) {
             case DNA_ENCODER -> new int[][]{
-                    // 输入 5 槽（滚动卡片，坐标由 Screen 写入，此处为占位）
+                    // 输入 5 槽（纵向滚动卡片，坐标由 Screen 写入，此处为占位）
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    // 输出 3 槽：DNA 整行卡 / ADP / PPi 并排
-                    {OUT_DNA_X + SLOT_X, OUT_DNA_Y + SLOT_Y},
-                    {OUT_SUB_X1 + SLOT_X, OUT_SUB_Y + SLOT_Y},
-                    {OUT_SUB_X2 + SLOT_X, OUT_SUB_Y + SLOT_Y},
+                    // 输出 3 槽（横向滚动卡片，坐标由 Screen 写入，此处为占位）
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
             };
             case TRANSCRIBER -> new int[][]{
                     {EDIT_X + 2, 34}, {EDIT_X + 2, 56}, {EDIT_X + 2, 78}, {EDIT_X + 40, 56},
