@@ -112,7 +112,27 @@ public class HelicaseScreen extends SequenceMachineScreen {
         graphics.enableScissor(areaX, areaY, areaX + LEFT_W, areaY + LEFT_H);
         for (InputCard card : inputCards) {
             Slot slot = menu.getSlot(card.containerSlot());
-            // 输入 DNA 用 DNA 卡渲染（标签简化为 DNA，三卡均滚动）
+            // 输入 DNA 与编码链同步滚动：解旋中显示 S[0:pos] 前缀，三卡均滚动
+            int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
+            int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
+            if (stage == 1 && pos > 0) {
+                // 解旋中：用已解旋前缀展示（与编码链一致）
+                Slot codingSlot = menu.getSlot(2);
+                ItemStack codingStack = codingSlot.getItem();
+                SequenceData codingData = codingStack.get(ModDataComponents.SEQUENCE.get());
+                if (codingData != null && !codingData.seq().isEmpty()) {
+                    // 创建临时前缀展示用栈（不改真实 NBT，仅显示）
+                    ItemStack display = new ItemStack(codingStack.getItem(), 1);
+                    display.set(ModDataComponents.SEQUENCE.get(), new SequenceData(
+                            SequenceData.SeqType.DNA, SequenceData.Strand.DS, codingData.kind(), codingData.seq(), true));
+                    // 用临时 slot 包装以复用绘制逻辑
+                    Slot tmp = new Slot(new net.minecraft.world.SimpleContainer(1), 0, slot.x, slot.y) {
+                        @Override public ItemStack getItem() { return display; }
+                    };
+                    drawHelicaseDnaCard(graphics, areaX, areaY, LEFT_W, 28, tmp, "DNA");
+                    continue;
+                }
+            }
             drawHelicaseDnaCard(graphics, areaX, areaY, LEFT_W, 28, slot, "DNA");
         }
         graphics.disableScissor();
@@ -123,12 +143,12 @@ public class HelicaseScreen extends SequenceMachineScreen {
         int areaX = leftPos + RIGHT_X;
         int areaY = topPos + RIGHT_Y;
         graphics.enableScissor(areaX, areaY, areaX + RIGHT_W, areaY + LEFT_H);
-        // 垂直双卡：y 0 与 y 29，标签改为模板链/非模板链（专有名词）
+        // 垂直双卡：y 0 与 y 29，标签改为模板链/编码链（专有名词，编码链与 dsDNA 一致）
         for (int i = 0; i < outputCards.size(); i++) {
             OutputCard card = outputCards.get(i);
             int cardY = areaY + i * SequenceMachineMenu.CARD_STEP;
             Slot slot = menu.getSlot(card.containerSlot());
-            String label = i == 0 ? "模板链" : "非模板链";
+            String label = i == 0 ? "模板链" : "编码链";
             drawHelicaseDnaCard(graphics, areaX, cardY, RIGHT_W, 28, slot, label);
         }
         graphics.disableScissor();
@@ -258,23 +278,45 @@ public class HelicaseScreen extends SequenceMachineScreen {
                 graphics.fill(cx + 22 - (int) wave, by, cx + 28 - (int) wave, by + 2, BASE_T);
             }
             graphics.fill(cx + 30, cy - 16, cx + 32, cy + 28, 0xFF81C784);
-            // 分叉点闪烁 + 当前碱基对
+            // 分叉点闪烁 + 当前碱基对（AUCG 主题色）
             int flash = (tick / 6) % 2 == 0 ? 0xFFFFFF00 : 0xFFFFE082;
             graphics.fill(cx - 3, cy - 3, cx + 3, cy + 3, flash);
             if (aBase != '?') {
-                String pair = "" + aBase + "–" + bBase;
-                int pw = font.width(pair);
-                // 放大显示当前碱基对
-                graphics.drawString(font, pair, cx - pw / 2, cy - 28, 0xFFFFF59D, false);
-                // 两链末端碱基小标签
-                graphics.drawString(font, String.valueOf(aBase), cx - 36, cy + 30, BASE_A, false);
-                graphics.drawString(font, String.valueOf(bBase), cx + 30, cy + 30, BASE_T, false);
+                int colorA = switch (aBase) {
+                    case 'A' -> BASE_A;
+                    case 'T' -> BASE_T;
+                    case 'C' -> BASE_C;
+                    case 'G' -> BASE_G;
+                    default -> 0xFFFFF59D;
+                };
+                int colorB = switch (bBase) {
+                    case 'A' -> BASE_A;
+                    case 'T' -> BASE_T;
+                    case 'C' -> BASE_C;
+                    case 'G' -> BASE_G;
+                    default -> 0xFFFFF59D;
+                };
+                String aStr = String.valueOf(aBase);
+                String bStr = String.valueOf(bBase);
+                int pw = font.width(aStr) + font.width("–") + font.width(bStr);
+                int px = cx - pw / 2;
+                graphics.drawString(font, aStr, px, cy - 28, colorA, false);
+                px += font.width(aStr);
+                graphics.drawString(font, "–", px, cy - 28, 0xFFE0E0E0, false);
+                px += font.width("–");
+                graphics.drawString(font, bStr, px, cy - 28, colorB, false);
+                // 两链末端碱基小标签（同主题色）
+                graphics.drawString(font, aStr, cx - 36, cy + 30, colorA, false);
+                graphics.drawString(font, bStr, cx + 30, cy + 30, colorB, false);
             }
-            graphics.drawString(font, "⇄", cx - 4, cy - 36, 0xFFE0E0E0, false);
         } else if (isDone) {
             graphics.fill(cx - 28, cy - 16, cx - 26, cy + 28, 0xFF4FC3F7);
             graphics.fill(cx + 26, cy - 16, cx + 28, cy + 28, 0xFF81C784);
-            // 完成态：两链平行，无文字（已移除 ⇉ 2× ssDNA，避免遮挡）
+            // 完成态：两链平行，上方各写 ssDNA（DNA 同色字体，一左一右）
+            String ss = "ssDNA";
+            int pw = font.width(ss);
+            graphics.drawString(font, ss, cx - 32 - pw / 2, cy - 32, 0xFFE0E0E0, false);
+            graphics.drawString(font, ss, cx + 32 - pw / 2, cy - 32, 0xFFE0E0E0, false);
         } else {
             // 待机：双螺旋波浪
             for (int i = 0; i < 6; i++) {
