@@ -3,6 +3,7 @@ package com.github.crafteve.biocraft.gui;
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.SeqStepState;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
+import com.github.crafteve.biocraft.compat.CompatRenderUtil;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
@@ -314,12 +315,23 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         graphics.drawString(font, item.getAbbreviation(), pngX + 18 + 4, pngY, color, false);
         // 数量（含分子余量）：槽位整数 + ContainerData 同步余量
         double totalCount = stack.getCount() + menu.getRemainder(slot.index);
-        // 进度条（2px 高，宽 cardW-2）：(count + 余量)/64 归一化（满 64 = 满格）
-        int barY = cardY + SequenceMachineMenu.SLOT_PNG_Y + 18 + 1;
+        // 进度条：宽 cardW-2，位置按卡片高度分档——
+        // 输入卡（28 高）与酶工厂完全同布局：3px 高，贴图底与卡底之间
+        // 垂直居中（y = 贴图底 + (8-3)/2 = 22）；
+        // 输出压缩卡（23 高）：贴图底 +1px、2px 高贴卡底（空间不足）
+        int barY;
+        int barH;
+        if (cardH >= 25) {
+            barY = cardY + SequenceMachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
+            barH = 3;
+        } else {
+            barY = cardY + SequenceMachineMenu.SLOT_PNG_Y + 18 + 1;
+            barH = 2;
+        }
         int fill = (int) Math.min((cardW - 2) * totalCount / 64.0, cardW - 2);
-        graphics.fill(cardX + 1, barY, cardX + 1 + cardW - 2, barY + 2, BAR_TRACK);
+        graphics.fill(cardX + 1, barY, cardX + 1 + cardW - 2, barY + barH, BAR_TRACK);
         if (fill > 0) {
-            graphics.fill(cardX + 1, barY, cardX + 1 + fill, barY + 2, color);
+            graphics.fill(cardX + 1, barY, cardX + 1 + fill, barY + barH, color);
         }
         // x数量（酶工厂格式：≥100 一位小数，否则两位）
         String countText = totalCount >= 100.0
@@ -529,15 +541,16 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         this.renderTooltip(graphics, mouseX, mouseY);
     }
 
-    /** 物品色加深 1/5，与卡片底色亮度相近时改黑色（保证缩写可读） */
+    /** 物品色加深 1/5，与卡片底色亮度相近时改黑色（保证缩写可读，酶工厂同款算法） */
     protected static int cardTextColor(int rgb24) {
         int r = (rgb24 >> 16) & 0xFF;
         int g = (rgb24 >> 8) & 0xFF;
         int b = rgb24 & 0xFF;
-        int dr = (int) (r * 0.8);
-        int dg = (int) (g * 0.8);
-        int db = (int) (b * 0.8);
-        double lum = 0.299 * r + 0.587 * g + 0.114 * b;
-        return lum > 200 ? 0xFF000000 : (0xFF000000 | (dr << 16) | (dg << 8) | db);
+        int luminance = (r * 299 + g * 587 + b * 114) / 1000;
+        int saturation = Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
+        if (luminance > 240 || (saturation < 40 && Math.abs(luminance - 198) < 10)) {
+            return 0xFF000000;
+        }
+        return CompatRenderUtil.darkenOneFifth(rgb24);
     }
 }
