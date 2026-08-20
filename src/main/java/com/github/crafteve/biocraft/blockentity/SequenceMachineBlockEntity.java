@@ -1,8 +1,10 @@
 package com.github.crafteve.biocraft.blockentity;
 
 import com.github.crafteve.biocraft.gui.SequenceMachineMenu;
+import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.seq.SeqCodec;
 import com.github.crafteve.biocraft.seq.SequenceConstants;
+import com.github.crafteve.biocraft.seq.SequenceData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -163,9 +165,25 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         return operation.isItemValidForSlot(slot, stack);
     }
 
-    /** 简化：所有槽位可抽（玩家手动管理模板/单体）；产物槽机器自治只取不放由 isItemValidForSlot 兜底 */
+    /**
+     * 抽取门控（原版漏斗 removeItem / 管道 extractItem 同规则，三路统一）：
+     * 编码器输入槽只进不出（防漏斗抽走单体破坏产线）、DNA 槽仅完全编码
+     * （complete）可抽（半成品锁在槽内）、ADP/PPi 可抽；转录仪保持全可抽
+     * （重做时定）。插入侧已由 canPlaceItemInternal = 操作层过滤兜底
+     * （输出槽恒拒绝，防漏斗塞入被物化覆盖吞掉）
+     */
     @Override
     protected boolean canTakeItemInternal(int slot) {
+        if (kind() != SequenceMachineKind.DNA_ENCODER) {
+            return true;
+        }
+        if (slot < DnaSynthesisOperation.SLOT_OUT_DNA) {
+            return false;
+        }
+        if (slot == DnaSynthesisOperation.SLOT_OUT_DNA) {
+            SequenceData data = inventory.getItem(slot).get(ModDataComponents.SEQUENCE.get());
+            return data != null && data.complete();
+        }
         return true;
     }
 }

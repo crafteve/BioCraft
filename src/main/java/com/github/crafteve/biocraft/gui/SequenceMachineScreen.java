@@ -7,11 +7,13 @@ import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.seq.SequenceData;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
@@ -404,20 +406,98 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         graphics.disableScissor();
     }
 
-    /** 滚动槽物品渲染：悬停高亮 + 物品图标 + 堆叠数 */
+    /**
+     * 滚动槽物品渲染（对齐酶工厂 renderSpeciesSlot）：物品图标 + 拖拽分裂
+     * 预览 + 自动缩小堆叠数，包 scissor 裁剪滚动视口。
+     * <p>
+     * 方向 A：完整复刻 vanilla renderSlot 的 quickCraft 分支（源码
+     * AbstractContainerScreen L198-217）——拖拽经过的槽位显示"放置后结果"
+     * 半透明预览 + 黄色超限数字；无效槽剔除 + recalculateQuickCraftRemaining
+     * 保持集合与显示同步（字段经 AT 开放，accesstransformer.cfg L3-6）。
+     * <p>
+     * 方向 B：悬停高亮交 vanilla renderSlotHighlight（isHighlightable=true），
+     * 本方法不再自绘高亮。
+     * <p>
+     * 堆叠数：≤99 走 vanilla（renderItemDecorations），≥100 自动缩小字号
+     * （3 位 0.75、4 位及以上 0.55），右下角锚点、z=200；DNA 槽（index 5）
+     * 不画堆叠数（序列号代替，见 drawDnaCard）
+     */
     private void renderScrollSlot(GuiGraphics graphics, Slot slot) {
-        if (slot == this.hoveredSlot) {
-            graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0x80FFFFFF);
-        }
         ItemStack stack = slot.getItem();
-        if (!stack.isEmpty()) {
-            graphics.renderItem(stack, slot.x, slot.y, slot.x + slot.y * imageWidth);
-            if (slot.index != 5) {
-                // DNA 槽不画堆叠数（序列号代替）
-                graphics.drawString(font, String.valueOf(stack.getCount()),
-                        slot.x + 10, slot.y + 10, 0xFFFFFF, true);
+        ItemStack carried = this.menu.getCarried();
+        boolean preview = false;
+        ItemStack renderStack = stack;
+        String countText = null;
+        // quickCraft 拖拽分裂预览（复刻 vanilla renderSlot 分支）：
+        // 拖拽经过的槽位显示"放置后结果"的半透明预览 + 黄色超限数字
+        if (this.isQuickCrafting && this.quickCraftSlots.contains(slot) && !carried.isEmpty()) {
+            if (this.quickCraftSlots.size() == 1) {
+                // vanilla 同款：拖拽源槽（唯一选中槽）不画预览
+                return;
+            }
+            if (AbstractContainerMenu.canItemQuickReplace(slot, carried, true) && this.menu.canDragTo(slot)) {
+                preview = true;
+                int maxStack = Math.min(carried.getMaxStackSize(), slot.getMaxStackSize(carried));
+                int existing = stack.isEmpty() ? 0 : stack.getCount();
+                int place = AbstractContainerMenu.getQuickCraftPlaceCount(
+                        this.quickCraftSlots, this.quickCraftingType, carried) + existing;
+                if (place > maxStack) {
+                    place = maxStack;
+                    countText = ChatFormatting.YELLOW.toString() + maxStack;
+                }
+                renderStack = carried.copyWithCount(place);
+            } else {
+                this.quickCraftSlots.remove(slot);
+                this.recalculateQuickCraftRemaining();
             }
         }
+        graphics.pose().pushPose();
+        graphics.pose().translate(0.0F, 0.0F, 100.0F);
+        if (preview) {
+            // 半透明白底（拖拽分裂的"选取槽位"效果，vanilla 同色）
+            graphics.pose().translate(0.0F, 0.0F, 50.0F);
+            graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0x80FFFFFF);
+            graphics.pose().translate(0.0F, 0.0F, -50.0F);
+        }
+        if (!renderStack.isEmpty()) {
+            graphics.renderItem(renderStack, slot.x, slot.y, slot.x + slot.y * imageWidth);
+            if (slot.index != 5) {
+                // DNA 槽不画堆叠数（序列号代替）；其余槽按位数自动缩放
+                renderStackCount(graphics, renderStack, slot.x, slot.y, countText);
+            }
+        }
+        graphics.pose().popPose();
+    }
+
+    /**
+     * 堆叠数渲染（对齐酶工厂 renderStackCount）：≤99 走 vanilla 原样
+     * （renderItemDecorations），≥100 或自定义文本（quickCraft 黄色超限数字）
+     * 自动缩小字号——以槽位右下角为锚点缩放绘制（3 位 0.75、4 位及以上
+     * 0.55），数字始终贴右下角不溢出；z 提升 200 层盖在物品（z=100）上
+     */
+    private void renderStackCount(GuiGraphics graphics, ItemStack stack, int x, int y, String textOverride) {
+        int count = stack.getCount();
+        String text = textOverride;
+        if (text == null) {
+            if (count <= 1) {
+                return;
+            }
+            if (count <= 99) {
+                graphics.renderItemDecorations(this.font, stack, x, y, null);
+                return;
+            }
+            text = String.valueOf(count);
+        }
+        float scale = text.length() >= 4 ? 0.55f : 0.75f;
+        int textW = this.font.width(text);
+        graphics.pose().pushPose();
+        // 锚点 = 槽位右下角，先缩放再平移（数字贴右下角向内收缩）
+        graphics.pose().translate(x + 16, y + 16, 200.0F);
+        graphics.pose().scale(scale, scale, 1.0F);
+        graphics.pose().translate(-textW, -8.0F, 0.0F);
+        int color = textOverride != null ? 0xFFFF00 : 0xFFFFFF;
+        graphics.drawString(this.font, text, 0, 0, color, true);
+        graphics.pose().popPose();
     }
 
     /** renderLabels 空实现：vanilla 标题/物品栏标识全部移除（文字全由 renderBg 自绘） */

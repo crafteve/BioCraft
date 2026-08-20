@@ -1,9 +1,12 @@
 package com.github.crafteve.biocraft.gui;
 
+import com.github.crafteve.biocraft.blockentity.DnaSynthesisOperation;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineBlockEntity;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
 import com.github.crafteve.biocraft.blockentity.SequenceOperation;
 import com.github.crafteve.biocraft.init.ModBlocks;
+import com.github.crafteve.biocraft.init.ModDataComponents;
+import com.github.crafteve.biocraft.seq.SequenceData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.Container;
@@ -162,32 +165,78 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
      * <p>
      * 交互层（源码实证）：vanilla findSlot/render 循环要求 slot.isActive()==true
      * 才命中/渲染——滚动槽必须 isActive=true（坐标由 Screen 每帧写入，AT 已拆
-     * final），否则点击放不进物品；isHighlightable=false 关闭 vanilla 高亮
-     * （renderSlotHighlight 是 static 且不裁剪，滚动边缘会溢出到视口外），
-     * 悬停高亮由 Screen 自绘
+     * final），否则点击放不进物品；isHighlightable=true 交 vanilla 绘制悬停
+     * 高亮（方向 B：与酶工厂统一，删自绘；滚动边缘 ≤9px 溢出属可接受小瑕疵，
+     * 见 MachineMenu 同款注释）。
+     * <p>
+     * 门控（固定方向，无切换按钮——与酶工厂 IO 模式按钮的区别）：
+     * 编码器输入槽只进不出（mayPickup=false）、输出槽只出不进（mayPlace 由
+     * 操作层拒绝）、DNA 槽仅完全编码（complete）可取出。vanilla 全部取走路径
+     * （PICKUP / QUICK_MOVE / SWAP / PICKUP_ALL / THROW）都经 mayPickup 询问
+     * （AbstractContainerMenu.doClick 源码实证：L385/L409/L445/L461/L499，
+     * THROW 经 safeTake→checkTakeConditions→mayPickup）——门控一处生效全局
      */
     private void addMachineSlots(Container container, SequenceMachineKind kind) {
         SequenceOperation op = kind.createOperation();
         int[][] positions = slotPositions(kind);
-        boolean scrollAll = kind == SequenceMachineKind.DNA_ENCODER;
         for (int i = 0; i < positions.length; i++) {
-            int index = i;
-            addSlot(new Slot(container, index, positions[i][0], positions[i][1]) {
-                @Override
-                public boolean mayPlace(ItemStack stack) {
-                    return op.isItemValidForSlot(index, stack);
-                }
+            addSlot(new MachineSlot(container, i, positions[i][0], positions[i][1], op));
+        }
+    }
 
-                @Override
-                public boolean isActive() {
-                    return true; // 命中/渲染前提（vanilla findSlot 源码实证）
-                }
+    /**
+     * 序列机槽位（对齐酶工厂 RestrictedSlot 的完整子类模式）
+     * <p>
+     * 与酶工厂 RestrictedSlot 的差异：无 IO 模式三态（本机器方向固定）、
+     * 无 128 容量参数化（64 上限无需 remove 钳制）——只保留方向门控与
+     * DNA 完成态门控
+     */
+    private final class MachineSlot extends Slot {
+        private final SequenceOperation op;
 
-                @Override
-                public boolean isHighlightable() {
-                    return !scrollAll; // 滚动槽高亮自绘（防 vanilla 高亮溢出视口）
-                }
-            });
+        MachineSlot(Container container, int index, int x, int y, SequenceOperation op) {
+            super(container, index, x, y);
+            this.op = op;
+        }
+
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            return op.isItemValidForSlot(index, stack);
+        }
+
+        /**
+         * 取走门控：编码器输入槽只进不出；DNA 槽仅完全编码可取出；
+         * ADP/PPi 槽可取出。转录仪保持全可抽（重做时定）
+         */
+        @Override
+        public boolean mayPickup(Player player) {
+            if (kind != SequenceMachineKind.DNA_ENCODER) {
+                return true;
+            }
+            if (index < DnaSynthesisOperation.SLOT_OUT_DNA) {
+                return false; // 输入槽（dNTP×4 + ATP）：只进不出
+            }
+            if (index == DnaSynthesisOperation.SLOT_OUT_DNA) {
+                // 产物 DNA：仅完全编码（complete）才可输出；半成品锁在槽内
+                SequenceData data = getItem().get(ModDataComponents.SEQUENCE.get());
+                return data != null && data.complete();
+            }
+            return true; // ADP / PPi 输出槽
+        }
+
+        @Override
+        public boolean isActive() {
+            return true; // 命中/渲染前提（vanilla findSlot 源码实证）
+        }
+
+        @Override
+        public boolean isHighlightable() {
+            return true; // 方向 B：高亮交 vanilla renderSlotHighlight（与酶工厂统一）
+        }
+
+        @Override
+        public int getMaxStackSize(ItemStack stack) {
+            return 64; // 序列机无容量参数化，显式化与容器一致
         }
     }
 

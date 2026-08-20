@@ -12,16 +12,18 @@ import java.util.Set;
 /**
  * DNA 编码器操作：程序文本 → 程序 DNA（链源延伸）
  * <p>
- * 化学计量（每接一个碱基）：1 dNTP + 1 ATP → 链 +1 碱基 + 1 ADP + 1 PPi。
- * ATP 为编码供能（磷酸基团转移），ADP/PPi 为必须回收的副产物——
- * 副产物槽满（64 堆叠）即停摆回压，玩家抽走即续（模组招牌物流玩法）。
+ * 化学计量（每 10 个碱基一组）：1 dNTP + 1 ATP → 10 碱基链 + 1 ADP + 1 PPi。
+ * 每组在组尾（第 10/20/… 个碱基，最后一组不足 10 也按整组计）消耗 1 个
+ * 对应 dNTP + 1 个 ATP；ATP 为编码供能（磷酸基团转移），ADP/PPi 为必须
+ * 回收的副产物——副产物槽满（64 堆叠 = 640 碱基）即停摆回压，玩家抽走即续
+ * （模组招牌物流玩法）。
  * <p>
  * 槽位布局（8 槽）：
  * <ul>
  *   <li>0~3：dATP/dTTP/dCTP/dGTP 单体槽</li>
  *   <li>4：ATP 供能槽</li>
  *   <li>5：DNA 产物槽（物化链前缀）</li>
- *   <li>6~7：ADP / PPi 副产物槽（每步各 +1）</li>
+ *   <li>6~7：ADP / PPi 副产物槽（每组各 +1）</li>
  * </ul>
  */
 public class DnaSynthesisOperation implements SequenceOperation {
@@ -34,6 +36,9 @@ public class DnaSynthesisOperation implements SequenceOperation {
     public static final int SLOT_OUT_DNA = 5;
     public static final int SLOT_OUT_ADP = 6;
     public static final int SLOT_OUT_PPI = 7;
+
+    /** 每组碱基数：1 dNTP + 1 ATP 编码的碱基个数（组尾消耗） */
+    public static final int BASE_PER_GROUP = 10;
 
     private static final Set<String> DNTP = Set.of("datp", "dttp", "dctp", "dgtp");
 
@@ -74,27 +79,32 @@ public class DnaSynthesisOperation implements SequenceOperation {
             return StepResult.DONE;
         }
         char base = state.chain().charAt(state.position());
-        String dnTP = switch (base) {
-            case 'A' -> "datp";
-            case 'T' -> "dttp";
-            case 'C' -> "dctp";
-            case 'G' -> "dgtp";
-            default -> throw new IllegalStateException("非法碱基: " + base);
-        };
-        // 先查副产物槽余量（产物回压：槽满不吞输入，玩家抽走即续）
-        if (!hasRoom(container, SLOT_OUT_ADP) || !hasRoom(container, SLOT_OUT_PPI)) {
-            return StepResult.STALLED;
+        int next = state.position() + 1;
+        // 组尾判定：编码后位置为 10 的倍数，或到达链尾（最后一组不足 10
+        // 也按整组消耗）——组尾才消耗 1 dNTP + 1 ATP 并产 1 ADP + 1 PPi
+        if (next % BASE_PER_GROUP == 0 || next == state.total()) {
+            String dnTP = switch (base) {
+                case 'A' -> "datp";
+                case 'T' -> "dttp";
+                case 'C' -> "dctp";
+                case 'G' -> "dgtp";
+                default -> throw new IllegalStateException("非法碱基: " + base);
+            };
+            // 先查副产物槽余量（产物回压：槽满不吞输入，玩家抽走即续）
+            if (!hasRoom(container, SLOT_OUT_ADP) || !hasRoom(container, SLOT_OUT_PPI)) {
+                return StepResult.STALLED;
+            }
+            // 再查输入（缺任一即停摆，不部分消耗）
+            if (!hasAny(container, dnTpSlot(dnTP)) || !hasAny(container, SLOT_ATP)) {
+                return StepResult.STALLED;
+            }
+            SequenceOperation.consumeOne(container, dnTpSlot(dnTP), dnTP);
+            SequenceOperation.consumeOne(container, SLOT_ATP, "atp");
+            SequenceOperation.addOne(container, SLOT_OUT_ADP, "adp");
+            SequenceOperation.addOne(container, SLOT_OUT_PPI, "ppi");
         }
-        // 再查输入（缺任一即停摆，不部分消耗）
-        if (!hasAny(container, dnTpSlot(dnTP)) || !hasAny(container, SLOT_ATP)) {
-            return StepResult.STALLED;
-        }
-        SequenceOperation.consumeOne(container, dnTpSlot(dnTP), dnTP);
-        SequenceOperation.consumeOne(container, SLOT_ATP, "atp");
-        state.setPosition(state.position() + 1);
-        SequenceOperation.addOne(container, SLOT_OUT_ADP, "adp");
-        SequenceOperation.addOne(container, SLOT_OUT_PPI, "ppi");
-        return state.position() >= state.total() ? StepResult.DONE : StepResult.ADVANCED;
+        state.setPosition(next);
+        return next >= state.total() ? StepResult.DONE : StepResult.ADVANCED;
     }
 
     /** dNTP 物品名 → 槽位下标 */

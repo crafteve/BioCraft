@@ -27,6 +27,11 @@ public class EncoderScreen extends SequenceMachineScreen {
     private CodeEditorWidget editor;
     private Button encodeButton;
 
+    /** 编码预览缓存（脏检测：文本变化才重算，避免每帧 SeqCodec.encodeText） */
+    private int cachedBp;
+    private boolean bpOverLimit;
+    private String lastEditorText = "";
+
     public EncoderScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
     }
@@ -116,17 +121,24 @@ public class EncoderScreen extends SequenceMachineScreen {
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
         super.renderLabels(graphics, mouseX, mouseY);
-        // 编码预览（客户端 seq/ 纯核心即时计算）
+        // 编码预览（客户端 seq/ 纯核心即时计算，脏检测缓存）：
+        // 文本未变化时直接读缓存，不每帧执行 encodeText（最长 735 字节的
+        // UTF-8→BigInteger→base-20 转换，60fps 下是纯浪费）
         String text = this.editor != null ? this.editor.getText() : "";
-        try {
-            int bp = SeqCodec.encodeText(text).length();
-            graphics.drawString(this.font, Component.literal("§7编码后 " + bp + " bp / 上限 4096"),
-                    SequenceMachineMenu.EDIT_X + 3, SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9,
-                    0xFFFFFF, false);
-        } catch (IllegalArgumentException e) {
-            graphics.drawString(this.font, Component.literal("§c程序过长，超出容量上限"),
-                    SequenceMachineMenu.EDIT_X + 3, SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9,
-                    0xFFFFFF, false);
+        if (!text.equals(this.lastEditorText)) {
+            this.lastEditorText = text;
+            try {
+                this.cachedBp = SeqCodec.encodeText(text).length();
+                this.bpOverLimit = false;
+            } catch (IllegalArgumentException e) {
+                this.bpOverLimit = true;
+            }
         }
+        String msg = this.bpOverLimit
+                ? "§c程序过长，超出容量上限"
+                : "§7编码后 " + this.cachedBp + " bp / 上限 4096";
+        graphics.drawString(this.font, Component.literal(msg),
+                SequenceMachineMenu.EDIT_X + 3, SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9,
+                0xFFFFFF, false);
     }
 }
