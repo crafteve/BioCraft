@@ -100,7 +100,6 @@ public class HelicaseOperation implements SequenceOperation {
         }
         ItemStack in = container.getItem(SLOT_IN_DNA);
         SequenceData inputData = in.isEmpty() ? null : in.get(ModDataComponents.SEQUENCE.get());
-        // 输入已被取走时，用链源的 kind 兜底（链源已存输入序列，kind 从首次输入继承）
         SequenceData.Kind kind = inputData != null ? inputData.kind() : SequenceData.Kind.GENE;
         boolean complete = pos >= state.total();
         String seqA = chain.substring(0, pos);
@@ -109,11 +108,25 @@ public class HelicaseOperation implements SequenceOperation {
         ItemStack outA = new ItemStack(ModItems.DNA_SINGLE.get());
         outA.set(ModDataComponents.SEQUENCE.get(), new SequenceData(
                 SequenceData.SeqType.DNA, SequenceData.Strand.SS, kind, seqA, complete));
+        outA.set(ModDataComponents.IS_TEMPLATE.get(), true);
         ItemStack outB = new ItemStack(ModItems.DNA_SINGLE.get());
         outB.set(ModDataComponents.SEQUENCE.get(), new SequenceData(
                 SequenceData.SeqType.DNA, SequenceData.Strand.SS, kind, seqB, complete));
+        outB.set(ModDataComponents.IS_TEMPLATE.get(), false);
         container.setItem(SLOT_OUT_A, outA);
         container.setItem(SLOT_OUT_B, outB);
+        // 输入 dsDNA 显示剩余部分以产生滚动效果（三卡均滚动）
+        if (!complete) {
+            String remain = chain.substring(pos);
+            ItemStack inStack = container.getItem(SLOT_IN_DNA);
+            if (!inStack.isEmpty()) {
+                SequenceData inData = inStack.get(ModDataComponents.SEQUENCE.get());
+                if (inData != null) {
+                    inStack.set(ModDataComponents.SEQUENCE.get(), new SequenceData(
+                            SequenceData.SeqType.DNA, SequenceData.Strand.DS, kind, remain, true));
+                }
+            }
+        }
     }
 
     @Override

@@ -112,8 +112,8 @@ public class HelicaseScreen extends SequenceMachineScreen {
         graphics.enableScissor(areaX, areaY, areaX + LEFT_W, areaY + LEFT_H);
         for (InputCard card : inputCards) {
             Slot slot = menu.getSlot(card.containerSlot());
-            // 输入 dsDNA 用 DNA 卡渲染（复用输出卡逻辑，显示序列与四色碱基）
-            drawHelicaseDnaCard(graphics, areaX, areaY, LEFT_W, 28, slot, "dsDNA");
+            // 输入 DNA 用 DNA 卡渲染（标签简化为 DNA，三卡均滚动）
+            drawHelicaseDnaCard(graphics, areaX, areaY, LEFT_W, 28, slot, "DNA");
         }
         graphics.disableScissor();
     }
@@ -123,12 +123,12 @@ public class HelicaseScreen extends SequenceMachineScreen {
         int areaX = leftPos + RIGHT_X;
         int areaY = topPos + RIGHT_Y;
         graphics.enableScissor(areaX, areaY, areaX + RIGHT_W, areaY + LEFT_H);
-        // 垂直双卡：y 0 与 y 29
+        // 垂直双卡：y 0 与 y 29，标签改为模板链/非模板链（专有名词）
         for (int i = 0; i < outputCards.size(); i++) {
             OutputCard card = outputCards.get(i);
             int cardY = areaY + i * SequenceMachineMenu.CARD_STEP;
             Slot slot = menu.getSlot(card.containerSlot());
-            String label = i == 0 ? "ssDNA-A" : "ssDNA-B";
+            String label = i == 0 ? "模板链" : "非模板链";
             drawHelicaseDnaCard(graphics, areaX, cardY, RIGHT_W, 28, slot, label);
         }
         graphics.disableScissor();
@@ -271,19 +271,10 @@ public class HelicaseScreen extends SequenceMachineScreen {
                 graphics.drawString(font, String.valueOf(bBase), cx + 30, cy + 30, BASE_T, false);
             }
             graphics.drawString(font, "⇄", cx - 4, cy - 36, 0xFFE0E0E0, false);
-            // 进度文字：已解旋序列末端窗口
-            if (!chain.isEmpty()) {
-                String window = chain.length() > 12 ? "…" + chain.substring(chain.length() - 12) : chain;
-                graphics.drawString(font, window, x + 6, y + h - 18, 0xFFB0BEC5, false);
-            }
         } else if (isDone) {
             graphics.fill(cx - 28, cy - 16, cx - 26, cy + 28, 0xFF4FC3F7);
             graphics.fill(cx + 26, cy - 16, cx + 28, cy + 28, 0xFF81C784);
-            graphics.drawString(font, "⇉ 2× ssDNA", cx - 22, cy - 32, 0xFFB0BEC5, false);
-            if (!chain.isEmpty()) {
-                String window = chain.length() > 14 ? chain.substring(0, 7) + "…" + chain.substring(chain.length() - 7) : chain;
-                graphics.drawString(font, window, x + 6, y + h - 18, 0xFF81C784, false);
-            }
+            // 完成态：两链平行，无文字（已移除 ⇉ 2× ssDNA，避免遮挡）
         } else {
             // 待机：双螺旋波浪
             for (int i = 0; i < 6; i++) {
@@ -292,8 +283,7 @@ public class HelicaseScreen extends SequenceMachineScreen {
                 graphics.fill(cx + off - 1, by, cx + off + 1, by + 2, i % 2 == 0 ? 0xFF4FC3F7 : 0xFF81C784);
                 graphics.fill(cx - off - 1, by, cx - off + 1, by + 2, i % 2 == 0 ? 0xFF81C784 : 0xFF4FC3F7);
             }
-            graphics.drawString(font, "dsDNA", cx - 14, cy - 34, 0xFF90A4AE, false);
-            graphics.drawString(font, "放入 dsDNA 自动解旋 → 2 ssDNA", x + 6, y + h - 18, 0xFF6A9955, false);
+            graphics.drawString(font, "DNA", cx - 10, cy - 34, 0xFF90A4AE, false);
         }
     }
 

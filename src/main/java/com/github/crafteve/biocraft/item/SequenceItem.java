@@ -65,8 +65,9 @@ public class SequenceItem extends Item implements AbbreviationProvider {
             tooltip.add(Component.literal("§7空序列"));
             return;
         }
+        Boolean isTemplate = stack.get(ModDataComponents.IS_TEMPLATE.get());
         switch (data.type()) {
-            case DNA -> appendDnaTooltip(data, tooltip);
+            case DNA -> appendDnaTooltip(data, tooltip, stack, isTemplate);
             case MRNA -> {
                 tooltip.add(Component.literal("§7mRNA 5'-" + truncate(seq) + "-3'  §8(" + seq.length() + " nt)"));
                 if (!data.complete()) {
@@ -89,16 +90,20 @@ public class SequenceItem extends Item implements AbbreviationProvider {
      *       第二行"按住 Shift 显示碱基序列"；第三行"按住 Ctrl 显示程序"</li>
      *   <li>Shift：完整碱基序列，逐碱基按 dNTP 主题色着色（A/T/C/G =
      *       dATP/dTTP/dCTP/dGTP 物品色），首行 5' 白标、末行 3' 白标，
-     *       每行碱基数按 tooltip 可用宽度自适应（防 MC 超宽自动折行
-     *       打乱彩色换行）</li>
+     *       非模板链显示 3'→5'（方向相反），每行碱基数按 tooltip 可用宽度自适应</li>
      *   <li>Ctrl：解码出的程序全文，语法高亮 + 保留缩进格式
      *       （ProgramHighlight，与编辑器配色一致）</li>
      * </ul>
      */
-    private static void appendDnaTooltip(SequenceData data, List<Component> tooltip) {
+    private static void appendDnaTooltip(SequenceData data, List<Component> tooltip, ItemStack stack, Boolean isTemplate) {
         String seq = data.seq();
         if (Screen.hasShiftDown()) {
-            tooltip.addAll(coloredBases(seq));
+            boolean template = isTemplate == null || isTemplate;
+            tooltip.addAll(coloredBases(seq, template));
+            // 模板链/非模板链标注（helicase 产物）
+            if (isTemplate != null) {
+                tooltip.add(Component.literal(isTemplate ? "§7模板链 (5'→3')" : "§7非模板链 (3'→5')"));
+            }
             return;
         }
         if (Screen.hasControlDown()) {
@@ -110,12 +115,18 @@ public class SequenceItem extends Item implements AbbreviationProvider {
             }
             return;
         }
+        boolean isNonTemplate = isTemplate != null && !isTemplate;
+        String dirLeft = isNonTemplate ? "3'-" : "5'-";
+        String dirRight = isNonTemplate ? "-5'" : "-3'";
         String head = seq.length() <= 10 ? seq : seq.substring(0, 10) + "…";
-        MutableComponent line1 = Component.literal("§75'-" + head + "-3'  §8(" + seq.length() + " bp)");
+        MutableComponent line1 = Component.literal("§7" + dirLeft + head + dirRight + "  §8(" + seq.length() + " bp)");
         if (!data.complete()) {
             line1.append(Component.literal(" §7合成中"));
         }
         tooltip.add(line1);
+        if (isTemplate != null) {
+            tooltip.add(Component.literal(isTemplate ? "§7模板链" : "§7非模板链"));
+        }
         tooltip.add(Component.literal("§8按住 Shift 显示碱基序列"));
         tooltip.add(Component.literal("§8按住 Ctrl 显示程序"));
     }
@@ -127,20 +138,22 @@ public class SequenceItem extends Item implements AbbreviationProvider {
      * 分行规则：每行碱基数 = (屏幕可用宽度 / 6px 每字符)——MC 会对超宽的
      * tooltip 行自动折行（折行位置在字符中间、打乱彩色换行 = "换行错乱"），
      * 按屏宽分行保证单行不超可用宽度、永不被 MC 二次折行；
-     * 首行 5' 白标、末行 3' 白标
+     * 首行 5' 白标、末行 3' 白标（非模板链则 3'/5' 对调，显示 3'→5'）
      */
-    private static List<Component> coloredBases(String seq) {
+    private static List<Component> coloredBases(String seq, boolean isTemplate) {
         // 可用宽度 = 屏幕宽度 - 40（tooltip 左右边距）；最小 120px 兜底
         int avail = Math.max(120, net.minecraft.client.Minecraft.getInstance()
                 .getWindow().getGuiScaledWidth() - 40);
         int perLine = Math.max(20, avail / 6);
         Style white = Style.EMPTY.withColor(TextColor.fromRgb(0xFFFFFF));
         List<Component> lines = new ArrayList<>();
+        String leftMark = isTemplate ? "5'" : "3'";
+        String rightMark = isTemplate ? "3'" : "5'";
         for (int start = 0; start < seq.length(); start += perLine) {
             String part = seq.substring(start, Math.min(seq.length(), start + perLine));
             MutableComponent line = Component.empty();
             if (start == 0) {
-                line.append(Component.literal("5'").withStyle(white));
+                line.append(Component.literal(leftMark).withStyle(white));
             }
             for (int i = 0; i < part.length(); i++) {
                 char base = part.charAt(i);
@@ -155,7 +168,7 @@ public class SequenceItem extends Item implements AbbreviationProvider {
                         .withStyle(Style.EMPTY.withColor(TextColor.fromRgb(color))));
             }
             if (start + perLine >= seq.length()) {
-                line.append(Component.literal("3'").withStyle(white));
+                line.append(Component.literal(rightMark).withStyle(white));
             }
             lines.add(line);
         }
