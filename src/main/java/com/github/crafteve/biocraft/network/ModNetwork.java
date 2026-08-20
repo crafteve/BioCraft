@@ -29,5 +29,7 @@ public final class ModNetwork {
         PayloadRegistrar registrar = event.registrar(BioCraft.MODID);
         registrar.playToServer(ServerboundSetIoModePacket.TYPE, ServerboundSetIoModePacket.STREAM_CODEC,
                 ServerboundSetIoModePacket::handle);
+        registrar.playToServer(ServerboundSequenceProgramPacket.TYPE, ServerboundSequenceProgramPacket.STREAM_CODEC,
+                ServerboundSequenceProgramPacket::handle);
     }
 }

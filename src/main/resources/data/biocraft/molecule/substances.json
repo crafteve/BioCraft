@@ -734,6 +734,46 @@
             "smiles":  "CCO",
             "abbreviation":  "EtOH",
             "category":  "glycolysis"
+        },
+        {
+            "id":  "datp",
+            "name_zn":  "脱氧三磷酸腺苷",
+            "name_en":  "Deoxyadenosine Triphosphate",
+            "container":  "flask",
+            "color":  "#E74C3C",
+            "smiles":  "Nc1ncnc2n(cnc12)[C@H]1C[C@H](O)[C@@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O1",
+            "abbreviation":  "dATP",
+            "category":  "nucleotide"
+        },
+        {
+            "id":  "dttp",
+            "name_zn":  "脱氧三磷酸胸苷",
+            "name_en":  "Deoxythymidine Triphosphate",
+            "container":  "flask",
+            "color":  "#F1C40F",
+            "smiles":  "CC1=CN([C@H]2C[C@H](O)[C@@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O2)C(=O)NC1=O",
+            "abbreviation":  "dTTP",
+            "category":  "nucleotide"
+        },
+        {
+            "id":  "dctp",
+            "name_zn":  "脱氧三磷酸胞苷",
+            "name_en":  "Deoxycytidine Triphosphate",
+            "container":  "flask",
+            "color":  "#2980B9",
+            "smiles":  "NC1=CC(=O)N([C@H]2C[C@H](O)[C@@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O2)C=N1",
+            "abbreviation":  "dCTP",
+            "category":  "nucleotide"
+        },
+        {
+            "id":  "dgtp",
+            "name_zn":  "脱氧三磷酸鸟苷",
+            "name_en":  "Deoxyguanosine Triphosphate",
+            "container":  "flask",
+            "color":  "#27AE60",
+            "smiles":  "C1=NC2=C(N1[C@H]3C[C@H](O)[C@@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O3)N=C(NC2=O)N",
+            "abbreviation":  "dGTP",
+            "category":  "nucleotide"
         }
     ]
 }

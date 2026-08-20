@@ -50,6 +50,7 @@ public class SubstanceLanguageProvider implements DataProvider {
         addEnzymeTranslations();
         addCompatTranslations();
         addEnzymeTooltipTranslations();
+        addSequenceTranslations();
         addItemTranslations();
 
         JsonObject lang = new JsonObject();
@@ -79,8 +80,14 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "生物工艺 · 机器" : "BioCraft: Machines");
         translations.put("itemGroup.biocraft.enzymes",
                 zh ? "生物工艺 · 酶" : "BioCraft: Enzymes");
+        translations.put("itemGroup.biocraft.sequences",
+                zh ? "生物工艺 · 序列" : "BioCraft: Sequences");
         translations.put("block.biocraft.enzyme_chamber",
                 zh ? "酶反应腔" : "Enzyme Chamber");
+        translations.put("block.biocraft.dna_encoder",
+                zh ? "DNA 编码器" : "DNA Encoder");
+        translations.put("block.biocraft.transcriber",
+                zh ? "转录仪" : "Transcriber");
         translations.put("tooltip.biocraft.molar_mass",
                 zh ? "摩尔质量 %s g/mol" : "Molar Mass %s g/mol");
         translations.put("tooltip.biocraft.smiles_error",
@@ -145,6 +152,29 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "最适温度 %s K" : "Optimum Temp %s K");
         translations.put("tooltip.biocraft.enzyme.energy",
                 zh ? "能量 %s kFE/分子 · 容量 %s kFE" : "Energy %s kFE/mol · Capacity %s kFE");
+    }
+
+    /**
+     * 添加序列物品族显示名翻译（中心法则信息层）
+     */
+    private void addSequenceTranslations() {
+        boolean zh = "zh_cn".equals(language);
+        translations.put("item.biocraft.dna",
+                zh ? "DNA 双链" : "Double-stranded DNA");
+        translations.put("item.biocraft.dna_single",
+                zh ? "DNA 单链" : "Single-stranded DNA");
+        translations.put("item.biocraft.mrna",
+                zh ? "信使 RNA" : "Messenger RNA");
+        translations.put("item.biocraft.polypeptide",
+                zh ? "多肽链" : "Polypeptide Chain");
+        translations.put("item.biocraft.trna_gene",
+                zh ? "tRNA 基因" : "tRNA Gene");
+        translations.put("item.biocraft.trna",
+                zh ? "转移 RNA" : "Transfer RNA");
+        translations.put("item.biocraft.misfolded_protein",
+                zh ? "错误折叠蛋白" : "Misfolded Protein");
+        translations.put("item.biocraft.rna_polymerase",
+                zh ? "RNA 聚合酶" : "RNA Polymerase");
     }
 
     /**

@@ -29,6 +29,7 @@ public class ModDataGen {
         ExistingFileHelper existingFileHelper = event.getExistingFileHelper();
 
         generator.addProvider(true, new SubstanceModelProvider(packOutput, existingFileHelper));
+        generator.addProvider(true, new SequenceItemModelProvider(packOutput, existingFileHelper));
         generator.addProvider(true, new SubstanceLanguageProvider(packOutput, "en_us"));
         generator.addProvider(true, new SubstanceLanguageProvider(packOutput, "zh_cn"));
         generator.addProvider(true, new MachineModelProvider(packOutput));

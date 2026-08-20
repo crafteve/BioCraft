@@ -1,0 +1,1 @@
+{"variants":{"facing=north":{"model":"biocraft:block/transcriber","y":0},"facing=east":{"model":"biocraft:block/transcriber","y":90},"facing=south":{"model":"biocraft:block/transcriber","y":180},"facing=west":{"model":"biocraft:block/transcriber","y":270}}}

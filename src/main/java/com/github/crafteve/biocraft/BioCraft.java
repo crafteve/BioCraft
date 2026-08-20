@@ -2,6 +2,7 @@ package com.github.crafteve.biocraft;
 
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModCreativeTabs;
+import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
 import org.slf4j.Logger;
 
@@ -35,5 +36,6 @@ public class BioCraft {
         ModBlocks.BLOCKS.register(modEventBus);
         ModBlocks.BE_TYPES.register(modEventBus);
         ModBlocks.MENUS.register(modEventBus);
+        ModDataComponents.COMPONENTS.register(modEventBus);
     }
 }

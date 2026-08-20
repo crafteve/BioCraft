@@ -55,6 +55,7 @@ public class MachineModelProvider implements DataProvider {
         Map<Path, JsonObject> outputs = new HashMap<>();
         outputs.putAll(enzymeChamberResources());
         outputs.putAll(enzymeItemResources());
+        outputs.putAll(sequenceMachineResources());
 
         for (Map.Entry<Path, JsonObject> entry : outputs.entrySet()) {
             byte[] bytes = entry.getValue().toString().getBytes(StandardCharsets.UTF_8);
@@ -65,6 +66,49 @@ public class MachineModelProvider implements DataProvider {
             }
         }
         return CompletableFuture.completedFuture(null);
+    }
+
+    /**
+     * 序列机方块资源（MVP 占位：blockstate FACING 四向 + 简单六面立方模型，
+     * 复用酶反应腔 base 贴图——正式"显示器式"外观贴图待 texturegen 轮次）
+     *
+     * @return 输出路径到 JSON 内容的映射
+     */
+    private Map<Path, JsonObject> sequenceMachineResources() {
+        Map<Path, JsonObject> outputs = new HashMap<>();
+        for (String blockName : new String[]{"dna_encoder", "transcriber"}) {
+            ResourceLocation blockModel = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/" + blockName);
+
+            JsonObject blockState = new JsonObject();
+            JsonObject variants = new JsonObject();
+            String[] facings = {"north", "east", "south", "west"};
+            int[] rotations = {0, 90, 180, 270};
+            for (int i = 0; i < facings.length; i++) {
+                JsonObject variant = new JsonObject();
+                variant.addProperty("model", blockModel.toString());
+                variant.addProperty("y", rotations[i]);
+                variants.add("facing=" + facings[i], variant);
+            }
+            blockState.add("variants", variants);
+
+            JsonObject model = new JsonObject();
+            model.addProperty("parent", "minecraft:block/cube_all");
+            JsonObject textures = new JsonObject();
+            textures.addProperty("all", "biocraft:block/enzyme_chamber_side");
+            textures.addProperty("particle", "biocraft:block/enzyme_chamber_side");
+            model.add("textures", textures);
+
+            JsonObject itemModel = new JsonObject();
+            itemModel.addProperty("parent", blockModel.toString());
+
+            outputs.put(packOutput.getOutputFolder()
+                    .resolve("assets/biocraft/blockstates/" + blockName + ".json"), blockState);
+            outputs.put(packOutput.getOutputFolder()
+                    .resolve("assets/biocraft/models/block/" + blockName + ".json"), model);
+            outputs.put(packOutput.getOutputFolder()
+                    .resolve("assets/biocraft/models/item/" + blockName + ".json"), itemModel);
+        }
+        return outputs;
     }
 
     /**

@@ -2,7 +2,11 @@ package com.github.crafteve.biocraft.init;
 
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.block.MachineBlock;
+import com.github.crafteve.biocraft.block.SequenceMachineBlock;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
+import com.github.crafteve.biocraft.blockentity.SequenceMachineBlockEntity;
+import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
+import com.github.crafteve.biocraft.gui.SequenceMachineMenu;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
@@ -65,6 +69,51 @@ public final class ModBlocks {
             MENUS.register("enzyme_chamber",
                     () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(
                             com.github.crafteve.biocraft.gui.MachineMenu::new));
+
+    // ------------------------------------------------------------------
+    // 序列机（中心法则信息层）：每台机器一个方块实例，共享 SequenceMachineBlock 类；
+    // 共享一个 BE 类型（kind 由方块状态解析）+ 每机器一个 MenuType（共享菜单类）
+    // ------------------------------------------------------------------
+
+    /** DNA 编码器（程序文本 → 程序 DNA） */
+    public static final DeferredBlock<SequenceMachineBlock> DNA_ENCODER = BLOCKS.register(
+            "dna_encoder", () -> new SequenceMachineBlock(SequenceMachineKind.DNA_ENCODER));
+
+    /** 转录仪（DNA → mRNA） */
+    public static final DeferredBlock<SequenceMachineBlock> TRANSCRIBER = BLOCKS.register(
+            "transcriber", () -> new SequenceMachineBlock(SequenceMachineKind.TRANSCRIBER));
+
+    public static final DeferredItem<BlockItem> DNA_ENCODER_ITEM = ModItems.ITEMS.register(
+            "dna_encoder", () -> new BlockItem(DNA_ENCODER.get(), new Item.Properties()));
+
+    public static final DeferredItem<BlockItem> TRANSCRIBER_ITEM = ModItems.ITEMS.register(
+            "transcriber", () -> new BlockItem(TRANSCRIBER.get(), new Item.Properties()));
+
+    /** 共享序列机 BE 类型（kind 由方块状态解析，无需每机器一个 BE） */
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SequenceMachineBlockEntity>> SEQUENCE_BE =
+            BE_TYPES.register("sequence_machine",
+                    () -> BlockEntityType.Builder.of(SequenceMachineBlockEntity::new,
+                            DNA_ENCODER.get(), TRANSCRIBER.get()).build(null));
+
+    /** DNA 编码器菜单类型（工厂捕获 kind，避免初始化自引用） */
+    public static final DeferredHolder<MenuType<?>, MenuType<SequenceMachineMenu>> DNA_ENCODER_MENU =
+            MENUS.register("dna_encoder", () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(
+                    (id, inv, buf) -> new SequenceMachineMenu(SequenceMachineKind.DNA_ENCODER, id, inv, buf)));
+
+    /** 转录仪菜单类型 */
+    public static final DeferredHolder<MenuType<?>, MenuType<SequenceMachineMenu>> TRANSCRIBER_MENU =
+            MENUS.register("transcriber", () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(
+                    (id, inv, buf) -> new SequenceMachineMenu(SequenceMachineKind.TRANSCRIBER, id, inv, buf)));
+
+    /**
+     * 序列机 kind → 菜单类型（BE.createMenu 查表；未知 kind 回落编码器）
+     */
+    public static MenuType<SequenceMachineMenu> sequenceMenuType(SequenceMachineKind kind) {
+        return switch (kind) {
+            case DNA_ENCODER -> DNA_ENCODER_MENU.get();
+            case TRANSCRIBER -> TRANSCRIBER_MENU.get();
+        };
+    }
 
     private ModBlocks() {
     }

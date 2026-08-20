@@ -50,8 +50,9 @@ repo/
 ### 程序化贴图工具产物 ###
 tools/texturegen/output/
 
-### 化学引擎单测编译产物 ###
+### 化学引擎/序列引擎单测编译产物 ###
 tools/engineTest/out/
+tools/seqTest/out/
 
 ### SMILES 校验工具中间产物 ###
 tools/smilesCheck/out/

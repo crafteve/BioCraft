@@ -1,0 +1,1 @@
+{"variants":{"facing=north":{"model":"biocraft:block/dna_encoder","y":0},"facing=east":{"model":"biocraft:block/dna_encoder","y":90},"facing=south":{"model":"biocraft:block/dna_encoder","y":180},"facing=west":{"model":"biocraft:block/dna_encoder","y":270}}}

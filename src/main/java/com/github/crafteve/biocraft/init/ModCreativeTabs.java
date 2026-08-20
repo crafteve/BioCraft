@@ -6,6 +6,7 @@ import com.github.crafteve.biocraft.item.MoleculeItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -57,6 +58,19 @@ public final class ModCreativeTabs {
                     .icon(() -> new ItemStack(ModBlocks.ENZYME_CHAMBER))
                     .displayItems((parameters, output) -> {
                         output.accept(ModBlocks.ENZYME_CHAMBER_ITEM.get());
+                    })
+                    .build());
+
+    /** 生物工艺 · 序列标签页：序列物品族（DNA/mRNA/多肽/tRNA/错误折叠蛋白） */
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> SEQUENCES = TABS.register(
+            "biocraft_sequences",
+            () -> CreativeModeTab.builder()
+                    .title(Component.translatable("itemGroup.biocraft.sequences"))
+                    .icon(() -> new ItemStack(ModItems.DNA.get()))
+                    .displayItems((parameters, output) -> {
+                        for (DeferredItem<? extends Item> item : ModItems.sequenceOrdered()) {
+                            output.accept(item.get());
+                        }
                     })
                     .build());
 
