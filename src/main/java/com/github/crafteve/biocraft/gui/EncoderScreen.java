@@ -2,6 +2,7 @@ package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.network.ServerboundSequenceProgramPacket;
 import com.github.crafteve.biocraft.seq.SeqCodec;
+import com.github.crafteve.biocraft.seq.SequenceConstants;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
@@ -40,21 +41,24 @@ public class EncoderScreen extends SequenceMachineScreen {
     protected void init() {
         super.init();
         // 编辑器：面板内工具栏下方（面板 y24-96，工具栏 y24-35，文本区 y38-92）
+        // 2026-08-19 调整：底部 12px 让给按钮行（与 bp 预览同行 y117），
+        // 编辑器文本区压缩到面板底部上方 12px
         this.editor = new CodeEditorWidget(
                 leftPos + SequenceMachineMenu.EDIT_X + 3,
                 topPos + SequenceMachineMenu.EDIT_Y + 14,
                 SequenceMachineMenu.EDIT_W - 6,
-                SequenceMachineMenu.EDIT_H - 16);
+                SequenceMachineMenu.EDIT_H - 26);
         this.editor.setText(TEMPLATE);
         this.editor.setActive(true);
 
+        // 模板/编码按钮：面板底部行（y = 面板底 - 9，高 9，与 bp 预览同行）
         this.addRenderableWidget(Button.builder(Component.literal("模板"), b -> this.editor.setText(TEMPLATE))
                 .bounds(leftPos + SequenceMachineMenu.EDIT_X + SequenceMachineMenu.EDIT_W - 92,
-                        topPos + SequenceMachineMenu.EDIT_Y + 2, 42, 11)
+                        topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9, 42, 9)
                 .build());
         this.encodeButton = Button.builder(Component.literal("编码"), b -> submit())
                 .bounds(leftPos + SequenceMachineMenu.EDIT_X + SequenceMachineMenu.EDIT_W - 46,
-                        topPos + SequenceMachineMenu.EDIT_Y + 2, 42, 11)
+                        topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9, 42, 9)
                 .build();
         this.addRenderableWidget(this.encodeButton);
     }
@@ -122,7 +126,7 @@ public class EncoderScreen extends SequenceMachineScreen {
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
         super.renderLabels(graphics, mouseX, mouseY);
         // 编码预览（客户端 seq/ 纯核心即时计算，脏检测缓存）：
-        // 文本未变化时直接读缓存，不每帧执行 encodeText（最长 735 字节的
+        // 文本未变化时直接读缓存，不每帧执行 encodeText（最长 538 字节的
         // UTF-8→BigInteger→base-20 转换，60fps 下是纯浪费）
         String text = this.editor != null ? this.editor.getText() : "";
         if (!text.equals(this.lastEditorText)) {
@@ -134,9 +138,11 @@ public class EncoderScreen extends SequenceMachineScreen {
                 this.bpOverLimit = true;
             }
         }
+        // 简略形式：309bp/3000bp（上限 3000 = 1000 个整密码子，能被 3 整除）
+        int maxBp = SequenceConstants.MAX_DNA_BP;
         String msg = this.bpOverLimit
-                ? "§c程序过长，超出容量上限"
-                : "§7编码后 " + this.cachedBp + " bp / 上限 4096";
+                ? "§c程序过长，超出" + maxBp + "bp 上限"
+                : "§7" + this.cachedBp + "bp/" + maxBp + "bp";
         graphics.drawString(this.font, Component.literal(msg),
                 SequenceMachineMenu.EDIT_X + 3, SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9,
                 0xFFFFFF, false);

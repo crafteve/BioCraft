@@ -8,8 +8,12 @@ package com.github.crafteve.biocraft.seq;
  */
 public final class SequenceConstants {
 
-    /** DNA 链长度上限（碱基数） */
-    public static final int MAX_DNA_BP = 4096;
+    /**
+     * DNA 链长度上限（碱基数）
+     * <p>3000 = 1000 个整密码子（能被 3 整除，未来翻译读码框完整对齐，
+     * 无截断密码子）；扣除魔数 1 + 长度头 3 个密码子 = 996 内容密码子
+     */
+    public static final int MAX_DNA_BP = 3000;
 
     /** 程序 DNA 魔数密码子（base-20 数字 19 = Val 的规范密码子，固定标识"程序 DNA"） */
     public static final String PROGRAM_MAGIC = "GTT";
@@ -24,9 +28,10 @@ public final class SequenceConstants {
     public static final int STEP_TICKS = 1;
 
     /**
-     * 4096 bp 下可容纳的最大程序字节数
-     * <p>总密码子 = floor(4096/3) = 1365，扣除魔数 1 + 长度头 3，
-     * 内容密码子 ≈ 1361，每密码子携带 log₂20 比特 → ≈ 735 字节
+     * 3000 bp 下可容纳的最大程序字节数
+     * <p>总密码子 = 3000/3 = 1000，扣除魔数 1 + 长度头 3，
+     * 内容密码子 = 996，每密码子携带 log₂20 比特 → 538 字节
+     * （996 内容密码子 = 996 位 base-20，恰好装下 538 字节）
      */
     public static final int MAX_BYTES = (int) Math.floor(
             (MAX_DNA_BP / 3.0 - 1 - LENGTH_HEAD_DIGITS) * LOG2_20 / 8.0);

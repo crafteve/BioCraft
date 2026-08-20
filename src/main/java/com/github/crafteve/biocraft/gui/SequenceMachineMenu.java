@@ -49,11 +49,14 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
     public static final int INV_STEP = 18;
     public static final int HOTBAR_Y = 232;
 
-    /** 编码器输入滚动卡片区（酶工厂同定位）：左上 (7,41)，56×112 视口 */
+    /**
+     * 编码器输入滚动卡片区（酶工厂同定位）：左上 (7,41)，视口高 122
+     * （下边界 163，与输出卡片区底边对齐，贴近画布分隔线）
+     */
     public static final int INPUT_SCROLL_X = 7;
     public static final int INPUT_SCROLL_Y = 41;
     public static final int INPUT_SCROLL_W = 56;
-    public static final int INPUT_SCROLL_H = 112;
+    public static final int INPUT_SCROLL_H = 122;
     public static final int CARD_W = 56;
     public static final int CARD_H = 28;
     public static final int CARD_GAP = 1;
@@ -69,19 +72,26 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
     public static final int EDIT_W = 178;
     public static final int EDIT_H = 95;
 
-    /** 输出横向滚动卡片区（用户定位 70,133-246,161）：176×28 视口，横向滚动 */
+    /**
+     * 输出横向滚动卡片区（用户定稿 2026-08-19）：OUTPUT 标签 y=132，
+     * 卡片区紧跟标签下方 y=140 起、下边界 y=163（压缩卡片高度 23，
+     * 与输入滚动区底边对齐）
+     */
     public static final int OUT_X = 70;
-    public static final int OUT_Y = 133;
+    public static final int OUT_Y = 140;
     public static final int OUT_W = 176;
-    public static final int OUT_H = 28;
+    public static final int OUT_H = 23;
+
+    /** 输出卡片高度（压缩版，输入卡片保持 28） */
+    public static final int OUT_CARD_H = 23;
 
     /** 输出卡片宽度（DNA 加宽放序列预览，ADP/PPi 标准宽） */
     public static final int OUT_CARD_DNA_W = 104;
     public static final int OUT_CARD_SUB_W = 56;
 
-    /** 输出标签（英文大写，y 与 INPUT 同基准、左上角） */
+    /** 输出标签（英文大写，y=132 起始绘制） */
     public static final int OUTPUT_LABEL_X = 70;
-    public static final int OUTPUT_LABEL_Y = 129;
+    public static final int OUTPUT_LABEL_Y = 132;
 
     private final SequenceMachineKind kind;
     private final BlockPos pos;

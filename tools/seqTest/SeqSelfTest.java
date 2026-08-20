@@ -43,13 +43,14 @@ public class SeqSelfTest {
         roundtrip("你好，BioCraft！中心法则信息层。123 abc !@#😀");
         roundtrip("");
         roundtrip("a".repeat(100));
-        roundtrip("中".repeat(200));
+        roundtrip("中".repeat(150)); // 450 字节，在新上限 538 字节内
     }
 
     private static void testCapacity() {
         String maxText = "a".repeat(SequenceConstants.MAX_BYTES);
         String enc = SeqCodec.encodeText(maxText);
-        check("上限文本可编码且不超 4096bp", enc.length() <= SequenceConstants.MAX_DNA_BP);
+        check("上限文本可编码且不超 " + SequenceConstants.MAX_DNA_BP + "bp",
+                enc.length() <= SequenceConstants.MAX_DNA_BP);
         check("上限文本往返一致", maxText.equals(SeqCodec.decodeText(enc).text()));
         checkThrows("超上限编码抛异常", () -> SeqCodec.encodeText("a".repeat(SequenceConstants.MAX_BYTES + 1)));
     }
