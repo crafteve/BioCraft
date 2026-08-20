@@ -38,6 +38,10 @@ public class HelicaseScreen extends SequenceMachineScreen {
 
     public HelicaseScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
+        // 立即同步一次槽位坐标，避免首帧闪动（酶工厂 MachineScreen 构造即 tick / 编码器 SequenceMachineScreen 构造即 tickScrolls 同款修复）
+        if (menu.getKind() == SequenceMachineKind.HELICASE) {
+            containerTick();
+        }
     }
 
     @Override
