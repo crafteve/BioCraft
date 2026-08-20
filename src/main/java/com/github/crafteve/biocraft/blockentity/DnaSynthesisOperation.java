@@ -63,11 +63,16 @@ public class DnaSynthesisOperation implements SequenceOperation {
         }
         try {
             String encoded = SeqCodec.encodeText(program);
-            state.beginExtending(encoded);
+            // 启动子/终止子：编码链 5' TATAAT + 真正程序 + TTTTT 3'，模板链 3' ATATTA...AAAAA 5' 供转录识别
+            String withPromoter = com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_CODING + encoded
+                    + com.github.crafteve.biocraft.seq.SeqOps.TERMINATOR_CODING;
+            if (withPromoter.length() > com.github.crafteve.biocraft.seq.SequenceConstants.MAX_DNA_BP) {
+                throw new IllegalArgumentException("编码后含启动子/终止子超出长度上限");
+            }
+            state.beginExtending(withPromoter);
             state.setPendingProgram("");
             return true;
         } catch (IllegalArgumentException e) {
-            // 超上限程序：拒绝并清空待处理（防无限重试）
             state.setPendingProgram("");
             return false;
         }

@@ -41,6 +41,15 @@ public final class SeqOps {
         return dna.replace('T', 'U');
     }
 
+    /** 转录启动子（编码链 5'→3'，模板链 3'→5' 为其互补 ATATTA） */
+    public static final String PROMOTER_CODING = "TATAAT";
+    /** 转录启动子在模板链 3'→5' 上的互补序列 */
+    public static final String PROMOTER_TEMPLATE = "ATATTA";
+    /** 转录终止子（编码链 5'→3'，模板链 3'→5' 为 AAAAA） */
+    public static final String TERMINATOR_CODING = "TTTTT";
+    /** 终止子在模板链 3'→5' 上的互补序列 */
+    public static final String TERMINATOR_TEMPLATE = "AAAAA";
+
     /** DNA 序列合法性（非空 + 仅 ACGT） */
     public static boolean isValidDna(String seq) {
         if (seq == null || seq.isEmpty()) {

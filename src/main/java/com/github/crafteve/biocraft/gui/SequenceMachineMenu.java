@@ -5,6 +5,7 @@ import com.github.crafteve.biocraft.blockentity.HelicaseOperation;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineBlockEntity;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
 import com.github.crafteve.biocraft.blockentity.SequenceOperation;
+import com.github.crafteve.biocraft.blockentity.TranscriptionOperation;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.seq.SequenceData;
@@ -219,8 +220,18 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
         private final SequenceOperation op;
 
         MachineSlot(Container container, int index, int x, int y, SequenceOperation op) {
-            super(container, index, x, y, kind == SequenceMachineKind.HELICASE ? 1 : 64);
+            super(container, index, x, y, 64);
             this.op = op;
+        }
+
+        @Override
+        public int getMaxStackSize(ItemStack stack) {
+            if (kind == SequenceMachineKind.HELICASE) return 1;
+            if (kind == SequenceMachineKind.TRANSCRIBER) {
+                if (index == TranscriptionOperation.SLOT_TEMPLATE || index == TranscriptionOperation.SLOT_OUT_MRNA) return 1;
+                return 64;
+            }
+            return super.getMaxStackSize(stack);
         }
 
         @Override
@@ -299,7 +310,15 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                     {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
             };
             case TRANSCRIBER -> new int[][]{
-                    {EDIT_X + 2, 34}, {EDIT_X + 2, 56}, {EDIT_X + 2, 78}, {EDIT_X + 40, 56},
+                    // 状态栏模板槽（9,8）+ 左5 NTP/ATP（纵向滚动）+ 右 mRNA/PPi（横向）
+                    {9, 8},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+                    {OUT_X + SLOT_X + 57, OUT_Y + SLOT_Y},
             };
             case HELICASE -> new int[][]{
                     // 输入 1 槽（左侧 guiv1 输入区），输出 2 槽（右侧 guiv1 输出区垂直双卡，复用酶工厂布局）

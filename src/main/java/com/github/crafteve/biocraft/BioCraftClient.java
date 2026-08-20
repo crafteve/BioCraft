@@ -6,6 +6,7 @@ import com.github.crafteve.biocraft.gui.EncoderScreen;
 import com.github.crafteve.biocraft.gui.HelicaseScreen;
 import com.github.crafteve.biocraft.gui.MachineScreen;
 import com.github.crafteve.biocraft.gui.SequenceMachineScreen;
+import com.github.crafteve.biocraft.gui.TranscriberScreen;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.client.resources.model.ModelResourceLocation;
@@ -31,7 +32,7 @@ public class BioCraftClient {
         // NeoForge 1.21.1 的 MenuScreens.register 为私有方法，必须经本事件注册
         event.register(ModBlocks.ENZYME_CHAMBER_MENU.get(), MachineScreen::new);
         event.register(ModBlocks.DNA_ENCODER_MENU.get(), EncoderScreen::new);
-        event.register(ModBlocks.TRANSCRIBER_MENU.get(), SequenceMachineScreen::new);
+        event.register(ModBlocks.TRANSCRIBER_MENU.get(), TranscriberScreen::new);
         event.register(ModBlocks.HELICASE_MENU.get(), HelicaseScreen::new);
     }
 
