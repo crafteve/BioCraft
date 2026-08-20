@@ -79,42 +79,88 @@ public class DnaSynthesisOperation implements SequenceOperation {
             return StepResult.DONE;
         }
         char base = state.chain().charAt(state.position());
-        int next = state.position() + 1;
-        // 组尾判定：编码后位置为 10 的倍数，或到达链尾（最后一组不足 10
-        // 也按整组消耗）——组尾才消耗 1 dNTP + 1 ATP 并产 1 ADP + 1 PPi
-        if (next % BASE_PER_GROUP == 0 || next == state.total()) {
-            String dnTP = switch (base) {
-                case 'A' -> "datp";
-                case 'T' -> "dttp";
-                case 'C' -> "dctp";
-                case 'G' -> "dgtp";
-                default -> throw new IllegalStateException("非法碱基: " + base);
-            };
-            // 先查副产物槽余量（产物回压：槽满不吞输入，玩家抽走即续）
-            if (!hasRoom(container, SLOT_OUT_ADP) || !hasRoom(container, SLOT_OUT_PPI)) {
-                return StepResult.STALLED;
-            }
-            // 再查输入（缺任一即停摆，不部分消耗）
-            if (!hasAny(container, dnTpSlot(dnTP)) || !hasAny(container, SLOT_ATP)) {
-                return StepResult.STALLED;
-            }
-            SequenceOperation.consumeOne(container, dnTpSlot(dnTP), dnTP);
-            SequenceOperation.consumeOne(container, SLOT_ATP, "atp");
-            SequenceOperation.addOne(container, SLOT_OUT_ADP, "adp");
-            SequenceOperation.addOne(container, SLOT_OUT_PPI, "ppi");
+        int slot = dnTpSlotFor(base);
+        String dnTP = dnTPName(base);
+        // 分子余量（酶工厂同款模式）：1 分子 = 10 碱基，每碱基余量 +0.1，
+        // 满 1.0 才真正消耗/产出——槽位物品是整数，小数余量存 SeqStepState
+        double inc = 1.0 / BASE_PER_GROUP;
+        double dRem = state.remainder(slot) + inc;
+        double aRem = state.remainder(SLOT_ATP) + inc;
+        double adpRem = state.remainder(SLOT_OUT_ADP) + inc;
+        double ppiRem = state.remainder(SLOT_OUT_PPI) + inc;
+        boolean needDntp = dRem >= 1.0 - 1e-9;
+        boolean needAtp = aRem >= 1.0 - 1e-9;
+        boolean makeAdp = adpRem >= 1.0 - 1e-9;
+        boolean makePpi = ppiRem >= 1.0 - 1e-9;
+        // 先查后动：缺料/产物槽满 → STALLED（余量与位置均不推进，补料即续）
+        if (needDntp && !hasAny(container, slot)) {
+            return StepResult.STALLED;
         }
+        if (needAtp && !hasAny(container, SLOT_ATP)) {
+            return StepResult.STALLED;
+        }
+        if (makeAdp && !hasRoom(container, SLOT_OUT_ADP)) {
+            return StepResult.STALLED;
+        }
+        if (makePpi && !hasRoom(container, SLOT_OUT_PPI)) {
+            return StepResult.STALLED;
+        }
+        if (needDntp) {
+            if (!SequenceOperation.consumeOne(container, slot, dnTP)) {
+                return StepResult.STALLED;
+            }
+            state.setRemainder(slot, 0.0);
+        } else {
+            state.setRemainder(slot, dRem);
+        }
+        if (needAtp) {
+            if (!SequenceOperation.consumeOne(container, SLOT_ATP, "atp")) {
+                return StepResult.STALLED;
+            }
+            state.setRemainder(SLOT_ATP, 0.0);
+        } else {
+            state.setRemainder(SLOT_ATP, aRem);
+        }
+        if (makeAdp) {
+            if (!SequenceOperation.addOne(container, SLOT_OUT_ADP, "adp")) {
+                return StepResult.STALLED;
+            }
+            state.setRemainder(SLOT_OUT_ADP, 0.0);
+        } else {
+            state.setRemainder(SLOT_OUT_ADP, adpRem);
+        }
+        if (makePpi) {
+            if (!SequenceOperation.addOne(container, SLOT_OUT_PPI, "ppi")) {
+                return StepResult.STALLED;
+            }
+            state.setRemainder(SLOT_OUT_PPI, 0.0);
+        } else {
+            state.setRemainder(SLOT_OUT_PPI, ppiRem);
+        }
+        int next = state.position() + 1;
         state.setPosition(next);
         return next >= state.total() ? StepResult.DONE : StepResult.ADVANCED;
     }
 
-    /** dNTP 物品名 → 槽位下标 */
-    private static int dnTpSlot(String dnTP) {
-        return switch (dnTP) {
-            case "datp" -> SLOT_DATP;
-            case "dttp" -> SLOT_DTTP;
-            case "dctp" -> SLOT_DCTP;
-            case "dgtp" -> SLOT_DGTP;
-            default -> throw new IllegalStateException("未知 dNTP: " + dnTP);
+    /** 碱基 → 对应 dNTP 槽位下标 */
+    private static int dnTpSlotFor(char base) {
+        return switch (base) {
+            case 'A' -> SLOT_DATP;
+            case 'T' -> SLOT_DTTP;
+            case 'C' -> SLOT_DCTP;
+            case 'G' -> SLOT_DGTP;
+            default -> throw new IllegalStateException("非法碱基: " + base);
+        };
+    }
+
+    /** 碱基 → dNTP 物品注册名 */
+    private static String dnTPName(char base) {
+        return switch (base) {
+            case 'A' -> "datp";
+            case 'T' -> "dttp";
+            case 'C' -> "dctp";
+            case 'G' -> "dgtp";
+            default -> throw new IllegalStateException("非法碱基: " + base);
         };
     }
 

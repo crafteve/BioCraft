@@ -292,10 +292,14 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
 
     /**
      * 库存卡片（输入/输出副产物通用，元素照抄酶工厂物种卡）：
-     * 底色 + slot.png + 彩色缩写 + 进度条（count/64 归一化）+ x数量
+     * 底色 + slot.png + 彩色缩写 + 进度条 + x数量（含分子余量）
      * <p>
      * 卡片高度参数化（输入 28 / 输出压缩 23）；进度条统一为
-     * "槽位贴图底边 + 1px"、2px 高（输出压缩卡不越界）
+     * "槽位贴图底边 + 1px"、2px 高（输出压缩卡不越界）。
+     * <p>
+     * 数量口径（酶工厂浓度重建同款）：槽位整数 + 分子余量——
+     * 1 分子 = 10 碱基，余量每碱基 +0.1，显示 x32.50 这类连续值；
+     * 进度条按 (count + 余量)/64 归一化（满 64 = 满格）
      */
     private void drawStockCard(GuiGraphics graphics, int cardX, int cardY, int cardW, int cardH,
                                String itemId, Slot slot) {
@@ -308,16 +312,19 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         MoleculeItem item = ModItems.byId(itemId).get();
         int color = stack.isEmpty() ? CONC_TEXT_COLOR : cardTextColor(item.getTintColor());
         graphics.drawString(font, item.getAbbreviation(), pngX + 18 + 4, pngY, color, false);
-        // 进度条（2px 高，宽 cardW-2）：count/64 归一化（满 64 = 满格）
+        // 数量（含分子余量）：槽位整数 + ContainerData 同步余量
+        double totalCount = stack.getCount() + menu.getRemainder(slot.index);
+        // 进度条（2px 高，宽 cardW-2）：(count + 余量)/64 归一化（满 64 = 满格）
         int barY = cardY + SequenceMachineMenu.SLOT_PNG_Y + 18 + 1;
-        double count = stack.getCount();
-        int fill = (int) Math.min((cardW - 2) * count / 64.0, cardW - 2);
+        int fill = (int) Math.min((cardW - 2) * totalCount / 64.0, cardW - 2);
         graphics.fill(cardX + 1, barY, cardX + 1 + cardW - 2, barY + 2, BAR_TRACK);
         if (fill > 0) {
             graphics.fill(cardX + 1, barY, cardX + 1 + fill, barY + 2, color);
         }
         // x数量（酶工厂格式：≥100 一位小数，否则两位）
-        String countText = count >= 100.0 ? String.format("%.1f", count) : String.format("%.2f", count);
+        String countText = totalCount >= 100.0
+                ? String.format("%.1f", totalCount)
+                : String.format("%.2f", totalCount);
         graphics.drawString(font, "x" + countText, pngX + 18 + 4, pngY + 18 + 1 - 8, CONC_TEXT_COLOR, false);
     }
 

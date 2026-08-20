@@ -37,7 +37,9 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
     public static final int DATA_STAGE = 0;
     public static final int DATA_POSITION = 1;
     public static final int DATA_TOTAL = 2;
-    private static final int DATA_COUNT = 3;
+    /** 分子余量数据起始下标（每槽一个 ×1000 定点，酶工厂同款） */
+    public static final int DATA_REMAINDER_BASE = 3;
+    private static final int DATA_COUNT = DATA_REMAINDER_BASE + 8;
 
     /** 窗口尺寸（贴图 256×256 全屏） */
     public static final int WINDOW_W = 256;
@@ -106,6 +108,10 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                 new ContainerData() {
                     @Override
                     public int get(int index) {
+                        if (index >= DATA_REMAINDER_BASE && index < DATA_COUNT) {
+                            return (int) Math.round(
+                                    be.stepState().remainder(index - DATA_REMAINDER_BASE) * 1000.0);
+                        }
                         return switch (index) {
                             case DATA_STAGE -> be.stepState().stage().ordinal();
                             case DATA_POSITION -> be.stepState().position();
@@ -215,23 +221,22 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
         }
 
         /**
-         * 取走门控：编码器输入槽只进不出；DNA 槽仅完全编码可取出；
-         * ADP/PPi 槽可取出。转录仪保持全可抽（重做时定）
+         * 取走门控：产物 DNA 仅完全编码可取出；其余槽（输入 dNTP/ATP、
+         * 副产物 ADP/PPi）GUI 均可取出——输入槽"只禁管道输出"由 BE 的
+         * canTakeItemInternal 门控（漏斗/管道同规则），玩家 GUI 可自由
+         * 取出放错的单体。转录仪保持全可抽（重做时定）
          */
         @Override
         public boolean mayPickup(Player player) {
             if (kind != SequenceMachineKind.DNA_ENCODER) {
                 return true;
             }
-            if (index < DnaSynthesisOperation.SLOT_OUT_DNA) {
-                return false; // 输入槽（dNTP×4 + ATP）：只进不出
-            }
             if (index == DnaSynthesisOperation.SLOT_OUT_DNA) {
                 // 产物 DNA：仅完全编码（complete）才可输出；半成品锁在槽内
                 SequenceData data = getItem().get(ModDataComponents.SEQUENCE.get());
                 return data != null && data.complete();
             }
-            return true; // ADP / PPi 输出槽
+            return true; // 输入槽与 ADP/PPi：GUI 可取出
         }
 
         @Override
@@ -294,6 +299,19 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
 
     public ContainerData getData() {
         return data;
+    }
+
+    /**
+     * 读取槽位分子余量（ContainerData 同步值，×1000 定点还原）
+     * <p>
+     * 1 分子 = 10 碱基时，GUI 卡片显示 count + 余量（如 x32.50）、
+     * 进度条按 (count + 余量)/64 归一化——酶工厂浓度重建同款口径
+     */
+    public double getRemainder(int slot) {
+        if (slot < 0 || slot >= 8) {
+            return 0.0;
+        }
+        return data.get(DATA_REMAINDER_BASE + slot) / 1000.0;
     }
 
     @Override

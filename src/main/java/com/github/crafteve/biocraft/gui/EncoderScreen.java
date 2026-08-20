@@ -40,25 +40,24 @@ public class EncoderScreen extends SequenceMachineScreen {
     @Override
     protected void init() {
         super.init();
-        // 编辑器：面板内工具栏下方（面板 y24-96，工具栏 y24-35，文本区 y38-92）
-        // 2026-08-19 调整：底部 12px 让给按钮行（与 bp 预览同行 y117），
-        // 编辑器文本区压缩到面板底部上方 12px
+        // 编辑器：顶到编码区面板顶部（y = 面板顶 + 1px 边距），
+        // 底部让出 2px 到按钮行（y117）；第一行文本 y34 起（贴近面板顶）
         this.editor = new CodeEditorWidget(
                 leftPos + SequenceMachineMenu.EDIT_X + 3,
-                topPos + SequenceMachineMenu.EDIT_Y + 14,
+                topPos + SequenceMachineMenu.EDIT_Y + 1,
                 SequenceMachineMenu.EDIT_W - 6,
-                SequenceMachineMenu.EDIT_H - 26);
+                SequenceMachineMenu.EDIT_H - 12);
         this.editor.setText(TEMPLATE);
         this.editor.setActive(true);
 
-        // 模板/编码按钮：面板底部行（y = 面板底 - 9，高 9，与 bp 预览同行）
+        // 模板/编码按钮：面板底部行（y = 面板底 - 11，高 11，与 bp 预览同行）
         this.addRenderableWidget(Button.builder(Component.literal("模板"), b -> this.editor.setText(TEMPLATE))
                 .bounds(leftPos + SequenceMachineMenu.EDIT_X + SequenceMachineMenu.EDIT_W - 92,
-                        topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9, 42, 9)
+                        topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 11, 42, 11)
                 .build());
         this.encodeButton = Button.builder(Component.literal("编码"), b -> submit())
                 .bounds(leftPos + SequenceMachineMenu.EDIT_X + SequenceMachineMenu.EDIT_W - 46,
-                        topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9, 42, 9)
+                        topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 11, 42, 11)
                 .build();
         this.addRenderableWidget(this.encodeButton);
     }
@@ -112,6 +111,19 @@ public class EncoderScreen extends SequenceMachineScreen {
             this.editor.setActive(false);
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    /**
+     * 滚轮：悬停在编辑区内时优先滚动编辑器（纵向翻行），
+     * 否则交还基类（输入/输出滚动卡片区）
+     */
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY,
+                                 double horizontalAmount, double verticalAmount) {
+        if (this.editor != null && this.editor.isMouseOver(mouseX, mouseY)) {
+            return this.editor.mouseScrolled(verticalAmount);
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
     @Override

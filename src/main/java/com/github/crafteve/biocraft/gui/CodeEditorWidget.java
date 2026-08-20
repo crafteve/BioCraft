@@ -116,6 +116,27 @@ public class CodeEditorWidget {
         return true;
     }
 
+    /**
+     * 滚轮纵向滚动（悬停在编辑区内时由宿主 Screen 转交）：
+     * 按行翻页（向上 = 看更上方行），钳制 [0, 总行数 - 可见行数]；
+     * 无滚动余量时返回 false（不消费事件）
+     */
+    public boolean mouseScrolled(double verticalAmount) {
+        String[] lines = text.toString().split("\n", -1);
+        int visible = Math.max(1, height / lineHeight());
+        int maxFirst = Math.max(0, lines.length - visible);
+        if (maxFirst == 0) {
+            return false;
+        }
+        int delta = verticalAmount > 0 ? -1 : 1;
+        int target = Math.max(0, Math.min(firstVisibleLine + delta, maxFirst));
+        if (target == firstVisibleLine) {
+            return false;
+        }
+        firstVisibleLine = target;
+        return true;
+    }
+
     public boolean charTyped(char codePoint) {
         if (!active) {
             return false;

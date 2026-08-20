@@ -14,11 +14,21 @@ public final class SeqStepState {
 
     public enum Stage { IDLE, EXTENDING, DONE }
 
+    /** 余量槽位数（固定 8，覆盖编码器最大容器；转录仪不使用恒 0） */
+    private static final int REMAINDER_SLOTS = 8;
+
     private Stage stage = Stage.IDLE;
     private int position = 0;
     private int total = 0;
     private String chain = "";
     private String pendingProgram = "";
+
+    /**
+     * 分子余量（0~1，每槽一个，酶工厂同款模式）：
+     * 1 分子 = 10 碱基时，每碱基余量 +0.1，满 1.0 才真正从槽位消耗/向槽位产出——
+     * 槽位物品是整数，小数余量存这里（BE 权威），GUI 显示 count + 余量
+     */
+    private final double[] remainders = new double[REMAINDER_SLOTS];
 
     public Stage stage() {
         return stage;
@@ -52,6 +62,18 @@ public final class SeqStepState {
         this.pendingProgram = pendingProgram;
     }
 
+    /** 读取槽位分子余量（越界槽恒 0） */
+    public double remainder(int slot) {
+        return slot >= 0 && slot < remainders.length ? remainders[slot] : 0.0;
+    }
+
+    /** 写入槽位分子余量（越界槽忽略） */
+    public void setRemainder(int slot, double value) {
+        if (slot >= 0 && slot < remainders.length) {
+            remainders[slot] = value;
+        }
+    }
+
     /** 开始延伸：设定链并归零位置（stage → EXTENDING） */
     public void beginExtending(String chain) {
         this.chain = chain;
@@ -60,13 +82,14 @@ public final class SeqStepState {
         this.stage = Stage.EXTENDING;
     }
 
-    /** 完全复位（换模板/换程序） */
+    /** 完全复位（换模板/换程序）：链源状态与分子余量一并清零 */
     public void reset() {
         this.stage = Stage.IDLE;
         this.position = 0;
         this.total = 0;
         this.chain = "";
         this.pendingProgram = "";
+        java.util.Arrays.fill(remainders, 0.0);
     }
 
     public CompoundTag save(CompoundTag tag) {
@@ -75,6 +98,9 @@ public final class SeqStepState {
         tag.putInt("total", total);
         tag.putString("chain", chain);
         tag.putString("pendingProgram", pendingProgram);
+        for (int i = 0; i < remainders.length; i++) {
+            tag.putDouble("rem" + i, remainders[i]);
+        }
         return tag;
     }
 
@@ -85,5 +111,8 @@ public final class SeqStepState {
         this.total = tag.getInt("total");
         this.chain = tag.contains("chain", Tag.TAG_STRING) ? tag.getString("chain") : "";
         this.pendingProgram = tag.contains("pendingProgram", Tag.TAG_STRING) ? tag.getString("pendingProgram") : "";
+        for (int i = 0; i < remainders.length; i++) {
+            remainders[i] = tag.contains("rem" + i, Tag.TAG_DOUBLE) ? tag.getDouble("rem" + i) : 0.0;
+        }
     }
 }
