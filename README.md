@@ -135,6 +135,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 
 ### 2026-08-19
 
+- **fix** DNA 编码器/转录仪读档槽位错位（根因，源码实证）：1.21.1 vanilla `SimpleContainer.createTag/fromTag` **不存 Slot index**（保存只存非空物品紧凑列表、读档用 addItem 顺序填充空槽）——编码器取出 DNA 后槽 5 为空，读档时 ADP/PPi 整体前移（实测"ADP 进 DNA 槽、PPi 进 ADP 槽"）。已覆写序列化：保存带 Slot index（`ItemStack.save` 全量保留 SEQUENCE 组件）、读档按 Slot 精确恢复，旧存档错位读档时自动校正归位
 - **fix** DNA 编码器读档输出槽校正：读档后 ADP/PPi 槽按物品 id 归位（修复实测"ADP 进 DNA 槽、PPi 进 ADP 槽"错位）、DNA 槽按链源状态重新物化，检测到错位时输出日志便于定位根因
 - **feat** DNA 物品 tooltip 打磨：第二行简化为"按住 Shift 显示碱基序列"（去掉 bp 括号）；Shift 视图去掉标题行、碱基序列首行 5' 白标 / 末行 3' 白标、每行碱基数按屏幕宽度自适应（修复窄屏下 MC 自动折行打乱彩色换行）；Ctrl 视图去掉标题行
 - **feat** DNA 物品 tooltip 默认三行：第一行灰白 `5'-前 10 碱基…-3'`（含 bp 数，合成中并入行尾），第二行"按住 Shift 显示碱基序列"提示，第三行"按住 Ctrl 显示程序"提示

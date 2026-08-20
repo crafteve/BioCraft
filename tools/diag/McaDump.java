@@ -114,6 +114,7 @@ public class McaDump {
             System.out.println("  inventory (" + slots.size() + " items):");
             for (Object slot : slots) {
                 if (slot instanceof Map<?, ?> sm) {
+                    System.out.println("    keys=" + sm.keySet());
                     Object slotIdx = sm.get("Slot");
                     String name = itemName(slot, "id");
                     Object count = sm.get("count");

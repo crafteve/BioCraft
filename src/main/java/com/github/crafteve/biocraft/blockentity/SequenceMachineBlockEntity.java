@@ -81,12 +81,6 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         switch (stepState.stage()) {
             case IDLE -> {
                 if (operation.canStart(inventory, stepState) && operation.init(inventory, stepState)) {
-                    com.github.crafteve.biocraft.BioCraft.LOGGER.info(
-                            "SEQ-MACHINE IDLE->EXTENDING {} pending='{}' slot5={} slot6={} slot7={}",
-                            worldPosition, stepState.pendingProgram(),
-                            inventory.getItem(DnaSynthesisOperation.SLOT_OUT_DNA),
-                            inventory.getItem(DnaSynthesisOperation.SLOT_OUT_ADP),
-                            inventory.getItem(DnaSynthesisOperation.SLOT_OUT_PPI));
                     materialize();
                     setChanged();
                 }
@@ -110,11 +104,6 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
                 // 编码器（pendingProgram 已空）停在 IDLE 等玩家重新提交程序
                 if (inventory.getItem(operation.outputSlot()).isEmpty()) {
                     stepState.setStage(SeqStepState.Stage.IDLE);
-                    com.github.crafteve.biocraft.BioCraft.LOGGER.info(
-                            "SEQ-MACHINE DONE->IDLE {} slot6={} slot7={}",
-                            worldPosition,
-                            inventory.getItem(DnaSynthesisOperation.SLOT_OUT_ADP),
-                            inventory.getItem(DnaSynthesisOperation.SLOT_OUT_PPI));
                     setChanged();
                 }
             }
@@ -124,10 +113,6 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
     /** 物化链前缀到产物槽（产物被取走后自动重建新物品） */
     private void materialize() {
         operation.materialize(inventory, stepState);
-        com.github.crafteve.biocraft.BioCraft.LOGGER.info(
-                "SEQ-MACHINE MATERIALIZE {} stage={} pos={}/{} slot5={}",
-                worldPosition, stepState.stage(), stepState.position(), stepState.total(),
-                inventory.getItem(DnaSynthesisOperation.SLOT_OUT_DNA));
     }
 
     /**
@@ -175,49 +160,95 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
             stepState.load(tag.getCompound("seqState"));
         }
         if (kind() == SequenceMachineKind.DNA_ENCODER) {
-            com.github.crafteve.biocraft.BioCraft.LOGGER.info(
-                    "SEQ-MACHINE LOAD {} stage={} pos={}/{} slot5={} slot6={} slot7={}",
-                    worldPosition, stepState.stage(), stepState.position(), stepState.total(),
-                    inventory.getItem(DnaSynthesisOperation.SLOT_OUT_DNA),
-                    inventory.getItem(DnaSynthesisOperation.SLOT_OUT_ADP),
-                    inventory.getItem(DnaSynthesisOperation.SLOT_OUT_PPI));
             restoreOutputSlots();
         }
     }
 
     /**
-     * 读档后校正编码器输出槽（防御 + 日志定位）：
-     * <ul>
-     *   <li><b>副产物归位</b>：ADP 槽（6）只存 adp、PPi 槽（7）只存 ppi——
-     *       机器语义下槽 6/7 只可能由 step 的 addOne 放入对应物品（GUI
-     *       mayPlace=false + 漏斗 canPlaceItem=false 堵死外部塞入），
-     *       读档出现异类物品（实测：ADP 进 DNA 槽、PPi 进 ADP 槽）即存档
-     *       错位，按物品 id 归位（堆叠整体搬移/合并）</li>
-     *   <li><b>DNA 槽重物化</b>：DNA 槽是链前缀的物化镜像（唯一真相在
-     *       stepState），若槽 5 被污染/缺失则覆盖为正确的物化内容</li>
-     * </ul>
-     * 两端（服务端/客户端）都执行：无副作用，客户端容器随后被服务端广播覆盖
+     * 容器序列化覆写（根因修复，2026-08-19）：
+     * <p>
+     * vanilla 的 SimpleContainer.createTag/fromTag **不写 Slot index**——
+     * 保存只存非空物品紧凑列表、读档用 addItem 顺序填充空槽（源码实证
+     * SimpleContainer L223-234/L215-221）。序列机有空槽（如编码器取出
+     * DNA 后槽 5 为空）时，读档会把后续物品整体前移：实测"ADP 进 DNA 槽、
+     * PPi 进 ADP 槽"（槽 5 空 → adp 落槽 5、ppi 落槽 6）。
+     * <p>
+     * 本覆写保存带 Slot index（ItemStack.save 全量，保留 SEQUENCE 组件），
+     * 读档按 Slot 恢复；旧格式（无 Slot 字段）走 addItem 兼容（保持原行为，
+     * 错位由 restoreOutputSlots 自愈）
+     */
+    @Override
+    protected net.minecraft.nbt.Tag saveContainerData(net.minecraft.core.HolderLookup.Provider registries) {
+        net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            net.minecraft.nbt.CompoundTag entry = new net.minecraft.nbt.CompoundTag();
+            entry.putInt("Slot", slot);
+            list.add(stack.save(registries, entry));
+        }
+        return list;
+    }
+
+    @Override
+    protected void loadContainerData(net.minecraft.nbt.ListTag list, net.minecraft.core.HolderLookup.Provider registries) {
+        inventory.clearContent();
+        boolean hasSlot = !list.isEmpty() && list.getCompound(0).contains("Slot", Tag.TAG_INT);
+        for (net.minecraft.nbt.Tag element : list) {
+            net.minecraft.nbt.CompoundTag entry = (net.minecraft.nbt.CompoundTag) element;
+            ItemStack stack = ItemStack.parse(registries, entry).orElse(ItemStack.EMPTY);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            if (hasSlot) {
+                int slot = entry.getInt("Slot");
+                if (slot >= 0 && slot < inventory.getContainerSize()) {
+                    inventory.setItem(slot, stack);
+                }
+            } else {
+                // 旧紧凑格式（无 Slot 字段）：addItem 顺序填充（保持原行为）
+                for (int s = 0; s < inventory.getContainerSize(); s++) {
+                    if (inventory.getItem(s).isEmpty()) {
+                        inventory.setItem(s, stack);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 读档后校正编码器输出槽（自愈旧存档的 addItem 错位）：
+     * <p>
+     * 槽 5/6/7 按机器语义归位——DNA 槽（5）只存 DNA（SEQUENCE 组件）、
+     * ADP 槽（6）只存 adp、PPi 槽（7）只存 ppi（GUI mayPlace=false +
+     * 漏斗 canPlaceItem=false 堵死外部塞入，异类物品必为存档错位）。
+     * 从 5/6/7 中按物品 id 识别 adp/ppi 放回正确槽位；槽 5 只保留 DNA；
+     * stage != IDLE 时按链源重新物化槽 5
      */
     private void restoreOutputSlots() {
         int a = DnaSynthesisOperation.SLOT_OUT_ADP;
         int p = DnaSynthesisOperation.SLOT_OUT_PPI;
+        ItemStack s5 = inventory.getItem(DnaSynthesisOperation.SLOT_OUT_DNA);
         ItemStack s6 = inventory.getItem(a);
         ItemStack s7 = inventory.getItem(p);
+        boolean fiveDna = !s5.isEmpty() && s5.get(ModDataComponents.SEQUENCE.get()) != null;
         boolean sixAdp = !s6.isEmpty() && SequenceOperation.matchesId(s6, "adp");
-        boolean sixPpi = !s6.isEmpty() && SequenceOperation.matchesId(s6, "ppi");
-        boolean sevenAdp = !s7.isEmpty() && SequenceOperation.matchesId(s7, "adp");
         boolean sevenPpi = !s7.isEmpty() && SequenceOperation.matchesId(s7, "ppi");
-        boolean wrong = (!s6.isEmpty() && !sixAdp && !sixPpi)
-                || (!s7.isEmpty() && !sevenAdp && !sevenPpi)
-                || (sixPpi && !sevenPpi)      // ppi 错位在 ADP 槽
-                || (sevenAdp && !sixAdp);     // adp 错位在 PPi 槽
+        boolean wrong = (!fiveDna && !s5.isEmpty())       // 槽5 非 DNA（如错位的 adp）
+                || (!sixAdp && !s6.isEmpty())             // 槽6 非 adp（如错位的 ppi）
+                || (!sevenPpi && !s7.isEmpty());          // 槽7 非 ppi
         if (wrong) {
             com.github.crafteve.biocraft.BioCraft.LOGGER.warn(
-                    "编码器读档输出槽错位校正: slot5={} slot6={} slot7={}",
-                    inventory.getItem(DnaSynthesisOperation.SLOT_OUT_DNA), s6, s7);
-            // 归位：adp → 槽6、ppi → 槽7（整体搬移/保留原堆叠）
-            ItemStack adpStack = sixAdp ? s6 : (sevenAdp ? s7 : ItemStack.EMPTY);
-            ItemStack ppiStack = sixPpi ? s6 : (sevenPpi ? s7 : ItemStack.EMPTY);
+                    "编码器读档输出槽错位校正: slot5={} slot6={} slot7={}", s5, s6, s7);
+            ItemStack adpStack = SequenceOperation.matchesId(s5, "adp") ? s5
+                    : (sixAdp ? s6 : (SequenceOperation.matchesId(s7, "adp") ? s7 : ItemStack.EMPTY));
+            ItemStack ppiStack = SequenceOperation.matchesId(s5, "ppi") ? s5
+                    : (SequenceOperation.matchesId(s6, "ppi") ? s6
+                    : (sevenPpi ? s7 : ItemStack.EMPTY));
+            inventory.setItem(DnaSynthesisOperation.SLOT_OUT_DNA, fiveDna ? s5 : ItemStack.EMPTY);
             inventory.setItem(a, adpStack);
             inventory.setItem(p, ppiStack);
         }
