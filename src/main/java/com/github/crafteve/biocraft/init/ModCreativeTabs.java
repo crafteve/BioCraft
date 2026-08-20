@@ -50,7 +50,7 @@ public final class ModCreativeTabs {
                     })
                     .build());
 
-    /** 生物工艺 · 机器标签页：统一酶反应腔方块 */
+    /** 生物工艺 · 机器标签页：统一酶反应腔方块 + 序列机家族（DNA 编码器/转录仪） */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> MACHINES = TABS.register(
             "biocraft_machines",
             () -> CreativeModeTab.builder()
@@ -58,6 +58,8 @@ public final class ModCreativeTabs {
                     .icon(() -> new ItemStack(ModBlocks.ENZYME_CHAMBER))
                     .displayItems((parameters, output) -> {
                         output.accept(ModBlocks.ENZYME_CHAMBER_ITEM.get());
+                        output.accept(ModBlocks.DNA_ENCODER_ITEM.get());
+                        output.accept(ModBlocks.TRANSCRIBER_ITEM.get());
                     })
                     .build());
 
