@@ -11,8 +11,8 @@ import net.minecraft.world.item.ItemStack;
  * 解旋酶操作：1 个双链 DNA → 2 个单链 DNA（逐碱基对动态解旋，每 tick 1 bp）
  * <p>
  * 输入槽 0：dsDNA（complete=true 的 dna 物品）；输出槽 1/2：ssDNA（dna_single）。
- * 产出序列：编码链 = 原序 S 前缀 S[0:pos]（5'→3'，与 dsDNA 一致），
- * 模板链 = 其反向互补链 reverseComplement(S[0:pos])（3'→5' 展示），
+ * 产出序列：编码链 = 原序 S 前缀 S[0:pos]（5'→3'，与 dsDNA 完全一致），
+ * 模板链 = complement(S[0:pos]) 严格按 3'→5' 方向追加互补碱基（NBT 倒着写，不反向），
  * 两产物 kind 继承输入，complete = pos==total。
  * 双产物因 NBT 序列不同需两张产物卡，解旋中逐碱基生长可见（编码器同款动态）。
  * <p>
@@ -100,7 +100,8 @@ public class HelicaseOperation implements SequenceOperation {
         SequenceData.Kind kind = inputData != null ? inputData.kind() : SequenceData.Kind.GENE;
         boolean complete = pos >= state.total();
         String codingSeq = chain.substring(0, pos);
-        String templateSeq = SeqOps.reverseComplement(codingSeq);
+        // 模板链严格按 3'→5' 方向写：每 tick 读 S[pos-1] 追加互补碱基（complement，不反向）
+        String templateSeq = SeqOps.complementDna(codingSeq);
         ItemStack outTemplate = new ItemStack(ModItems.DNA_SINGLE.get());
         outTemplate.set(ModDataComponents.SEQUENCE.get(), new SequenceData(
                 SequenceData.SeqType.DNA, SequenceData.Strand.SS, kind, templateSeq, complete));
