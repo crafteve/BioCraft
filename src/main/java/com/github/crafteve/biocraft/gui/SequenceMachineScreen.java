@@ -86,6 +86,14 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         // 否则首帧渲染发生在 containerTick 之前，槽位停在 Menu 占位坐标
         // （5 个输入槽叠在同一位置"闪一下"再摊开，实测现象）
         tickScrolls();
+        // 诊断日志：GUI 打开时输出槽坐标与物品（定位"读档后 ADP 进 DNA 槽"显示问题）
+        if (menu.getKind() == SequenceMachineKind.DNA_ENCODER) {
+            for (int i = 5; i < 8; i++) {
+                net.minecraft.world.inventory.Slot s = menu.getSlot(i);
+                com.github.crafteve.biocraft.BioCraft.LOGGER.info(
+                        "SEQ-GUI slot{} x={} y={} item={}", i, s.x, s.y, s.getItem());
+            }
+        }
     }
 
     protected List<InputCard> buildInputCards(SequenceMachineKind kind) {

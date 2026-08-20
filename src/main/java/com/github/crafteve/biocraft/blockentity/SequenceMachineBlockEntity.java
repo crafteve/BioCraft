@@ -81,6 +81,12 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         switch (stepState.stage()) {
             case IDLE -> {
                 if (operation.canStart(inventory, stepState) && operation.init(inventory, stepState)) {
+                    com.github.crafteve.biocraft.BioCraft.LOGGER.info(
+                            "SEQ-MACHINE IDLE->EXTENDING {} pending='{}' slot5={} slot6={} slot7={}",
+                            worldPosition, stepState.pendingProgram(),
+                            inventory.getItem(DnaSynthesisOperation.SLOT_OUT_DNA),
+                            inventory.getItem(DnaSynthesisOperation.SLOT_OUT_ADP),
+                            inventory.getItem(DnaSynthesisOperation.SLOT_OUT_PPI));
                     materialize();
                     setChanged();
                 }
@@ -104,6 +110,11 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
                 // 编码器（pendingProgram 已空）停在 IDLE 等玩家重新提交程序
                 if (inventory.getItem(operation.outputSlot()).isEmpty()) {
                     stepState.setStage(SeqStepState.Stage.IDLE);
+                    com.github.crafteve.biocraft.BioCraft.LOGGER.info(
+                            "SEQ-MACHINE DONE->IDLE {} slot6={} slot7={}",
+                            worldPosition,
+                            inventory.getItem(DnaSynthesisOperation.SLOT_OUT_ADP),
+                            inventory.getItem(DnaSynthesisOperation.SLOT_OUT_PPI));
                     setChanged();
                 }
             }
@@ -113,6 +124,10 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
     /** 物化链前缀到产物槽（产物被取走后自动重建新物品） */
     private void materialize() {
         operation.materialize(inventory, stepState);
+        com.github.crafteve.biocraft.BioCraft.LOGGER.info(
+                "SEQ-MACHINE MATERIALIZE {} stage={} pos={}/{} slot5={}",
+                worldPosition, stepState.stage(), stepState.position(), stepState.total(),
+                inventory.getItem(DnaSynthesisOperation.SLOT_OUT_DNA));
     }
 
     /**
@@ -160,6 +175,12 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
             stepState.load(tag.getCompound("seqState"));
         }
         if (kind() == SequenceMachineKind.DNA_ENCODER) {
+            com.github.crafteve.biocraft.BioCraft.LOGGER.info(
+                    "SEQ-MACHINE LOAD {} stage={} pos={}/{} slot5={} slot6={} slot7={}",
+                    worldPosition, stepState.stage(), stepState.position(), stepState.total(),
+                    inventory.getItem(DnaSynthesisOperation.SLOT_OUT_DNA),
+                    inventory.getItem(DnaSynthesisOperation.SLOT_OUT_ADP),
+                    inventory.getItem(DnaSynthesisOperation.SLOT_OUT_PPI));
             restoreOutputSlots();
         }
     }
