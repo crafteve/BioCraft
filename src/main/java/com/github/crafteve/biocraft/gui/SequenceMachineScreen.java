@@ -109,7 +109,6 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             cards.add(new InputCard(2, "utp"));
             cards.add(new InputCard(3, "ctp"));
             cards.add(new InputCard(4, "gtp"));
-            cards.add(new InputCard(5, "atp"));
             return cards;
         }
         return List.of();
@@ -131,7 +130,8 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         }
         if (kind == SequenceMachineKind.TRANSCRIBER) {
             List<OutputCard> cards = new ArrayList<>();
-            cards.add(new OutputCard(6, "mrna", SequenceMachineMenu.OUT_CARD_DNA_W, true));
+            cards.add(new OutputCard(5, "mrna", SequenceMachineMenu.OUT_CARD_DNA_W, true));
+            cards.add(new OutputCard(6, "adp", SequenceMachineMenu.OUT_CARD_SUB_W, false));
             cards.add(new OutputCard(7, "ppi", SequenceMachineMenu.OUT_CARD_SUB_W, false));
             return cards;
         }

@@ -338,16 +338,16 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         }
         if (kind() == SequenceMachineKind.TRANSCRIBER) {
             if (slot == TranscriptionOperation.SLOT_TEMPLATE) {
-                return false; // 模板 KEEP，漏斗禁抽
+                return false;
             }
-            if (slot >= TranscriptionOperation.SLOT_ATP && slot <= TranscriptionOperation.SLOT_ENERGY) {
-                return false; // 左 NTP/ATP 只进不出
+            if (slot >= TranscriptionOperation.SLOT_ATP && slot <= TranscriptionOperation.SLOT_GTP) {
+                return false;
             }
             if (slot == TranscriptionOperation.SLOT_OUT_MRNA) {
                 SequenceData data = inventory.getItem(slot).get(ModDataComponents.SEQUENCE.get());
                 return data != null && data.complete();
             }
-            return true; // PPi 可抽
+            return true;
         }
         return true;
     }

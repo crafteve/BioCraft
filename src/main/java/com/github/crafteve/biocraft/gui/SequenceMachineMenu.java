@@ -310,15 +310,15 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                     {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
             };
             case TRANSCRIBER -> new int[][]{
-                    // 状态栏模板槽（9,8）+ 左5 NTP/ATP（纵向滚动）+ 右 mRNA/PPi（横向）
-                    {9, 8},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    // 状态栏模板槽（9,35 输入标签上方，不挡标题/进度）+ 左4 NTP（纵向，y60 起避开模板）+ 右 mRNA/ADP/PPi（横向）
+                    {9, 35},
+                    {INPUT_SCROLL_X + SLOT_X, 60 + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, 60 + SLOT_Y + CARD_STEP},
+                    {INPUT_SCROLL_X + SLOT_X, 60 + SLOT_Y + CARD_STEP * 2},
+                    {INPUT_SCROLL_X + SLOT_X, 60 + SLOT_Y + CARD_STEP * 3},
                     {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
                     {OUT_X + SLOT_X + 57, OUT_Y + SLOT_Y},
+                    {OUT_X + SLOT_X + 114, OUT_Y + SLOT_Y},
             };
             case HELICASE -> new int[][]{
                     // 输入 1 槽（左侧 guiv1 输入区），输出 2 槽（右侧 guiv1 输出区垂直双卡，复用酶工厂布局）

@@ -28,8 +28,8 @@ public class TranscriptionOperation implements SequenceOperation {
     public static final int SLOT_UTP = 2;
     public static final int SLOT_CTP = 3;
     public static final int SLOT_GTP = 4;
-    public static final int SLOT_ENERGY = 5;
-    public static final int SLOT_OUT_MRNA = 6;
+    public static final int SLOT_OUT_MRNA = 5;
+    public static final int SLOT_OUT_ADP = 6;
     public static final int SLOT_OUT_PPI = 7;
 
     private String lastError = "";
@@ -51,7 +51,6 @@ public class TranscriptionOperation implements SequenceOperation {
         if (state.stage() == SeqStepState.Stage.DONE) {
             return false;
         }
-        // 模板必须为完整单链模板链 3'→5'
         ItemStack tmpl = container.getItem(SLOT_TEMPLATE);
         SequenceData data = tmpl.get(ModDataComponents.SEQUENCE.get());
         Boolean isTemplate = tmpl.get(ModDataComponents.IS_TEMPLATE.get());
@@ -60,11 +59,9 @@ public class TranscriptionOperation implements SequenceOperation {
                 || isTemplate == null || isTemplate) {
             return false;
         }
-        // 输出有空位
-        if (!container.getItem(SLOT_OUT_MRNA).isEmpty() || !hasRoom(container, SLOT_OUT_PPI)) {
+        if (!container.getItem(SLOT_OUT_MRNA).isEmpty() || !hasRoom(container, SLOT_OUT_ADP) || !hasRoom(container, SLOT_OUT_PPI)) {
             return false;
         }
-        // 启动子检查（模板链 3'→5' 上找 ATATTA）
         if (!data.seq().contains(SeqOps.PROMOTER_TEMPLATE)) {
             lastError = "未找到启动子 " + SeqOps.PROMOTER_TEMPLATE + "（模板链 3'→5'）";
             return false;
@@ -121,21 +118,39 @@ public class TranscriptionOperation implements SequenceOperation {
             case 'G' -> SLOT_GTP;
             default -> SLOT_ATP;
         };
-        if (!hasAny(container, ntpSlot) || !hasAny(container, SLOT_ENERGY) || !hasRoom(container, SLOT_OUT_PPI)) {
+        // 输入仅需 NTP，功能 ATP 从原料 atp 池同步扣除；输出 ADP+PPi
+        boolean needExtraAtp = base != 'A';
+        if (!hasAny(container, ntpSlot) || !hasRoom(container, SLOT_OUT_ADP) || !hasRoom(container, SLOT_OUT_PPI)) {
             return StepResult.STALLED;
         }
+        if (needExtraAtp && !hasAny(container, SLOT_ATP)) {
+            return StepResult.STALLED;
+        }
+        // 对于 A，atp 槽的 1 个 atp 同时作 NTP 与功能 ATP，需保证 atp 槽至少 1 个（已检查）
         if (!SequenceContainerUtil.consumeOne(container, ntpSlot, ntp)) {
             return StepResult.STALLED;
         }
-        if (!SequenceContainerUtil.consumeOne(container, SLOT_ENERGY, "atp")) {
-            // 回滚 NTP 消耗
+        // 功能 ATP：A 时已随 NTP 消耗同步扣除，不另扣；非 A 时另扣 1 atp
+        if (needExtraAtp) {
+            if (!SequenceContainerUtil.consumeOne(container, SLOT_ATP, "atp")) {
+                SequenceContainerUtil.addOne(container, ntpSlot, ntp);
+                return StepResult.STALLED;
+            }
+        }
+        if (!SequenceContainerUtil.addOne(container, SLOT_OUT_ADP, "adp")) {
             SequenceContainerUtil.addOne(container, ntpSlot, ntp);
+            if (needExtraAtp) SequenceContainerUtil.addOne(container, SLOT_ATP, "atp");
             return StepResult.STALLED;
         }
         if (!SequenceContainerUtil.addOne(container, SLOT_OUT_PPI, "ppi")) {
-            // 回滚
+            // 回滚 ADP 与 NTP/ATP
+            ItemStack adp = container.getItem(SLOT_OUT_ADP);
+            if (!adp.isEmpty()) {
+                adp.shrink(1);
+                if (adp.isEmpty()) container.setItem(SLOT_OUT_ADP, net.minecraft.world.item.ItemStack.EMPTY);
+            }
             SequenceContainerUtil.addOne(container, ntpSlot, ntp);
-            SequenceContainerUtil.addOne(container, SLOT_ENERGY, "atp");
+            if (needExtraAtp) SequenceContainerUtil.addOne(container, SLOT_ATP, "atp");
             return StepResult.STALLED;
         }
         state.setPosition(state.position() + 1);
@@ -187,7 +202,7 @@ public class TranscriptionOperation implements SequenceOperation {
             case SLOT_UTP -> SequenceContainerUtil.matchesId(stack, "utp");
             case SLOT_CTP -> SequenceContainerUtil.matchesId(stack, "ctp");
             case SLOT_GTP -> SequenceContainerUtil.matchesId(stack, "gtp");
-            case SLOT_ENERGY -> SequenceContainerUtil.matchesId(stack, "atp");
+            case SLOT_OUT_MRNA, SLOT_OUT_ADP, SLOT_OUT_PPI -> false;
             default -> false;
         };
     }

@@ -35,7 +35,6 @@ public class TranscriberScreen extends SequenceMachineScreen {
     }
 
     private void drawStatusBarWithTemplate(GuiGraphics graphics) {
-        // 复用父类状态栏但加入模板槽背景
         graphics.drawString(font, title, leftPos + 8, topPos + 13, NAME_COLOR, false);
         int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
         int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
@@ -50,9 +49,8 @@ public class TranscriberScreen extends SequenceMachineScreen {
         int fill = total > 0 ? (int) ((imageWidth - 16) * pos / (double) total) : 0;
         graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + imageWidth - 16, topPos + 25, BAR_TRACK);
         if (fill > 0) graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + fill, topPos + 25, 0xFF7ED6DF);
-        // 模板槽背景（状态栏 9,8）
-        graphics.blit(SLOT_TEX, leftPos + 9 - 1, topPos + 8 - 1, 0, 0, 18, 18, 18, 18);
-        // 模板槽物品由 super.renderSlot 绘制（isActive true）
+        // 模板槽背景（移到 9,55 输入标签上方，不挡标题/进度）
+        graphics.blit(SLOT_TEX, leftPos + 9 - 1, topPos + 35 - 1, 0, 0, 18, 18, 18, 18);
     }
 
     private void drawTranscriptionPanel(GuiGraphics graphics) {
