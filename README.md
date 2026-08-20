@@ -1,8 +1,6 @@
 # BioCraft · 生物工艺
 
-> 硬核生物化学科技模组 | Minecraft 1.21.1 / NeoForge | 将真实的代谢通路、中心法则、酶动力学完整搬进 Minecraft
-
-<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=117094431790211&bvid=BV1VcgK6PERE&cid=40914062111&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+> 硬核生物化学科技模组 | Minecraft 1.21.1 / NeoForge | 将真实的代谢通路、中心法则、酶动力学完整且有创意地搬进 Minecraft
 
 ## 创意与设想
 
@@ -137,6 +135,10 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 - **环境**：Minecraft 1.21.1 / NeoForge 21.1.248 / Java 21 / Gradle 9.2.1 / ModDevGradle 2.0.143 / Parchment 2024.11.17
 - **构建**：`gradlew build`（产物 `build/libs/biocraft-1.0.0.jar`）；进游戏 `gradlew runClient`；datagen `gradlew runData`；引擎单测见 `tools/engineTest/`（28 用例 + 工作效率基准，先 `gradlew build` 再 javac 编译运行）
 - **架构**：唯一 `MachineBlock`（统一酶反应腔，酶由 0 槽物品动态解析）；`enzymes.json` 数据驱动配方；酶槽事件驱动 + 睡眠性能模型（引擎步进每 tick）；CDK 化学库（合并单 jar 嵌入）；FE 为固定活性物种（满能量自动停转回压）；细胞器相邻检测（规划中）
+
+## 灵感来源与致谢
+
+本模组的玩法灵感来源于 [AlChemistry（炼金化学）](https://www.curseforge.com/minecraft/mc-mods/alchemistry)：以真实化学原理驱动合成与反应；部分物品贴图借鉴自 AlChemistry，特此致谢。
 
 ## 更新日志
 

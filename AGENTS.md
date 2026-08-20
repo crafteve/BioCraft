@@ -13,16 +13,16 @@
 
 来自"标准 Minecraft 模组开发"的代理很容易在这些地方出错。它们是硬性规则，而非建议：
 
-- **机器不以 FE / Forge Energy 作为输入**。机器以 **ATP 分子**驱动（每 tick 消耗）。FE 仅作为输出端，"ATP合酶发电机"（约 1 ATP ≈ 100 FE）为其他模组（AE2、Mekanism）供电。唯一的 FE 输入端机器是电化学合成器——刻意做成高耗低效，让"用电合成"显得代价高昂
-- **酶工厂由 `enzymes.json` 结构化数据表解析创建**——每个工厂方块是一个**化学热力学 + 动力学反应模拟器**：遵循米氏方程（Km/kcat/多底物共享分母）、化学热力学（Keq 绝不缩放/Haldane 逆向 Vmax/温度修正），反应式即配方。**没有任何原版风格的机器合成配方**。中心法则链为信息层（序列机家族，独立于化学引擎：不做速率/平衡模拟、保留化学计量，见 1.5 进度——第一波 seq 引擎/编码器/转录仪已落地）
+- **机器不以 FE / Forge Energy 作为输入：**机器不是传统的 Forge 耗电工厂（消耗FE，运行配方），而是一种现实世界的化学反应模拟器，没有固定FE消耗，没有固定配方，一切都是基于化学世界重新设计，重新构建。
+- **酶工厂由 `enzymes.json` 结构化数据表解析创建**——每个工厂方块是一个**化学热力学 + 动力学反应模拟器**：遵循米氏方程（Km/kcat/多底物共享分母）、化学热力学（Keq /Haldane 逆向 Vmax/温度修正），反应式即配方。**没有任何原版风格的机器合成配方**。中心法则链为信息层（序列机家族，独立于化学引擎：不做速率/平衡模拟、保留化学计量，见 1.5 进度——第一波 seq 引擎/编码器/转录仪已落地）
 - **反应是多底物 / 多辅因子 / 多产物网络**，不是熔炉式"输入A→输出B"。机器通常需要 ATP + 氧化还原辅因子（NAD⁺/NADP⁺），并产出 ADP/AMP + NADH 等副产物，必须回收利用，否则产线堵塞
 - **能量 = 物品物流，而非电线**。ATP/ADP循环 与 NAD⁺/NADH循环 是需要玩家设计并维护的闭环
-- **没有升级阶级（MK2/MK3），也没有物理多方块结构**。升级靠"酶插件"（酶插件物品，NBT 驱动）插入机器；大型细胞器靠相邻方块检测 + 控制核心实现，绝不构造物理多方块结构
+- **没有升级阶级（MK2/MK3），也没有物理多方块结构**。升级靠中心法则合成更强大的酶插入机器；大型细胞器靠相邻方块检测 + 环境变量如pH、温度实现，绝不构造物理多方块结构
 
 ### 1.3 系统机制
 
 - **物质层级**：物品即原子/分子/离子（碳/氢/氧/氮/磷、H₂O、葡萄糖 C₆H₁₂O₆、ATP/ADP、20 种氨基酸、核苷酸 A/C/G/T/U、NAD⁺/NADH、NTP、DNA模板/mRNA/新生肽链/成熟酶蛋白）。堆叠数 = 分子个数，严格化学计量比（如 1 葡萄糖 = 6C + 12H + 6O）
-- **物品区分**：Tooltip 中的化学式为权威依据；不同分子类型使用 ItemColor 动态着色；在基础纹理上叠加原子符号图标
+- **物品区分**：json 中的注册字段为权威依据；不同分子使用 ItemColor 动态着色；在基础纹理上叠加原子符号图标
 - **中心法则信息层（第一波已落地，2026-08-18）**：seq 引擎 + 序列机家族（编码器/转录仪已实现；解旋/复制/翻译/装载/折叠/试剂盒待开发），作为未来蛋白质（酶工厂）获取途径；信息传递是离散逐位步进（不做速率/平衡模拟），与化学引擎（酶反应腔）分工协作
 - **酶动力学 = 纯米氏方程 + 化学热力学模拟**：机器的行为完全由引擎计算（平衡位置 = Keq 判决点、饱和有界、产物回压、ATP/NAD⁺ 参与速率），GUI 统一展示 v-t 通量/平衡区/速率读数，无特殊 GUI 变体；**温度影响待实现**（引擎温度修正 van't Hoff/Q10 已就绪，外部温度源未接入）
 
@@ -97,7 +97,7 @@
 
 ### 1.6 开发流程
 
-迭代循环：编写代码 → `gradlew build` 验证编译 → `gradlew runClient` 进游戏实测 → `gradlew runData` 生成资源 → 提交 commit。具体命令见第二章，任务执行规范见第四章
+迭代循环：编写代码 → `gradlew build` 验证编译 → `gradlew runData` 生成资源 → `gradlew runClient` 进游戏实测 → 提交 commit。具体命令见第二章，任务执行规范见第四章
 
 贴图迭代循环：`TextureScript` 生成贴图 → Task 派 vision 子代理读图审查 → 改脚本重新生成，满意后拷入 `src/main/resources` 正式使用
 
@@ -135,7 +135,7 @@
 - `gradlew` / `gradlew.bat` — Gradle wrapper 启动脚本（Windows 上 gradlew.bat 依赖 JAVA_HOME 定位 JDK）
 - `.gitignore` — 忽略 `build/`、`.gradle/`、**`.vscode/`**、`src/generated/.cache/` 等；**`run/`、`docs/`、`item/`、`net/`、`run-client-log.txt`、`.opencode/` 自 2026-08-18 起全部本地保留不入库**（c33fb08：运行环境配置与存档、内部设计文档、贴图源文件、反编译源码排查残留、opencode 配置均不适合开源；`run/config/emi.css` 手改 dev-mode 见欠账 21）。注意 `.vscode/` 被忽略，工作区配置不提交
 - `.gitattributes` — 行尾/文本属性
-- `README.md` — 项目介绍（中文，含 B 站视频嵌入与当前进度章节，与本文档 1.5 进度同步维护；无图片/emoji）
+- `README.md` — 项目介绍（中文，含当前进度章节与灵感来源致谢，与本文档 1.5 进度同步维护；无图片/emoji）
 - `docs/` — 内部设计文档目录（本地私有，gitignore 不入库）：《糖酵解热力学数据库_2026-08-13.md》（酶数据数值溯源：eQuilibrator ΔG°′/BRENDA Km/kcat 出处与换算过程，enzymes.json 的权威数据源）、《全部SMILES结构式清单_2026-08-13.md》（全部化合物 SMILES 核对清单：PubChem canonical 与 eQuilibrator 双源交叉、InChIKey 前 25 位连通性校验，substances.json 的 SMILES 权威对照，tools/smilesCheck 的期望表来源）、《酶容器方块概念设计_2026-08-16.md》（酶容器方块视觉概念设计：定位/设计语言调色板/主题色槽位表/六面结构图/状态语义/渲染机制方案，配图由 `tools/texturegen/ChamberAssets.java` 程序化生成）、《中心法则信息层设计_2026-08-18.md》（序列机体系策划稿：机器族/tRNA 体系/解锁系统/三波开发阶段，见 1.5 与远期规划）
 - `TEMPLATE_LICENSE.txt` — 模板许可
 - `tools/texturegen/` — 程序化贴图工具链（`PixelCanvas.java` 像素画 DSL + `TextureScript.java` 示例脚本 + `GuiAssets.java` GUI 资产生成器 + `ChamberAssets.java` 酶容器方块概念稿与正式贴图生成器），纯 JDK 21 AWT 零依赖，与 Gradle 构建完全隔离。编译 `javac -encoding UTF-8 -d tools/texturegen/out tools/texturegen/*.java`，运行 `java -cp tools/texturegen/out TextureScript [输出目录]`；输出目录 `tools/texturegen/output/` 已 gitignore，正式贴图确定后拷入 `src/main/resources`
