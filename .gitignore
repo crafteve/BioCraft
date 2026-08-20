@@ -36,11 +36,14 @@ bin/
 .DS_Store
 
 ### Minecraft Modding ###
-# run/ docs/ item/ 本地私有目录（2026-08-18 起取消推送）：运行环境配置与存档、
-# 内部设计文档、贴图源文件均不适合开源，仅本地保留；net/ 为反编译源码排查残留
+# run/ docs/ 本地私有目录（2026-08-18 起取消推送）：运行环境配置与存档、
+# 内部设计文档均不适合开源，仅本地保留；net/ 为反编译源码排查残留
+# 注意：item/ 必须锚定根目录（/item/），否则裸模式会误伤
+# src/main/java/.../item/ 源码包与 src/generated/.../models/item/（曾实测吞掉
+# SequenceItem.java 与序列物品模型 JSON，导致克隆仓库编译失败）
 run/
 docs/
-item/
+/item/
 net/
 run-client-log.txt
 **/src/generated/**/.cache/
