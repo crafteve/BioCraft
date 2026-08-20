@@ -14,7 +14,7 @@
 来自"标准 Minecraft 模组开发"的代理很容易在这些地方出错。它们是硬性规则，而非建议：
 
 - **机器不以 FE / Forge Energy 作为输入**。机器以 **ATP 分子**驱动（每 tick 消耗）。FE 仅作为输出端，"ATP合酶发电机"（约 1 ATP ≈ 100 FE）为其他模组（AE2、Mekanism）供电。唯一的 FE 输入端机器是电化学合成器——刻意做成高耗低效，让"用电合成"显得代价高昂
-- **酶工厂由 `enzymes.json` 结构化数据表解析创建**——每个工厂方块是一个**化学热力学 + 动力学反应模拟器**：遵循米氏方程（Km/kcat/多底物共享分母）、化学热力学（Keq 绝不缩放/Haldane 逆向 Vmax/温度修正），反应式即配方。**没有任何原版风格的机器合成配方**。中心法则链（蛋白质来源：DNA编码器 → 转录仪 → 翻译仪 → 内质网折叠器 → 高尔基体修饰仪）为未来设计，尚未实现
+- **酶工厂由 `enzymes.json` 结构化数据表解析创建**——每个工厂方块是一个**化学热力学 + 动力学反应模拟器**：遵循米氏方程（Km/kcat/多底物共享分母）、化学热力学（Keq 绝不缩放/Haldane 逆向 Vmax/温度修正），反应式即配方。**没有任何原版风格的机器合成配方**。中心法则链为信息层（序列机家族，独立于化学引擎：不做速率/平衡模拟、保留化学计量，见 1.5 进度——第一波 seq 引擎/编码器/转录仪已落地）
 - **反应是多底物 / 多辅因子 / 多产物网络**，不是熔炉式"输入A→输出B"。机器通常需要 ATP + 氧化还原辅因子（NAD⁺/NADP⁺），并产出 ADP/AMP + NADH 等副产物，必须回收利用，否则产线堵塞
 - **能量 = 物品物流，而非电线**。ATP/ADP循环 与 NAD⁺/NADH循环 是需要玩家设计并维护的闭环
 - **没有升级阶级（MK2/MK3），也没有物理多方块结构**。升级靠"酶插件"（酶插件物品，NBT 驱动）插入机器；大型细胞器靠相邻方块检测 + 控制核心实现，绝不构造物理多方块结构
@@ -23,12 +23,13 @@
 
 - **物质层级**：物品即原子/分子/离子（碳/氢/氧/氮/磷、H₂O、葡萄糖 C₆H₁₂O₆、ATP/ADP、20 种氨基酸、核苷酸 A/C/G/T/U、NAD⁺/NADH、NTP、DNA模板/mRNA/新生肽链/成熟酶蛋白）。堆叠数 = 分子个数，严格化学计量比（如 1 葡萄糖 = 6C + 12H + 6O）
 - **物品区分**：Tooltip 中的化学式为权威依据；不同分子类型使用 ItemColor 动态着色；在基础纹理上叠加原子符号图标
-- **中心法则链（尚未开始）**：转录仪 → 翻译仪 → 内质网折叠器 → 高尔基体修饰仪，作为未来蛋白质（酶工厂）获取途径的设计方向；DNA 编码器已移除（重构为统一酶反应腔，见 1.5 进度）
+- **中心法则信息层（第一波已落地，2026-08-18）**：seq 引擎 + 序列机家族（编码器/转录仪已实现；解旋/复制/翻译/装载/折叠/试剂盒待开发），作为未来蛋白质（酶工厂）获取途径；信息传递是离散逐位步进（不做速率/平衡模拟），与化学引擎（酶反应腔）分工协作
 - **酶动力学 = 纯米氏方程 + 化学热力学模拟**：机器的行为完全由引擎计算（平衡位置 = Keq 判决点、饱和有界、产物回压、ATP/NAD⁺ 参与速率），GUI 统一展示 v-t 通量/平衡区/速率读数，无特殊 GUI 变体；**温度影响待实现**（引擎温度修正 van't Hoff/Q10 已就绪，外部温度源未接入）
 
 ### 1.4 技术架构
 
 - 只写一个通用 `MachineBlock` 类，**不要为每种机器单独建方块类**；酶工厂方块时代结束后机器收敛为唯一的"酶反应腔"（enzyme_chamber）——一个方块 + 一个 BE 类型 + 一个 MenuType，酶由 0 槽（酶蛋白物品）动态解析，`EnzymeFactoryBlockEntity` 随插入的酶种构建对应引擎模拟器
+- 序列机家族为**第二方块类**（`SequenceMachineBlock`）：信息处理设备，与酶反应腔外观/交互/职责不同；每台序列机一个方块实例共享一个类（`SequenceMachineKind` **硬绑定处理器**，不做 0 槽动态解析——一台机器干一件事），共享一个 BE 类型 + 每机一个 MenuType
 - 配方由 **enzymes.json 结构化数据表**驱动（反应物/产物直接写物品注册名 + 化学计量系数 + Km，Keq/ΔH/kcat 等热力学与动力学参数随表直填），**绝不硬编码**；引擎在注册期对每条数据执行断言校验，失败即快速失败
 - 性能设计宗旨："事件驱动 + 睡眠"机制（睡眠已实现：无酶或全部物种浓度≈0 时跳过引擎步进；事件驱动 = 输入槽变动时唤醒计算为设计方向，当前为每 tick 步进）
 - 细胞器（**尚未实现**）：相邻机器检测 + 控制核心方块（线粒体 = 基质控制器 + 十字排列的 4 个 ETC 模块；内质网 = 腔体机器紧邻堆叠实现速度线性叠加；膜 = 装饰性透明无碰撞方块，提供区室化增益）；ATP合酶的 H⁺ 浓度机制同样未实现
@@ -138,6 +139,7 @@
 - `TEMPLATE_LICENSE.txt` — 模板许可
 - `tools/texturegen/` — 程序化贴图工具链（`PixelCanvas.java` 像素画 DSL + `TextureScript.java` 示例脚本 + `GuiAssets.java` GUI 资产生成器 + `ChamberAssets.java` 酶容器方块概念稿与正式贴图生成器），纯 JDK 21 AWT 零依赖，与 Gradle 构建完全隔离。编译 `javac -encoding UTF-8 -d tools/texturegen/out tools/texturegen/*.java`，运行 `java -cp tools/texturegen/out TextureScript [输出目录]`；输出目录 `tools/texturegen/output/` 已 gitignore，正式贴图确定后拷入 `src/main/resources`
 - `tools/engineTest/` — 化学引擎独立单测（28 用例 + 工作效率基准段），纯 JDK 零依赖扮演"伪方块实体"验证引擎纯函数契约。运行前需先 `gradlew build`（生成主代码 class），再 `javac -encoding UTF-8 -cp build/classes/java/main -d tools/engineTest/out tools/engineTest/*.java` + `java -cp "build/classes/java/main;tools/engineTest/out" engineTest.EngineSelfTest`；退出码 0=全绿、1=有失败。基准段（PGI/TPI kcat9000/ALDO 64 三场景 wall-time，预热 100 tick + 3 次取中位数）结果存档于同目录 `benchmarks.md`（RK4 基线 vs Rosenbrock 对比）。输出目录 `tools/engineTest/out/` 已 gitignore
+- `tools/seqTest/` — 序列信息引擎独立单测（43 用例），纯 JDK 零依赖，镜像 engineTest 模式。运行前需先 `gradlew build`，再 `javac -encoding UTF-8 -cp build/classes/java/main -d tools/seqTest/out tools/seqTest/*.java` + `java -cp "build/classes/java/main;tools/seqTest/out" seqTest.SeqSelfTest`；退出码 0=全绿。守护契约：编解码双向一致/双射/无终止子/容量边界/损坏可检测/SeqOps 互补/密码子表完整性。输出目录 `tools/seqTest/out/` 已 gitignore
 - `tools/smilesCheck/` — 物质表 SMILES 批量校验程序（`SmilesCheck.java`，独立工具不进 mod 源码源集）。先 `javac -encoding UTF-8 -cp build/cdk/cdk-all.jar -d tools/smilesCheck/out tools/smilesCheck/SmilesCheck.java`，再从 substances.json 提取 id+SMILES 生成 actual.tsv，运行 `java -cp "build/cdk/cdk-all.jar;tools/smilesCheck/out" smilesCheck.SmilesCheck`（0=全过、1=有失败）。三连校验：CDK 可解析性、重原子组成一致、键序归一化后 Pattern 双向子图同构（连通性口径，芳香/电荷差异算记法差异，与《全部SMILES结构式清单_2026-08-13.md》对照）；清单无对照条目（thymine/OH⁻/Fe³⁺/H⁺/5 原子）也做可解析性检查。期望表注意事项：立体标记（[C@H]）会让 VF2 双向判定不对称，F16P 期望须用中性无立体写法。升级 CDK 或新增分子后重跑；out/ 与 actual.tsv 已 gitignore
 
 ### 2.2 构建与运行目录
@@ -161,11 +163,12 @@
 ```
 com.github.crafteve.biocraft
 ├── BioCraft.java                 # 瘦身为纯装配：注册各 init 注册中心（无功能实现）
-├── BioCraftClient.java           # 客户端装配：菜单屏幕绑定 + 方块/物品染色（BlockColor 按 BE 缓存酶主题色给贴片元素 tint，ItemColor 物品固定空机暗灰）+ 烘焙模型包装（ModifyBakingResult 给酶反应腔挂自发光灯）
+├── BioCraftClient.java           # 客户端装配：菜单屏幕绑定（酶腔/编码器/转录仪）+ 方块/物品染色（BlockColor 按 BE 缓存酶主题色给贴片元素 tint，ItemColor 物品固定空机暗灰）+ 烘焙模型包装（ModifyBakingResult 给酶反应腔挂自发光灯）
 ├── init/
-│   ├── ModItems.java             # 读 substances.json → 动态注册 66 个 MoleculeItem；读 enzymes.json → 动态注册 14 个酶蛋白物品（enzyme_<酶id>，EnzymeItem）
-│   ├── ModBlocks.java            # 方块/BE 类型/MenuType/方块物品四件套：唯一酶反应腔 enzyme_chamber（方块/BE/菜单各一，酶由 0 槽动态解析）
-│   ├── ModCreativeTabs.java      # 多标签页架构：现有"生物工艺 · 分子"页 + "生物工艺 · 酶"页 + "生物工艺 · 机器"页
+│   ├── ModItems.java             # 读 substances.json → 动态注册 70 个 MoleculeItem + 序列物品族（dna/dna_single/mrna/polypeptide/trna_gene/trna/misfolded_protein/rna_polymerase）；读 enzymes.json → 动态注册 14 个酶蛋白物品（enzyme_<酶id>，EnzymeItem）
+│   ├── ModBlocks.java            # 方块/BE 类型/MenuType/方块物品四件套：酶反应腔 enzyme_chamber（酶由 0 槽动态解析）+ 序列机家族（dna_encoder/transcriber，SequenceMachineKind 硬绑定处理器，共享 BE 类型 + 每机一个 MenuType）
+│   ├── ModDataComponents.java    # 数据组件注册中心（重建）：SEQUENCE 序列载荷组件（Codec + StreamCodec，seq/ 保持零依赖）
+│   ├── ModCreativeTabs.java      # 多标签页架构：分子页 + 酶页 + 机器页 + 序列页（信息层物品族）
 │   ├── EnzymeFactoryRegistry.java # 读 enzymes.json → 构建酶数据档案（含 color 主题色字段；构建期跑引擎断言防火墙，失败快速失败）
 │   └── ModCapabilities.java      # 机器 capability 注册（酶工厂 ItemHandler.BLOCK → BE 懒加载 IO 适配器单例）
 ├── data/
@@ -178,6 +181,7 @@ com.github.crafteve.biocraft
 │   ├── MoleculeColors.java       # ItemColor 染色 + TooltipComponent 工厂 + 装饰器注册（Dist.CLIENT，含酶物品染色/装饰器）
 
 │   └── EnzymeItem.java           # 酶蛋白物品（新架构酶形态）：数据驱动注册、堆叠 64 = [E]、双层贴图数据表色染色、tooltip 沿用酶方块摘要
+│   └── SequenceItem.java          # 序列物品族（DNA/mRNA/多肽等聚合物）：DataComponent 读写 + tooltip 序列预览/程序解码摘要/半成品标记（AbbreviationProvider 复用）
 ├── client/                       # 客户端渲染辅助（分子结构图自绘管线 + 方块模型包装）
 │   ├── EmissiveLampBakedModel.java # 自发光指示灯模型包装：tintindex==1 灯 quad 光照全亮（ModifyBakingResult 挂载）
 │   ├── MoleculeTextureCache.java # CDK 解析+2D 坐标+Kekulize → 自绘键线骨架 → DynamicTexture 缓存
@@ -190,12 +194,19 @@ com.github.crafteve.biocraft
 │   ├── MoleculeTooltipLayout.java # 标签页标题移置 tooltip 末尾（GatherComponents 事件）
 │   └── MoleculeItemDecorator.java # 图标左上角缩写标注（IItemDecorator，白字黑阴影、z=200；超长缩写按可用宽度自适应缩小）
 ├── block/MachineBlock.java       # 唯一机器方块类：统一酶反应腔形态（无酶数据字段——酶由 BE 从 0 槽物品动态解析）+ 水平 FACING（放置正面朝玩家，4 向旋转/镜像支持）
+├── block/SequenceMachineBlock.java # 序列机方块类（第二方块类）：信息处理设备，一台机器一个方块实例（SequenceMachineKind 硬绑定处理器）+ 水平 FACING；方块类只承载放置/右键/掉落/tick/模型
 ├── blockentity/
 │   ├── MachineBlockEntity.java   # 机器 BE 基类：SimpleContainer（setChanged 转发 + getMaxStackSize 委托 slotStackLimit 钩子 + canPlaceItem/removeItem 门控钩子）+ NBT 存档 + MenuProvider + dropExtraContents 钩子
 │   ├── EnzymeFactoryBlockEntity.java # 酶反应腔：0 槽酶槽动态解析（换酶清空/同种增减只改活性）+ 浓度-槽位双向投影 + 每 tick 引擎步进 + 睡眠机制 + v-t 历史环形缓冲 + 定点存档 + 懒加载 IO 适配器单例 + fe 槽位映射/能量镜像结算 + 侧向 IO 模式（canInsertIntoSlot/canExtractFromSlot 三路门控统一入口）+ 主题色缓存（液体/灯 ARGB，换酶更新，客户端 BlockColor 数据源）
 │   ├── EnzymeFactoryItemHandler.java # 工业 IO 适配器（IItemHandlerModifiable）：0 槽酶槽过滤/物种过滤/全槽位可进可出（受 IO 模式门控）/O(1) 索引，复用 setChanged 浓度回写链
 │   ├── IoMode.java               # 侧向 IO 模式枚举（仅输入/仅输出/双向，GUI 按钮/管道/漏斗三路门控共用）
-│   └── MachineEnergyStorage.java  # 能量存储适配器（IEnergyStorage）：产物侧 fe 只可抽/反应物侧只可充，懒加载单例
+│   ├── MachineEnergyStorage.java  # 能量存储适配器（IEnergyStorage）：产物侧 fe 只可抽/反应物侧只可充，懒加载单例
+│   ├── SequenceOperation.java     # 序列机处理器接口（硬绑定）：canStart/init/step/materialize/finish + 槽位过滤 + 单体消耗（接口静态方法需前缀调用，欠账 33）
+│   ├── SeqStepState.java          # 序列机步进状态（stage/position/chain/pendingProgram，NBT 存档）
+│   ├── DnaSynthesisOperation.java # 编码器操作：程序文本 → 程序 DNA（每步消耗 dNTP，链源延伸）
+│   ├── TranscriptionOperation.java # 转录操作：DNA 模板 KEEP → mRNA 互补链（每步消耗 NTP，RNA 聚合酶 0 槽催化）
+│   ├── SequenceMachineKind.java   # 序列机类型注册表：方块实例 ↔ 处理器硬绑定 + 容器容量
+│   └── SequenceMachineBlockEntity.java # 序列机 BE 基类：链源模型编排（物化/停摆/取走重建/换模板归零 + 旧产物弹出/完成取走自动回 IDLE）+ 每 K tick 步进 + NBT 存档 + ContainerData 进度同步
 ├── reaction/                     # 化学引擎内核（纯 Java 零 MC 依赖，已完成 + 28 用例单测）
 │   ├── EnzymeFactoryData.java    # 酶数据档案 record（物品 id 直填/每物种自带 Km/直存 Keq/color 主题色直填）
 │   ├── EnzymeSimulator.java      # 每机一实例：Rosenbrock 积分 + 温度缓存 + 边界缩放 + 矛盾守卫细分
@@ -210,9 +221,13 @@ com.github.crafteve.biocraft
 ├── gui/
 │   ├── MachineMenu.java          # 酶反应腔菜单：0 槽酶槽（isActive=true vanilla 全权）+ 滚动卡片物种槽（isActive=false 全接管）+ DATA_ENZYME/IO 模式同步 + 打开数据包解析 + RestrictedSlot（mayPlace/mayPickup 双门控 IO 模式）
 │   └── MachineScreen.java        # 酶反应腔屏幕：gui_v1.png 手绘基底 + 滚动卡片 + v-t 折线图 + 平衡区 + 速率区 + IO 模式按钮（三态循环/悬停遮罩动画/tooltip）+ 无酶告示态（黑色居中提示）
+│   ├── SequenceMachineMenu.java  # 序列机通用菜单：槽位布局按 kind（服务端 data 实时读 BE，客户端 SimpleContainerData 收广播）+ quickMoveStack
+│   ├── SequenceMachineScreen.java # 序列机通用屏幕：机器槽 + 进度条 + 阶段文本（纯色面板 MVP，正式基底待 texturegen）
+│   └── EncoderScreen.java        # DNA 编码器屏幕：文本编辑器（EditBox）+ 模板按钮 + 客户端编码预览（seq/ 纯核心即时算 bp）
 ├── network/                      # 网络载荷（NeoForge payload 机制）
-│   ├── ModNetwork.java           # 载荷注册中心（RegisterPayloadHandlersEvent 装配 playToServer 通道）
-│   └── ServerboundSetIoModePacket.java # IO 模式切换包（GUI 按钮 → 服务端：方块坐标 + 区域 + 模式，服务端校验后写 BE）
+│   ├── ModNetwork.java           # 载荷注册中心（RegisterPayloadHandlersEvent 装配 playToServer 通道：IO 模式 + 序列程序提交）
+│   ├── ServerboundSetIoModePacket.java # IO 模式切换包（GUI 按钮 → 服务端：方块坐标 + 区域 + 模式，服务端校验后写 BE）
+│   └── ServerboundSequenceProgramPacket.java # 程序文本提交包（编码器编辑器 → 服务端 BE，换文本 = 换模板语义：归零 + 旧产物弹出）
 ├── compat/                       # 配方显示 mod 兼容层（JEI/EMI 均为可选依赖，compileOnly + run/mods）
 │   ├── EnzymeRecipeDisplay.java  # 配方展示只读 DTO（零 JEI/EMI 依赖，两套显示层共享，新增酶自动生效）
 │   ├── EnzymeEquation.java       # 反应方程式共享分段构建（GUI 与物品 tooltip 同一份逻辑，浅底/深底两套配色）
@@ -223,8 +238,9 @@ com.github.crafteve.biocraft
 └── datagen/
     ├── ModDataGen.java           # GatherDataEvent 装配
     ├── SubstanceModelProvider.java # 每物质两层模型 JSON（容器层 + 内容物层）
-    ├── SubstanceLanguageProvider.java # en_us/zh_cn 语言生成（含类别/摩尔质量 key）
-    └── MachineModelProvider.java # 机器模型生成：酶反应腔多元素模型（主元素六面 base + 12 贴片元素 tintindex 分区 0=液体/1=灯 + blockstate FACING 四向）+ 酶蛋白物品双层 generated（DNA 编码器与序列物品模型已随其移除）
+    ├── SequenceItemModelProvider.java # 序列物品模型生成：两层容器模型（复用分子容器贴图，CONTAINERS 映射随新物品补条目）
+    ├── SubstanceLanguageProvider.java # en_us/zh_cn 语言生成（含类别/摩尔质量 key + 序列物品/机器名）
+    └── MachineModelProvider.java # 机器模型生成：酶反应腔多元素模型（主元素六面 base + 12 贴片元素 tintindex 分区 0=液体/1=灯 + blockstate FACING 四向）+ 酶蛋白物品双层 generated + 序列机方块占位 cube 模型（blockstate FACING 四向 + 物品模型 parent）
 ```
 
 ### 2.5 其他环境
@@ -264,7 +280,7 @@ com.github.crafteve.biocraft
 14. **BlockEntity.setRemoved 双触发陷阱**：`setRemoved()` 不只方块破坏时调用，**世界卸载/区块卸载同样触发**（Level 卸载 chunk 时清理 BE）。掉落实体/玩家反馈类逻辑**禁止放 setRemoved**，否则进出存档会误触发（实测：DNA 编码器缓冲池碱基每次进出存档爆一地，该机器已移除但规则仍适用）。正确位置是方块类的 `Block.onRemove`（仅方块被破坏/替换时触发），通过 `BlockEntity` 的 `dropExtraContents(Level, BlockPos)` 类钩子统一调用
 15. **视觉审查子代理**：vision agent 定义在 `.opencode/agents/`，启动时加载，修改后必须重启 opencode 才生效；Task 派发时给出图片绝对路径与审查要点，子代理无 edit 权限只能读图返回文字；mimo-v2.5 描述精度不足已弃用，主用 qwen3.7-plus，若在 OpenCode Go 订阅出现额度/速率限制或精度下降，换备选视觉模型（qwen3.6-plus / qwen3.8-max / gpt-5.6-luna）
 16. **贴图工具链编码**：`tools/texturegen` 的 javac 必须带 `-encoding UTF-8`（Windows 默认 GBK 会编译失败），输出目录 gitignore，正式贴图需手动拷入 `src/main/resources`，工具脚本不进 mod 源码源集
-17. **引擎零依赖隔离门禁**：`reaction/` 包只能 import `java.*`（当前仅 java.util.*）；`tools/engineTest` 的 javac classpath 只含 `build/classes/java/main`（无 MC 类），引擎若意外引入 MC 依赖编译直接失败——这是天然门禁，新增引擎代码时保持此约束
+17. **引擎零依赖隔离门禁**：`reaction/` 与 `seq/` 包只能 import `java.*`；`tools/engineTest`、`tools/seqTest` 的 javac classpath 只含 `build/classes/java/main`（无 MC 类），引擎/信息层若意外引入 MC 依赖编译直接失败——这是天然门禁，新增代码时保持此约束
 18. **引擎速率公式三大数学性质（勿改坏）**：①平衡精确——可逆多底物共享分母乘积形式下 v=0 时 ∏产物/∏底物 = Keq（Haldane 保证），Keq 绝不缩放红线由构建断言+收敛测试双重守护；②逆向 Vmax 由 `Vmax_f·∏KmP/(∏KmS·Keq)` 决定而非独立逆向数据（Keq 小时逆向极强是正确行为）；③饱和有界——高浓度速率 ≤ Vmax_f 不爆表
 19. **边界截断是正确物流行为不是 bug**：积分器（RK4 时代与现 Rosenbrock 通用）终值越界时全局同比缩放（scale=0 反应冻结）——产物满堆（上限 = 槽位容量 n 组 + 余量，见 KineticConstants.MAX_CONCENTRATION）、逆向底物满堆、固定活性资源耗尽（水解缺水/H⁺ 耗尽无法逆向）都会表现为"反应停摆"，物理语义正确，测试场景设计时必须给预期方向的产物留出容量空间
 20. **固定活性物种约定**：`{water, hydrogen_ion}` 不进速率方程（eQuilibrator 变换值已隐含 H₂O 活度 1/pH7）但参与化学计量结算（ENO 产水物品），反应物侧耗尽停供（水解必须供水）
@@ -284,6 +300,8 @@ com.github.crafteve.biocraft
     `public-f` = 公开 + 移除 final（NeoForge AT 语法，FML 加载时全局应用，dev 环境 ModDevGradle 自动应用——AT 不生效则 `slot.x =` 编译直接失败，天然验证）。随后滚动面板每 tick 把槽位坐标按滚动偏移写入 Slot.x/y（视口外槽位移 (-100,-100) 等效禁用），vanilla 的 findSlot/hoveredSlot/点击/双击收集/拖拽分裂/数字键/JEI-EMI U-R/tooltip 全部原生生效，零手动复刻。**注意组合**：①物品渲染仍自绘（renderSlot 对滚动槽空实现防双重渲染，CardScrollArea.draw 的 scissor 裁剪滚动视口）；②`Slot.isHighlightable()` 覆写返回 false 关闭 vanilla 高亮（renderSlotHighlight 是 static 且渲染循环内联、无法注入裁剪，滚动边缘高亮会溢出到图表区）——自绘高亮替代；③精妙存储还 AT 了 `AbstractContainerScreen` 的 draggingItem/isSplittingStack/quickCraftingRemainder/clickedSlot/findSlot 等私有字段以覆写 render() 复制循环——**本项目不需要**（保留自绘渲染路径，不复制循环）。**走过的弯路（勿回退）**：先做了"屏外坐标 + render 尾部覆写 hoveredSlot + 手动 mouseClicked"方案（可编译可运行但双击收集/触屏拖拽分裂有缺口且代码绕），AT 方案净删 ~70 行且全兼容
 30. **BE 客户端数据同步 + 裸模型物品 display（已踩坑 + 已解）**：①客户端 BE 无引擎/无 tick 时，"只存在于服务端的状态"（如酶主题色）必须走 BE 数据同步通道，否则客户端渲染恒读构造默认值（实测"方块外观不随换酶变化"静默 bug）：覆写 `getUpdateTag`（区块加载时下发；注意 vanilla 默认返回**空 tag**）+ `handleUpdateTag`（读回；字段缺失保留构造默认值防误读 0）+ `getUpdatePacket` 返回 `ClientboundBlockEntityDataPacket.create(this)`，服务端状态变化时调 `level.sendBlockUpdated(pos, state, state, 3)`（SignBlockEntity 同款标准姿势，源码实证：ChunkHolder.broadcastChanges → broadcastBlockEntityIfNeeded 发 data packet）。**关键第二层坑**：随 BlockUpdatePacket 下发的 state 与当前相同 → 客户端 `Level.setBlock` 因状态不变直接 no-op、不重烘焙该方块（源码实证，这导致"读档才刷新、热插拔不变色"）——BE 数据到达客户端（handleUpdateTag）后必须**主动调 `level.sendBlockUpdated` 请求重渲染**（客户端调用只走 LevelRenderer.blockChanged 标记 dirty，无递归）；更优：客户端 `setChanged` 分支（GUI 操作经菜单槽位同步触发）直接解析 0 槽刷新颜色 + 重渲染，与服务端 data packet 双通道互备（GUI 即时、管道/漏斗走包）。②裸 elements 方块模型作为物品渲染时缺 display 段：vanilla 方块物品的显示变换（gui 0.625 缩放+旋转/ground 0.25/fixed 0.5/第三人称 0.375/第一人称 0.4）来自 block/block 父模型（vanilla 资源实证），裸模型无 parent 会以原始 16×16 尺寸渲染（物品栏异常形态）——自定义元素模型必须显式补 vanilla block/block 同款 display + `gui_light=side`（物品栏侧面光照）+ particle 纹理键（破坏粒子用）
 31. **停摆信号 + 方块自发光（已踩坑 + 已解）**：①引擎"物理性停摆"信号要由引擎给出而非显示层推断：`EnzymeSimulator` 新增 `lastBoundaryScale`（step 内 minScale 落盘，含 hasSupply=false 提前返回分支置 0）+ `wasStalled()`（<1e-9 = 边界完全冻结：产物/逆向底物满堆、固定活性资源耗尽；部分截断"攒余量"、空闲、平衡不算）——方块实体每 tick 判定、状态翻转时把灯色缓存切红并复用主题色更新包通道（客户端零改动）；engineTest 27 守护信号契约（产物满堆逆向越界 → true，腾容量 → false）。②vanilla 方块模型无自发光属性，标准做法是**烘焙后包装 BakedModel**：`ModelEvent.ModifyBakingResult` 遍历 `Map<ModelResourceLocation, BakedModel>` 替换目标模型（注意 1.21.1 的 `ModelResourceLocation` 是 **record（id + variant）**，要用 `key.id().getNamespace()/getPath()`，没有 getNamespace 方法）；**key.id() 是方块注册名（如 biocraft:enzyme_chamber，无 block/ 前缀）**——`BlockModelShaper.stateToModelLocation` 实证：id = `BuiltInRegistries.BLOCK.getKey(block)`，误写成模型资源路径（"block/enzyme_chamber"）会导致包装静默不命中（实测"夜晚不自发光"根因）；包装类 getQuads 对目标 tintindex 的 quad 应用 `QuadTransformers.settingMaxEmissivity()`（光照全亮；物品模型 key 为 item/ 前缀不命中，不影响物品渲染）——发光色仍由 BlockColor 染色决定，包装只改光照不改颜色
+32. **1.21.1 的 appendHoverText 签名（已踩坑）**：参数 2 是 `TooltipContext`，但它是 **`Item` 的嵌套接口**（`Item.TooltipContext`）——继承 Item 的子类可非限定名直接使用、无需 import；`import net.minecraft.world.item.TooltipContext` 会编译失败（该路径无此类，1.21.2+ 才独立为顶层类）。签名：`appendHoverText(ItemStack, TooltipContext, List<Component>, TooltipFlag)`（`@Nullable Level` 旧签名已移除，编译报"不覆盖超类型方法"）
+33. **1.21.1 的 ExtraCodecs 无 enumCodec（已踩坑）**：`ExtraCodecs.enumCodec(Class)` 是 1.21.4+ 才有的，1.21.1 编译报"找不到符号"——枚举 Codec 手写等价实现：`Codec.STRING.xmap(s -> Enum.valueOf(clazz, s), Enum::name)`（ModDataComponents.SequenceDataCodecs 先例）。另：**接口静态方法不被实现类继承**——`SequenceOperation.matchesId/consumeOne` 在实现类中必须用 `SequenceOperation.` 前缀调用（DnaSynthesis/Transcription 曾因此编译失败）
 
 ## 第三章 编码与开发规范
 
