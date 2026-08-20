@@ -69,30 +69,26 @@ public class SequenceItem extends Item implements AbbreviationProvider {
         switch (data.type()) {
             case DNA -> appendDnaTooltip(data, tooltip, stack, isTemplate);
             case MRNA -> {
-                tooltip.add(Component.literal("§7mRNA 5'-" + truncate(seq) + "-3'  §8(" + seq.length() + " nt)"));
-                if (!data.complete()) {
-                    tooltip.add(Component.literal("§7合成中…"));
-                }
+                String state = data.complete() ? "§a完整" : "§7合成中…";
+                tooltip.add(Component.literal("§7[mRNA] mRNA §8(" + seq.length() + " nt) " + state));
+                tooltip.add(Component.literal("§7 5'-" + truncate(seq, 10) + "-3'"));
+                tooltip.add(Component.literal("§8按住 Shift 彩色序列 / Ctrl 程序"));
             }
             case POLYPEPTIDE -> {
-                tooltip.add(Component.literal("§7肽链 " + truncate(seq) + "  §8(" + seq.length() + " aa)"));
-                if (!data.complete()) {
-                    tooltip.add(Component.literal("§c未完成（折叠机拒绝）"));
-                }
+                String state = data.complete() ? "§a完整" : "§c未完成（折叠机拒绝）";
+                tooltip.add(Component.literal("§7[肽链] §8(" + seq.length() + " aa) " + state));
+                tooltip.add(Component.literal("§7 " + truncate(seq, 10)));
+                tooltip.add(Component.literal("§8按住 Shift 彩色序列"));
             }
         }
     }
 
     /**
-     * DNA（双链/单链）tooltip 三态：
+     * DNA tooltip 三态（统一：第一行链型徽章，第二行简写碱基，第三行提示）：
      * <ul>
-     *   <li>默认：第一行灰白 5'-前 10 碱基…-3'（含 bp 数，合成中并入行尾）；
-     *       第二行"按住 Shift 显示碱基序列"；第三行"按住 Ctrl 显示程序"</li>
-     *   <li>Shift：完整碱基序列，逐碱基按 dNTP 主题色着色（A/T/C/G =
-     *       dATP/dTTP/dCTP/dGTP 物品色），首行 5' 白标、末行 3' 白标，
-     *       非模板链显示 3'→5'（方向相反），每行碱基数按 tooltip 可用宽度自适应</li>
-     *   <li>Ctrl：解码出的程序全文，语法高亮 + 保留缩进格式
-     *       （ProgramHighlight，与编辑器配色一致）</li>
+     *   <li>默认：第一行 [DNA] dsDNA/ssDNA 编码链/模板链 (bp) 完整/合成中；第二行 5'-ATC…-3'；第三行 Shift/Ctrl 提示</li>
+     *   <li>Shift：单行完整彩色序列，U 黄，首尾白标</li>
+     *   <li>Ctrl：程序高亮</li>
      * </ul>
      */
     private static void appendDnaTooltip(SequenceData data, List<Component> tooltip, ItemStack stack, Boolean isTemplate) {
@@ -113,20 +109,23 @@ public class SequenceItem extends Item implements AbbreviationProvider {
             }
             return;
         }
-        boolean isNonTemplate = isTemplate != null && !isTemplate;
-        String dirLeft = isNonTemplate ? "3'-" : "5'-";
-        String dirRight = isNonTemplate ? "-5'" : "-3'";
+        String state = data.complete() ? "§a完整" : "§7合成中…";
+        String strandLabel;
+        String unit = data.strand() == SequenceData.Strand.DS ? "bp" : "nt";
+        if (data.strand() == SequenceData.Strand.DS) {
+            strandLabel = "dsDNA";
+        } else if (isTemplate != null) {
+            strandLabel = isTemplate ? "ssDNA 编码链" : "ssDNA 模板链";
+        } else {
+            strandLabel = "ssDNA";
+        }
+        tooltip.add(Component.literal("§7[DNA] " + strandLabel + " §8(" + seq.length() + " " + unit + ") " + state));
+        boolean isTemplateStrand = isTemplate != null && !isTemplate;
+        String dirLeft = isTemplateStrand ? "3'-" : "5'-";
+        String dirRight = isTemplateStrand ? "-5'" : "-3'";
         String head = seq.length() <= 10 ? seq : seq.substring(0, 10) + "…";
-        MutableComponent line1 = Component.literal("§7" + dirLeft + head + dirRight + "  §8(" + seq.length() + " bp)");
-        if (!data.complete()) {
-            line1.append(Component.literal(" §7合成中"));
-        }
-        tooltip.add(line1);
-        if (isTemplate != null) {
-            tooltip.add(Component.literal(isTemplate ? "§7编码链" : "§7模板链"));
-        }
-        tooltip.add(Component.literal("§8按住 Shift 显示碱基序列"));
-        tooltip.add(Component.literal("§8按住 Ctrl 显示程序"));
+        tooltip.add(Component.literal("§7 " + dirLeft + head + dirRight));
+        tooltip.add(Component.literal("§8按住 Shift 彩色序列 / Ctrl 程序"));
     }
 
     /**
