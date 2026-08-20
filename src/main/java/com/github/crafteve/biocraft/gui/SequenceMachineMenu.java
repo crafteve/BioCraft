@@ -219,7 +219,7 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
         private final SequenceOperation op;
 
         MachineSlot(Container container, int index, int x, int y, SequenceOperation op) {
-            super(container, index, x, y, 64);
+            super(container, index, x, y, kind == SequenceMachineKind.HELICASE ? 1 : 64);
             this.op = op;
         }
 

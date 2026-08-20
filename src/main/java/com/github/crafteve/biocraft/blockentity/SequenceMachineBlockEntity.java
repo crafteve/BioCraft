@@ -295,6 +295,14 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
     }
 
     @Override
+    protected int slotStackLimit() {
+        if (kind() == SequenceMachineKind.HELICASE) {
+            return 1;
+        }
+        return 64;
+    }
+
+    @Override
     protected boolean canPlaceItemInternal(int slot, ItemStack stack) {
         return operation.isItemValidForSlot(slot, stack);
     }

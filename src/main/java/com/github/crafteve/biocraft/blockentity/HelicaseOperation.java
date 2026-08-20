@@ -112,6 +112,18 @@ public class HelicaseOperation implements SequenceOperation {
         outCoding.set(ModDataComponents.IS_TEMPLATE.get(), true);
         container.setItem(SLOT_OUT_A, outTemplate);
         container.setItem(SLOT_OUT_B, outCoding);
+        // feat1：转录同时同步剪除 input 5'→3'（剩余 dsDNA，随 pos 前推进）
+        if (!complete) {
+            String remain = chain.substring(pos);
+            ItemStack inStack = container.getItem(SLOT_IN_DNA);
+            if (!inStack.isEmpty()) {
+                SequenceData inData = inStack.get(ModDataComponents.SEQUENCE.get());
+                if (inData != null) {
+                    inStack.set(ModDataComponents.SEQUENCE.get(), new SequenceData(
+                            SequenceData.SeqType.DNA, SequenceData.Strand.DS, kind, remain, true));
+                }
+            }
+        }
     }
 
     @Override

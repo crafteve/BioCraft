@@ -201,15 +201,8 @@ public class HelicaseScreen extends SequenceMachineScreen {
         int baseY = pngY + 11;
         if (!seq.isEmpty()) {
             int window = (cardW - 34) / 7;
-            // 模板链 3'→5' 显示首端窗口以产生滚动（rc 前缀首端随解旋前推进），其余 5'→3' 显示末端窗口
-            int from, to;
-            if ("模板链".equals(label)) {
-                from = 0;
-                to = Math.min(window, seq.length());
-            } else {
-                from = Math.max(0, seq.length() - window);
-                to = seq.length();
-            }
+            int from = Math.max(0, seq.length() - window);
+            int to = seq.length();
             for (int i = from; i < to && baseX < cardX + cardW - 10; i++) {
                 char base = seq.charAt(i);
                 int color = switch (base) {

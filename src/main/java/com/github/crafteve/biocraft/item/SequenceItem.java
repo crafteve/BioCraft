@@ -98,8 +98,7 @@ public class SequenceItem extends Item implements AbbreviationProvider {
     private static void appendDnaTooltip(SequenceData data, List<Component> tooltip, ItemStack stack, Boolean isTemplate) {
         String seq = data.seq();
         if (Screen.hasShiftDown()) {
-            boolean dirIsTemplate = isTemplate == null || isTemplate;
-            tooltip.addAll(coloredBases(seq, dirIsTemplate));
+            tooltip.addAll(coloredBases(seq, isTemplate));
             if (isTemplate != null) {
                 tooltip.add(Component.literal(isTemplate ? "§7编码链 (5'→3')" : "§7模板链 (3'→5')"));
             }
@@ -139,15 +138,23 @@ public class SequenceItem extends Item implements AbbreviationProvider {
      * 按屏宽分行保证单行不超可用宽度、永不被 MC 二次折行；
      * 首行 5' 白标、末行 3' 白标（非模板链则 3'/5' 对调，显示 3'→5'）
      */
-    private static List<Component> coloredBases(String seq, boolean isTemplate) {
-        // 可用宽度 = 屏幕宽度 - 40（tooltip 左右边距）；最小 120px 兜底
-        int avail = Math.max(120, net.minecraft.client.Minecraft.getInstance()
-                .getWindow().getGuiScaledWidth() - 40);
-        int perLine = Math.max(20, avail / 6);
+    private static List<Component> coloredBases(String seq, Boolean isTemplate) {
+        // helicase 单链（带 IS_TEMPLATE）一行完整显示，避免莫名换行；其余按屏宽自适应
+        int perLine;
+        boolean dirIsTemplate;
+        if (isTemplate == null) {
+            int avail = Math.max(120, net.minecraft.client.Minecraft.getInstance()
+                    .getWindow().getGuiScaledWidth() - 40);
+            perLine = Math.max(20, avail / 6);
+            dirIsTemplate = true;
+        } else {
+            perLine = seq.length();
+            dirIsTemplate = isTemplate;
+        }
         Style white = Style.EMPTY.withColor(TextColor.fromRgb(0xFFFFFF));
         List<Component> lines = new ArrayList<>();
-        String leftMark = isTemplate ? "5'" : "3'";
-        String rightMark = isTemplate ? "3'" : "5'";
+        String leftMark = dirIsTemplate ? "5'" : "3'";
+        String rightMark = dirIsTemplate ? "3'" : "5'";
         for (int start = 0; start < seq.length(); start += perLine) {
             String part = seq.substring(start, Math.min(seq.length(), start + perLine));
             MutableComponent line = Component.empty();
