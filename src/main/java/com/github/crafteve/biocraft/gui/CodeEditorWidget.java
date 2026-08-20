@@ -60,6 +60,7 @@ public class CodeEditorWidget {
         text.append(value);
         cursor = text.length();
         firstVisibleLine = 0;
+        ensureCursorVisible();
     }
 
     public String getText() {
@@ -113,13 +114,16 @@ public class CodeEditorWidget {
             best = i + 1;
         }
         cursor = indexOfLine(line) + best;
+        ensureCursorVisible();
         return true;
     }
 
     /**
      * 滚轮纵向滚动（悬停在编辑区内时由宿主 Screen 转交）：
      * 按行翻页（向上 = 看更上方行），钳制 [0, 总行数 - 可见行数]；
-     * 无滚动余量时返回 false（不消费事件）
+     * 无滚动余量时返回 false（不消费事件）。
+     * 注意：滚动只改 firstVisibleLine，不移动光标——光标跟随
+     * （ensureCursorVisible）只在光标操作时触发，互不干扰
      */
     public boolean mouseScrolled(double verticalAmount) {
         String[] lines = text.toString().split("\n", -1);
@@ -143,9 +147,14 @@ public class CodeEditorWidget {
         }
         text.insert(cursor, codePoint);
         cursor++;
+        ensureCursorVisible();
         return true;
     }
 
+    /**
+     * 按键处理：各分支只改光标/文本，末尾统一 ensureCursorVisible
+     * （光标移动时跟随滚动，滚轮浏览的 firstVisibleLine 不被覆盖）
+     */
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (!active) {
             return false;
@@ -156,55 +165,47 @@ public class CodeEditorWidget {
                     text.deleteCharAt(cursor - 1);
                     cursor--;
                 }
-                return true;
             }
             case GLFW.GLFW_KEY_DELETE -> {
                 if (cursor < text.length()) {
                     text.deleteCharAt(cursor);
                 }
-                return true;
             }
             case GLFW.GLFW_KEY_ENTER -> {
                 String indent = currentIndent();
                 text.insert(cursor, "\n" + indent);
                 cursor += 1 + indent.length();
-                return true;
             }
             case GLFW.GLFW_KEY_TAB -> {
                 text.insert(cursor, "    ");
                 cursor += 4;
-                return true;
             }
             case GLFW.GLFW_KEY_LEFT -> {
                 cursor = Math.max(0, cursor - 1);
-                return true;
             }
             case GLFW.GLFW_KEY_RIGHT -> {
                 cursor = Math.min(text.length(), cursor + 1);
-                return true;
             }
             case GLFW.GLFW_KEY_UP -> {
                 moveLine(-1);
-                return true;
             }
             case GLFW.GLFW_KEY_DOWN -> {
                 moveLine(1);
-                return true;
             }
             case GLFW.GLFW_KEY_HOME -> {
                 cursor = indexOfLine(currentLine());
-                return true;
             }
             case GLFW.GLFW_KEY_END -> {
                 String[] lines = text.toString().split("\n", -1);
                 int line = currentLine();
                 cursor = indexOfLine(line) + lines[line].length();
-                return true;
             }
             default -> {
                 return false;
             }
         }
+        ensureCursorVisible();
+        return true;
     }
 
     private void moveLine(int delta) {
@@ -259,6 +260,23 @@ public class CodeEditorWidget {
         return font.lineHeight + 1;
     }
 
+    /**
+     * 光标跟随滚动：光标移动（点击/方向键/输入/回车等）后调用，
+     * 保证光标所在行可见——只在此处调整 firstVisibleLine，
+     * 与滚轮浏览（mouseScrolled 直接改 firstVisibleLine）互不干扰
+     */
+    private void ensureCursorVisible() {
+        String[] lines = text.toString().split("\n", -1);
+        int visible = Math.max(1, height / lineHeight());
+        int maxFirst = Math.max(0, lines.length - visible);
+        int curLine = currentLine();
+        if (curLine < firstVisibleLine) {
+            firstVisibleLine = Math.max(0, Math.min(curLine, maxFirst));
+        } else if (curLine >= firstVisibleLine + visible) {
+            firstVisibleLine = Math.max(0, Math.min(curLine - visible + 1, maxFirst));
+        }
+    }
+
     // ------------------------------------------------------------------
     // 渲染
     // ------------------------------------------------------------------
@@ -267,13 +285,9 @@ public class CodeEditorWidget {
         int visibleLines = Math.max(1, height / lineHeight());
         String[] lines = text.toString().split("\n", -1);
 
-        // 光标所在行保持可见（自动滚动）
+        // 光标所在行（仅绘制光标用；滚动跟随由光标操作时 ensureCursorVisible
+        // 主动触发，render 不再自动拉回——滚轮浏览的 firstVisibleLine 不被覆盖）
         int curLine = currentLine();
-        if (curLine < firstVisibleLine) {
-            firstVisibleLine = curLine;
-        } else if (curLine >= firstVisibleLine + visibleLines) {
-            firstVisibleLine = curLine - visibleLines + 1;
-        }
 
         // 扫描线所在行（编码中）
         int scanLine = (int) (progress * lines.length);

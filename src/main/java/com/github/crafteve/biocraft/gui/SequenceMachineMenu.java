@@ -239,6 +239,30 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
             return true; // 输入槽与 ADP/PPi：GUI 可取出
         }
 
+        /**
+         * 取物绕过容器 removeItem 门控（GUI 专属）：
+         * <p>
+         * vanilla 取物链 tryRemove → remove → container.removeItem（源码实证
+         * Slot.java L87-88/L99-106），而容器 removeItem 被 canTakeItemInternal
+         * 门控（拦漏斗/管道）——GUI 点击取物也走同链，会被误拦（实测
+         * "点击输入槽取不出"根因，上一轮只改 mayPickup 不够）。
+         * 本覆写直接经 setItem 减量（setItem 未门控）：GUI 取物生效，
+         * 漏斗/管道仍走容器 removeItem 被拦截——实现"GUI 可取、管道禁抽"
+         * 的差异化门控（酶工厂 IO 模式三路同规则，本机器刻意不同）
+         */
+        @Override
+        public ItemStack remove(int amount) {
+            ItemStack stack = this.getItem();
+            int take = Math.min(amount, stack.getCount());
+            ItemStack result = stack.split(take);
+            if (stack.isEmpty()) {
+                this.set(ItemStack.EMPTY);
+            } else {
+                this.setChanged();
+            }
+            return result;
+        }
+
         @Override
         public boolean isActive() {
             return true; // 命中/渲染前提（vanilla findSlot 源码实证）
