@@ -1,0 +1,1 @@
+{"variants":{"facing=north":{"model":"biocraft:block/helicase","y":0},"facing=east":{"model":"biocraft:block/helicase","y":90},"facing=south":{"model":"biocraft:block/helicase","y":180},"facing=west":{"model":"biocraft:block/helicase","y":270}}}

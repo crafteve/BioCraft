@@ -294,6 +294,12 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
             case TRANSCRIBER -> new int[][]{
                     {EDIT_X + 2, 34}, {EDIT_X + 2, 56}, {EDIT_X + 2, 78}, {EDIT_X + 40, 56},
             };
+            case HELICASE -> new int[][]{
+                    // 输入 1 槽（左侧纵向卡片区首位），输出 2 槽（右侧横向双卡，NBT 不同需两卡）
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+                    {OUT_X + SLOT_X + 57, OUT_Y + SLOT_Y},
+            };
         };
     }
 

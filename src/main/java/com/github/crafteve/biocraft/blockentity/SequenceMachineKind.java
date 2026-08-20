@@ -16,7 +16,8 @@ import java.util.function.Supplier;
  */
 public enum SequenceMachineKind {
     DNA_ENCODER("dna_encoder", DnaSynthesisOperation::new, 8),
-    TRANSCRIBER("transcriber", TranscriptionOperation::new, 4);
+    TRANSCRIBER("transcriber", TranscriptionOperation::new, 4),
+    HELICASE("helicase", HelicaseOperation::new, 3);
 
     private final String blockId;
     private final Supplier<SequenceOperation> operationFactory;

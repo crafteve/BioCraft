@@ -76,7 +76,7 @@ public class MachineModelProvider implements DataProvider {
      */
     private Map<Path, JsonObject> sequenceMachineResources() {
         Map<Path, JsonObject> outputs = new HashMap<>();
-        for (String blockName : new String[]{"dna_encoder", "transcriber"}) {
+        for (String blockName : new String[]{"dna_encoder", "transcriber", "helicase"}) {
             ResourceLocation blockModel = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/" + blockName);
 
             JsonObject blockState = new JsonObject();

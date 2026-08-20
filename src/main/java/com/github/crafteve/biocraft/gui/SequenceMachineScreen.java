@@ -71,10 +71,10 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     protected final List<InputCard> inputCards;
     protected final List<OutputCard> outputCards;
 
-    private double inputScrollOffset;
-    private double inputScrollTarget;
-    private double outputScrollOffset;
-    private double outputScrollTarget;
+    protected double inputScrollOffset;
+    protected double inputScrollTarget;
+    protected double outputScrollOffset;
+    protected double outputScrollTarget;
 
     public SequenceMachineScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -89,27 +89,38 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     }
 
     protected List<InputCard> buildInputCards(SequenceMachineKind kind) {
-        if (kind != SequenceMachineKind.DNA_ENCODER) {
-            return List.of();
+        if (kind == SequenceMachineKind.DNA_ENCODER) {
+            List<InputCard> cards = new ArrayList<>();
+            cards.add(new InputCard(0, "datp"));
+            cards.add(new InputCard(1, "dttp"));
+            cards.add(new InputCard(2, "dctp"));
+            cards.add(new InputCard(3, "dgtp"));
+            cards.add(new InputCard(4, "atp"));
+            return cards;
         }
-        List<InputCard> cards = new ArrayList<>();
-        cards.add(new InputCard(0, "datp"));
-        cards.add(new InputCard(1, "dttp"));
-        cards.add(new InputCard(2, "dctp"));
-        cards.add(new InputCard(3, "dgtp"));
-        cards.add(new InputCard(4, "atp"));
-        return cards;
+        if (kind == SequenceMachineKind.HELICASE) {
+            List<InputCard> cards = new ArrayList<>();
+            cards.add(new InputCard(0, "dna"));
+            return cards;
+        }
+        return List.of();
     }
 
     protected List<OutputCard> buildOutputCards(SequenceMachineKind kind) {
-        if (kind != SequenceMachineKind.DNA_ENCODER) {
-            return List.of();
+        if (kind == SequenceMachineKind.DNA_ENCODER) {
+            List<OutputCard> cards = new ArrayList<>();
+            cards.add(new OutputCard(5, "dna", SequenceMachineMenu.OUT_CARD_DNA_W, true));
+            cards.add(new OutputCard(6, "adp", SequenceMachineMenu.OUT_CARD_SUB_W, false));
+            cards.add(new OutputCard(7, "ppi", SequenceMachineMenu.OUT_CARD_SUB_W, false));
+            return cards;
         }
-        List<OutputCard> cards = new ArrayList<>();
-        cards.add(new OutputCard(5, "dna", SequenceMachineMenu.OUT_CARD_DNA_W, true));
-        cards.add(new OutputCard(6, "adp", SequenceMachineMenu.OUT_CARD_SUB_W, false));
-        cards.add(new OutputCard(7, "ppi", SequenceMachineMenu.OUT_CARD_SUB_W, false));
-        return cards;
+        if (kind == SequenceMachineKind.HELICASE) {
+            List<OutputCard> cards = new ArrayList<>();
+            cards.add(new OutputCard(1, "dna_single", 56, false));
+            cards.add(new OutputCard(2, "dna_single", 56, false));
+            return cards;
+        }
+        return List.of();
     }
 
     // ------------------------------------------------------------------
@@ -250,7 +261,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     }
 
     /** 输入滚动卡片（纵向，元素照抄酶工厂：底色 + slot.png + 彩色缩写 + 进度条 + x数量） */
-    private void drawInputCards(GuiGraphics graphics) {
+    protected void drawInputCards(GuiGraphics graphics) {
         if (inputCards.isEmpty()) {
             return;
         }
@@ -272,7 +283,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     /**
      * 输出横向滚动卡片：DNA 卡（序列号 + 四色碱基）与 ADP/PPi 卡（x数量）
      */
-    private void drawOutputCards(GuiGraphics graphics) {
+    protected void drawOutputCards(GuiGraphics graphics) {
         if (outputCards.isEmpty()) {
             return;
         }

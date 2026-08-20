@@ -88,6 +88,8 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "DNA 编码器" : "DNA Encoder");
         translations.put("block.biocraft.transcriber",
                 zh ? "转录仪" : "Transcriber");
+        translations.put("block.biocraft.helicase",
+                zh ? "DNA 解旋酶" : "DNA Helicase");
         translations.put("tooltip.biocraft.molar_mass",
                 zh ? "摩尔质量 %s g/mol" : "Molar Mass %s g/mol");
         translations.put("tooltip.biocraft.smiles_error",

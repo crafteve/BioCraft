@@ -125,8 +125,16 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
             case DONE -> {
                 // 完成态：产物可被取走；取走后自动回 IDLE——
                 // 转录仪（模板 KEEP）随即用同一模板自动开始新一轮；
-                // 编码器（pendingProgram 已空）停在 IDLE 等玩家重新提交程序
-                if (inventory.getItem(operation.outputSlot()).isEmpty()) {
+                // 编码器（pendingProgram 已空）停在 IDLE 等玩家重新提交程序；
+                // 解旋酶双产物需两槽皆空才回 IDLE（避免覆盖未取走的单链）
+                boolean doneEmpty;
+                if (kind() == SequenceMachineKind.HELICASE) {
+                    doneEmpty = inventory.getItem(HelicaseOperation.SLOT_OUT_A).isEmpty()
+                            && inventory.getItem(HelicaseOperation.SLOT_OUT_B).isEmpty();
+                } else {
+                    doneEmpty = inventory.getItem(operation.outputSlot()).isEmpty();
+                }
+                if (doneEmpty) {
                     stepState.setStage(SeqStepState.Stage.IDLE);
                     setChanged();
                 }
