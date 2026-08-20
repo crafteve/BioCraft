@@ -68,19 +68,43 @@ public class SequenceItem extends Item implements AbbreviationProvider {
         Boolean isTemplate = stack.get(ModDataComponents.IS_TEMPLATE.get());
         switch (data.type()) {
             case DNA -> appendDnaTooltip(data, tooltip, stack, isTemplate);
-            case MRNA -> {
-                String state = data.complete() ? "§a完整" : "§7合成中…";
-                tooltip.add(Component.literal("§7[mRNA] mRNA §8(" + seq.length() + " nt) " + state));
-                tooltip.add(Component.literal("§7 5'-" + truncate(seq, 10) + "-3'"));
-                tooltip.add(Component.literal("§8按住 Shift 彩色序列 / Ctrl 程序"));
-            }
+            case MRNA -> appendMrnaTooltip(data, tooltip);
             case POLYPEPTIDE -> {
                 String state = data.complete() ? "§a完整" : "§c未完成（折叠机拒绝）";
                 tooltip.add(Component.literal("§7[肽链] §8(" + seq.length() + " aa) " + state));
-                tooltip.add(Component.literal("§7 " + truncate(seq, 10)));
+                tooltip.add(Component.literal("§7" + truncate(seq, 10)));
                 tooltip.add(Component.literal("§8按住 Shift 彩色序列"));
             }
         }
+    }
+
+    private static void appendMrnaTooltip(SequenceData data, List<Component> tooltip) {
+        String seq = data.seq();
+        if (Screen.hasShiftDown()) {
+            tooltip.addAll(coloredBases(seq, null));
+            return;
+        }
+        if (Screen.hasControlDown()) {
+            // mRNA 的 Ctrl 尝试将 U→T 还原为 DNA 后解码程序
+            String dnaEquiv = seq.replace('U', 'T');
+            String core = dnaEquiv;
+            String prom = com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_CODING;
+            String term = com.github.crafteve.biocraft.seq.SeqOps.TERMINATOR_CODING;
+            if (core.startsWith(prom) && core.endsWith(term) && core.length() > prom.length() + term.length()) {
+                core = core.substring(prom.length(), core.length() - term.length());
+            }
+            SeqCodec.DecodeResult r = SeqCodec.decodeText(core);
+            if (r.ok()) {
+                tooltip.addAll(ProgramHighlight.highlight(r.text()));
+            } else {
+                tooltip.add(Component.literal("§7非程序 mRNA，无程序可显示"));
+            }
+            return;
+        }
+        String state = data.complete() ? "§a完整" : "§7合成中…";
+        tooltip.add(Component.literal("§7[mRNA] mRNA §8(" + seq.length() + " nt) " + state));
+        tooltip.add(Component.literal("§75'-" + truncate(seq, 10) + "-3'"));
+        tooltip.add(Component.literal("§8按住 Shift 彩色序列 / Ctrl 程序"));
     }
 
     /**
@@ -101,7 +125,13 @@ public class SequenceItem extends Item implements AbbreviationProvider {
             return;
         }
         if (Screen.hasControlDown()) {
-            SeqCodec.DecodeResult r = SeqCodec.decodeText(seq);
+            String core = seq;
+            String prom = com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_CODING;
+            String term = com.github.crafteve.biocraft.seq.SeqOps.TERMINATOR_CODING;
+            if (core.startsWith(prom) && core.endsWith(term) && core.length() > prom.length() + term.length()) {
+                core = core.substring(prom.length(), core.length() - term.length());
+            }
+            SeqCodec.DecodeResult r = SeqCodec.decodeText(core);
             if (r.ok()) {
                 tooltip.addAll(ProgramHighlight.highlight(r.text()));
             } else {
@@ -124,7 +154,7 @@ public class SequenceItem extends Item implements AbbreviationProvider {
         String dirLeft = isTemplateStrand ? "3'-" : "5'-";
         String dirRight = isTemplateStrand ? "-5'" : "-3'";
         String head = seq.length() <= 10 ? seq : seq.substring(0, 10) + "…";
-        tooltip.add(Component.literal("§7 " + dirLeft + head + dirRight));
+        tooltip.add(Component.literal("§7" + dirLeft + head + dirRight));
         tooltip.add(Component.literal("§8按住 Shift 彩色序列 / Ctrl 程序"));
     }
 
@@ -155,7 +185,7 @@ public class SequenceItem extends Item implements AbbreviationProvider {
                 char base = part.charAt(i);
                 int color = switch (base) {
                     case 'A' -> dnTpTint("datp");
-                    case 'T' -> dnTpTint("dttp");
+                    case 'T', 'U' -> dnTpTint("dttp");
                     case 'C' -> dnTpTint("dctp");
                     case 'G' -> dnTpTint("dgtp");
                     default -> 0xCCCCCC;

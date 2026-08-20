@@ -102,26 +102,38 @@ public class TranscriberScreen extends SequenceMachineScreen {
         // 中央双链可视化：上排模板 3'→5'，下排 mRNA 5'→3'，中线配对，当前碱基发光
         double pulse = (Math.sin(tick * 0.4) * 0.3 + 0.7);
         int window = Math.min(18, seq.length() - (idx + prom.length()));
-        int from = idx + prom.length();
+        int fromBase = idx + prom.length();
+        // 窗口随转录进度自动右移，当前碱基保持在窗口内右侧 1/3
+        int cur = running ? Math.max(0, pos - idx - prom.length() - 1) : 0;
+        int from = fromBase + Math.max(0, cur - window + 6);
+        from = Math.min(from, Math.max(fromBase, seq.length() - window));
         int to = Math.min(seq.length(), from + window);
         String templateSeg = seq.substring(from, to);
         String mrnaSeg = "";
         Slot out = menu.getSlot(TranscriptionOperation.SLOT_OUT_MRNA);
         SequenceData outData = out.getItem().get(ModDataComponents.SEQUENCE.get());
-        if (outData != null) mrnaSeg = outData.seq();
-        int baseX0 = x + 10;
+        if (outData != null) {
+            mrnaSeg = outData.seq();
+            // mRNA 窗口与模板同步偏移，保持配对对齐
+            int mrnaFrom = Math.max(0, cur - window + 6);
+            mrnaFrom = Math.min(mrnaFrom, Math.max(0, mrnaSeg.length() - window));
+            if (mrnaSeg.length() > window) mrnaSeg = mrnaSeg.substring(mrnaFrom, Math.min(mrnaSeg.length(), mrnaFrom + window));
+        }
+        // 自动向右滚动：转录时链带随 pos 右移，空闲时随 tick 缓慢漂移
+        int autoScroll = running ? (pos * 2) % 8 : (tick / 6) % 8;
+        int baseX0 = x + 10 - autoScroll;
         int templY = y + 42;
         int mrnaY = y + 62;
-        int pairY = y + 52;
-        // 背景轨道
+        int pairY = y + 54;
         graphics.fill(x + 6, templY - 2, x + w - 6, templY + 10, 0xFF2A2A2E);
         graphics.fill(x + 6, mrnaY - 2, x + w - 6, mrnaY + 10, 0xFF2A2A2E);
         graphics.drawString(font, "模板", x + 6, templY - 10, 0xFF81C784, false);
         graphics.drawString(font, "mRNA", x + 6, mrnaY + 11, 0xFFF1C40F, false);
+        int curInWindow = cur - (from - fromBase);
         for (int i = 0; i < templateSeg.length() && baseX0 + i * 8 < x + w - 10; i++) {
             char tBase = templateSeg.charAt(i);
-            char mBase = i < mrnaSeg.length() ? mrnaSeg.charAt(Math.min(i, mrnaSeg.length() - 1)) : '?';
-            boolean isCurrent = running && i == Math.max(0, pos - idx - prom.length() - 1) && i < mrnaSeg.length();
+            char mBase = i < mrnaSeg.length() ? mrnaSeg.charAt(i) : '?';
+            boolean isCurrent = running && i == curInWindow && i < mrnaSeg.length();
             // 动起来：非当前位轻微波浪，当前位脉冲更强
             int wave = running ? (int) (Math.sin(tick * 0.35 + i * 0.7) * 1.2) : 0;
             int tColor = switch (tBase) {
