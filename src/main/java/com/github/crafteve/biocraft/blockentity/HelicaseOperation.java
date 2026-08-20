@@ -8,14 +8,16 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 解旋酶操作：1 个双链 DNA → 2 个单链 DNA（原子 TRANSFORM，无链延伸）
+ * 解旋酶操作：1 个双链 DNA → 2 个单链 DNA（逐碱基对动态解旋，每 tick 1 bp）
  * <p>
  * 输入槽 0：dsDNA（complete=true 的 dna 物品）；输出槽 1/2：ssDNA（dna_single）。
- * 产出序列：slot1 = 原序 S（5'→3' 正链），slot2 = 反向互补链 reverseComplement(S)，
- * 两产物 kind 继承输入，complete=true。双产物因 NBT 序列不同需两张产物卡。
+ * 产出序列：slot1 = 原序 S 的前缀 S[0:pos]，slot2 = 该前缀的反向互补链
+ * reverseComplement(S[0:pos])，两产物 kind 继承输入，complete = pos==total。
+ * 双产物因 NBT 序列不同需两张产物卡，解旋中逐碱基生长可见（编码器同款动态）。
  * <p>
- *  MVP 无催化剂、无 ATP 消耗，原子一步完成（init 置链 → step 消费+产出 → DONE）。
- *  下一轮需两输出槽皆空才开始，避免覆盖未取走的单链。
+ *  MVP 无催化剂、无 ATP 消耗，每 tick 解旋 1 碱基对（与编码器每 tick 1 碱基同节奏），
+ *  输入 dsDNA 在解旋完成时消耗，输出 ssDNA 在未完成前为半成品（complete=false，
+ *  取出被门控拦截），完成后可取出；下一轮需两输出槽皆空才开始。
  */
 public class HelicaseOperation implements SequenceOperation {
 
@@ -61,62 +63,69 @@ public class HelicaseOperation implements SequenceOperation {
         if (data == null || !data.complete() || !SeqOps.isValidDna(data.seq())) {
             return false;
         }
-        // 借链源模型存输入序列，仅为进度条与物化复用；原子操作 total=seq 长度，step 一步完成
+        // 链源置链：total = 序列长度，每 tick 解旋 1 bp，position 逐 tick 递增
         state.beginExtending(data.seq());
         return true;
     }
 
     @Override
     public StepResult step(SimpleContainer container, SeqStepState state) {
-        if (state.chain().isEmpty()) {
+        if (state.position() >= state.total()) {
             return StepResult.DONE;
         }
-        // 双输出槽必须有空位，否则停摆（补空即续，链源保留）
-        if (!container.getItem(SLOT_OUT_A).isEmpty() || !container.getItem(SLOT_OUT_B).isEmpty()) {
-            return StepResult.STALLED;
-        }
+        // 输入缺失（被玩家取走）则停摆，补回即续（链源保留）
         ItemStack in = container.getItem(SLOT_IN_DNA);
-        SequenceData inputData = in.get(ModDataComponents.SEQUENCE.get());
-        if (inputData == null || !SeqOps.isValidDna(state.chain())) {
+        if (in.isEmpty()) {
             return StepResult.STALLED;
         }
-        String seqA = state.chain();
-        String seqB = SeqOps.reverseComplement(seqA);
-        SequenceData.Kind kind = inputData.kind();
-
-        // 消耗输入 1 个 dsDNA
-        in.shrink(1);
-        if (in.isEmpty()) {
-            container.setItem(SLOT_IN_DNA, ItemStack.EMPTY);
+        SequenceData inputData = in.get(ModDataComponents.SEQUENCE.get());
+        if (inputData == null || !inputData.complete()) {
+            return StepResult.STALLED;
         }
-
-        // 产出两条 ssDNA（NBT 不同，需两槽）
-        ItemStack outA = new ItemStack(ModItems.DNA_SINGLE.get());
-        outA.set(ModDataComponents.SEQUENCE.get(), new SequenceData(
-                SequenceData.SeqType.DNA, SequenceData.Strand.SS, kind, seqA, true));
-        ItemStack outB = new ItemStack(ModItems.DNA_SINGLE.get());
-        outB.set(ModDataComponents.SEQUENCE.get(), new SequenceData(
-                SequenceData.SeqType.DNA, SequenceData.Strand.SS, kind, seqB, true));
-        container.setItem(SLOT_OUT_A, outA);
-        container.setItem(SLOT_OUT_B, outB);
-
-        state.setPosition(state.total());
-        return StepResult.DONE;
+        int next = state.position() + 1;
+        state.setPosition(next);
+        return next >= state.total() ? StepResult.DONE : StepResult.ADVANCED;
     }
 
     @Override
     public void materialize(SimpleContainer container, SeqStepState state) {
-        // 原子操作不做逐碱基物化：仅在 EXTENDING/DONE 时保证输出槽与 step 结果一致
-        // 输入已被 step 消耗，此处无需额外刷新；空实现避免覆盖 step 已写入的双产物
         if (state.stage() == SeqStepState.Stage.IDLE) {
-            // IDLE 时若输出槽有残留（换模板清空遗留），由 BE 的换模板逻辑处理
             return;
         }
+        String chain = state.chain();
+        int pos = Math.min(state.position(), chain.length());
+        if (pos <= 0) {
+            // 刚开始，未产出
+            return;
+        }
+        ItemStack in = container.getItem(SLOT_IN_DNA);
+        SequenceData inputData = in.isEmpty() ? null : in.get(ModDataComponents.SEQUENCE.get());
+        // 输入已被取走时，用链源的 kind 兜底（链源已存输入序列，kind 从首次输入继承）
+        SequenceData.Kind kind = inputData != null ? inputData.kind() : SequenceData.Kind.GENE;
+        boolean complete = pos >= state.total();
+        String seqA = chain.substring(0, pos);
+        String seqB = SeqOps.reverseComplement(seqA);
+
+        ItemStack outA = new ItemStack(ModItems.DNA_SINGLE.get());
+        outA.set(ModDataComponents.SEQUENCE.get(), new SequenceData(
+                SequenceData.SeqType.DNA, SequenceData.Strand.SS, kind, seqA, complete));
+        ItemStack outB = new ItemStack(ModItems.DNA_SINGLE.get());
+        outB.set(ModDataComponents.SEQUENCE.get(), new SequenceData(
+                SequenceData.SeqType.DNA, SequenceData.Strand.SS, kind, seqB, complete));
+        container.setItem(SLOT_OUT_A, outA);
+        container.setItem(SLOT_OUT_B, outB);
     }
 
     @Override
     public void finish(SimpleContainer container, SeqStepState state) {
-        // 无额外结算
+        // 解旋完成时消耗输入 dsDNA（原子操作的“模板消耗”在 finish 时结算，符合直觉：解旋中输入仍可见）
+        ItemStack in = container.getItem(SLOT_IN_DNA);
+        if (!in.isEmpty()) {
+            in.shrink(1);
+            if (in.isEmpty()) {
+                container.setItem(SLOT_IN_DNA, ItemStack.EMPTY);
+            }
+        }
     }
 
     @Override

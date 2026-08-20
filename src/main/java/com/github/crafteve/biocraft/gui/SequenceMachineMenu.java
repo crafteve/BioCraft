@@ -1,6 +1,7 @@
 package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.blockentity.DnaSynthesisOperation;
+import com.github.crafteve.biocraft.blockentity.HelicaseOperation;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineBlockEntity;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
 import com.github.crafteve.biocraft.blockentity.SequenceOperation;
@@ -235,15 +236,21 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
          */
         @Override
         public boolean mayPickup(Player player) {
-            if (kind != SequenceMachineKind.DNA_ENCODER) {
+            if (kind == SequenceMachineKind.DNA_ENCODER) {
+                if (index == DnaSynthesisOperation.SLOT_OUT_DNA) {
+                    SequenceData data = getItem().get(ModDataComponents.SEQUENCE.get());
+                    return data != null && data.complete();
+                }
                 return true;
             }
-            if (index == DnaSynthesisOperation.SLOT_OUT_DNA) {
-                // 产物 DNA：仅完全编码（complete）才可输出；半成品锁在槽内
-                SequenceData data = getItem().get(ModDataComponents.SEQUENCE.get());
-                return data != null && data.complete();
+            if (kind == SequenceMachineKind.HELICASE) {
+                if (index == HelicaseOperation.SLOT_OUT_A || index == HelicaseOperation.SLOT_OUT_B) {
+                    SequenceData data = getItem().get(ModDataComponents.SEQUENCE.get());
+                    return data != null && data.complete();
+                }
+                return true;
             }
-            return true; // 输入槽与 ADP/PPi：GUI 可取出
+            return true;
         }
 
         /**
@@ -295,10 +302,10 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                     {EDIT_X + 2, 34}, {EDIT_X + 2, 56}, {EDIT_X + 2, 78}, {EDIT_X + 40, 56},
             };
             case HELICASE -> new int[][]{
-                    // 输入 1 槽（左侧纵向卡片区首位），输出 2 槽（右侧横向双卡，NBT 不同需两卡）
+                    // 输入 1 槽（左侧 guiv1 输入区），输出 2 槽（右侧 guiv1 输出区垂直双卡，复用酶工厂布局）
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X + 57, OUT_Y + SLOT_Y},
+                    {193 + SLOT_X, 41 + SLOT_Y},
+                    {193 + SLOT_X, 41 + SLOT_Y + CARD_STEP},
             };
         };
     }

@@ -308,15 +308,25 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
      */
     @Override
     protected boolean canTakeItemInternal(int slot) {
-        if (kind() != SequenceMachineKind.DNA_ENCODER) {
+        if (kind() == SequenceMachineKind.DNA_ENCODER) {
+            if (slot < DnaSynthesisOperation.SLOT_OUT_DNA) {
+                return false;
+            }
+            if (slot == DnaSynthesisOperation.SLOT_OUT_DNA) {
+                SequenceData data = inventory.getItem(slot).get(ModDataComponents.SEQUENCE.get());
+                return data != null && data.complete();
+            }
             return true;
         }
-        if (slot < DnaSynthesisOperation.SLOT_OUT_DNA) {
-            return false;
-        }
-        if (slot == DnaSynthesisOperation.SLOT_OUT_DNA) {
-            SequenceData data = inventory.getItem(slot).get(ModDataComponents.SEQUENCE.get());
-            return data != null && data.complete();
+        if (kind() == SequenceMachineKind.HELICASE) {
+            if (slot == HelicaseOperation.SLOT_IN_DNA) {
+                return false; // 输入槽只进不出（防漏斗抽走模板）
+            }
+            if (slot == HelicaseOperation.SLOT_OUT_A || slot == HelicaseOperation.SLOT_OUT_B) {
+                SequenceData data = inventory.getItem(slot).get(ModDataComponents.SEQUENCE.get());
+                return data != null && data.complete();
+            }
+            return true;
         }
         return true;
     }
