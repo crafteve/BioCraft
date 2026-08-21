@@ -303,7 +303,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             int cardY = areaY + i * SequenceMachineMenu.CARD_STEP - vOffset;
             Slot slot = menu.getSlot(card.containerSlot());
             drawStockCard(graphics, areaX, cardY, SequenceMachineMenu.CARD_W,
-                    SequenceMachineMenu.CARD_H, card.itemId(), slot);
+                    SequenceMachineMenu.CARD_H, card.itemId(), slot, true);
         }
         graphics.disableScissor();
     }
@@ -330,7 +330,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
                         SequenceMachineMenu.OUT_CARD_H, slot);
             } else {
                 drawStockCard(graphics, thisCardX, areaY, card.cardWidth(),
-                        SequenceMachineMenu.OUT_CARD_H, card.itemId(), slot);
+                        SequenceMachineMenu.OUT_CARD_H, card.itemId(), slot, false);
             }
             cardX += card.cardWidth() + SequenceMachineMenu.CARD_GAP;
         }
@@ -338,29 +338,21 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     }
 
     /**
-     * 库存卡片（输入/输出副产物通用，元素照抄酶工厂物种卡）：
-     * 底色 + slot.png + 彩色缩写 + 进度条 + x数量（含分子余量）
-     * <p>
-     * 卡片高度参数化（输入 28 / 输出压缩 23）；进度条统一为
-     * "槽位贴图底边 + 1px"、2px 高（输出压缩卡不越界）。
-     * <p>
-     * 数量口径（酶工厂浓度重建同款）：槽位整数 + 分子余量——
-     * 1 分子 = 10 碱基，余量每碱基 +0.1，显示 x32.50 这类连续值；
-     * 进度条按 (count + 余量)/64 归一化（满 64 = 满格）
+     * 库存卡片（输入/输出副产物通用）：
+     * 输入：count - remainder（消耗时单调递减，余量为待扣部分）；输出：count + remainder（产出时单调递增）
      */
     private void drawStockCard(GuiGraphics graphics, int cardX, int cardY, int cardW, int cardH,
-                               String itemId, Slot slot) {
+                               String itemId, Slot slot, boolean isInput) {
         graphics.fill(cardX, cardY, cardX + cardW, cardY + cardH, CARD_COLOR);
         int pngX = cardX + SequenceMachineMenu.SLOT_PNG_X;
         int pngY = cardY + SequenceMachineMenu.SLOT_PNG_Y;
         graphics.blit(SLOT_TEX, pngX, pngY, 0, 0, 18, 18, 18, 18);
         ItemStack stack = slot.getItem();
-        // 缩写：物品色加深（过亮改黑），空槽灰色
         MoleculeItem item = ModItems.byId(itemId).get();
         int color = stack.isEmpty() ? CONC_TEXT_COLOR : cardTextColor(item.getTintColor());
         graphics.drawString(font, item.getAbbreviation(), pngX + 18 + 4, pngY, color, false);
-        // 数量（含分子余量）：槽位整数 + ContainerData 同步余量
-        double totalCount = stack.getCount() + menu.getRemainder(slot.index);
+        double rem = menu.getRemainder(slot.index);
+        double totalCount = isInput ? Math.max(0, stack.getCount() - rem) : stack.getCount() + rem;
         // 进度条：宽 cardW-2，位置按卡片高度分档——
         // 输入卡（28 高）与酶工厂完全同布局：3px 高，贴图底与卡底之间
         // 垂直居中（y = 贴图底 + (8-3)/2 = 22）；

@@ -20,6 +20,19 @@ public class TranscriberScreen extends SequenceMachineScreen {
     }
 
     @Override
+    protected void init() {
+        super.init();
+        // 仿 dnaEncoder 右下角按钮：转录区右下角“转录”按钮，点击检测条件并启动
+        this.addRenderableWidget(net.minecraft.client.gui.components.Button.builder(Component.literal("转录"), b -> {
+                    net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                            new com.github.crafteve.biocraft.network.ServerboundTranscribePacket(this.menu.getPos()));
+                })
+                .bounds(leftPos + SequenceMachineMenu.EDIT_X + SequenceMachineMenu.EDIT_W - 46,
+                        topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 11, 42, 11)
+                .build());
+    }
+
+    @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         if (menu.getKind() != SequenceMachineKind.TRANSCRIBER) {
             super.renderBg(graphics, partialTick, mouseX, mouseY);

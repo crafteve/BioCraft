@@ -33,5 +33,7 @@ public final class ModNetwork {
                 ServerboundSequenceProgramPacket::handle);
         registrar.playToServer(ServerboundProgramDraftPacket.TYPE, ServerboundProgramDraftPacket.STREAM_CODEC,
                 ServerboundProgramDraftPacket::handle);
+        registrar.playToServer(ServerboundTranscribePacket.TYPE, ServerboundTranscribePacket.STREAM_CODEC,
+                ServerboundTranscribePacket::handle);
     }
 }

@@ -31,6 +31,7 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
     private final SequenceOperation operation;
     private final SeqStepState stepState = new SeqStepState();
     private int stepCooldown = 0;
+    private String lastTemplateSeq = "";
 
     /** 编辑器草稿（未提交的程序文本，跨 GUI 打开保留；NBT 存档） */
     private String programDraft = "";
@@ -73,6 +74,15 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
     }
 
     /** 读取编辑器草稿（打开 GUI 时客户端恢复用） */
+    public String lastTemplateSeq() {
+        return lastTemplateSeq;
+    }
+
+    public void setLastTemplateSeq(String seq) {
+        this.lastTemplateSeq = seq != null ? seq : "";
+        setChanged();
+    }
+
     public String programDraft() {
         return programDraft;
     }
@@ -102,9 +112,34 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         if (level == null || level.isClientSide) {
             return;
         }
+        // 转录中取走模板链应重置（fix：拿走模板链按理重置，放回弹出当前 mRNA 重建）
+        if (kind() == SequenceMachineKind.TRANSCRIBER && !lastTemplateSeq.isEmpty()) {
+            ItemStack tmpl = inventory.getItem(TranscriptionOperation.SLOT_TEMPLATE);
+            SequenceData tmplData = tmpl.get(ModDataComponents.SEQUENCE.get());
+            String curSeq = tmplData != null ? tmplData.seq() : "";
+            boolean tmplEmpty = tmpl.isEmpty();
+            boolean tmplChanged = !curSeq.equals(lastTemplateSeq);
+            if (tmplEmpty || tmplChanged) {
+                ItemStack oldMrna = inventory.getItem(TranscriptionOperation.SLOT_OUT_MRNA);
+                if (!oldMrna.isEmpty() && level != null) {
+                    Containers.dropItemStack(level, worldPosition.getX() + 0.5, worldPosition.getY() + 0.5, worldPosition.getZ() + 0.5, oldMrna);
+                    inventory.setItem(TranscriptionOperation.SLOT_OUT_MRNA, ItemStack.EMPTY);
+                }
+                stepState.reset();
+                lastTemplateSeq = "";
+                stepCooldown = 0;
+                setChanged();
+                if (tmplEmpty) return;
+            }
+        }
         switch (stepState.stage()) {
             case IDLE -> {
                 if (operation.canStart(inventory, stepState) && operation.init(inventory, stepState)) {
+                    if (kind() == SequenceMachineKind.TRANSCRIBER) {
+                        ItemStack tmpl = inventory.getItem(TranscriptionOperation.SLOT_TEMPLATE);
+                        SequenceData d = tmpl.get(ModDataComponents.SEQUENCE.get());
+                        lastTemplateSeq = d != null ? d.seq() : "";
+                    }
                     materialize();
                     setChanged();
                 }
@@ -214,6 +249,7 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         super.saveAdditional(tag, registries);
         tag.put("seqState", stepState.save(new CompoundTag()));
         tag.putString("draft", programDraft);
+        tag.putString("lastTemplateSeq", lastTemplateSeq);
     }
 
     @Override
@@ -224,6 +260,9 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         }
         if (tag.contains("draft", Tag.TAG_STRING)) {
             programDraft = tag.getString("draft");
+        }
+        if (tag.contains("lastTemplateSeq", Tag.TAG_STRING)) {
+            lastTemplateSeq = tag.getString("lastTemplateSeq");
         }
         if (kind() == SequenceMachineKind.DNA_ENCODER) {
             restoreOutputSlots();
