@@ -362,9 +362,22 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         int pngY = cardY + SequenceMachineMenu.SLOT_PNG_Y;
         graphics.blit(SLOT_TEX, pngX, pngY, 0, 0, 18, 18, 18, 18);
         ItemStack stack = slot.getItem();
-        MoleculeItem item = ModItems.byId(itemId).get();
-        int color = stack.isEmpty() ? CONC_TEXT_COLOR : cardTextColor(item.getTintColor());
-        graphics.drawString(font, item.getAbbreviation(), pngX + 18 + 4, pngY, color, false);
+        var deferred = ModItems.byId(itemId);
+        MoleculeItem item = deferred != null ? deferred.get() : null;
+        int tint;
+        String abbr;
+        if (item != null) {
+            tint = item.getTintColor();
+            abbr = item.getAbbreviation();
+        } else if ("trna".equals(itemId)) {
+            tint = 0xB0C4DE;
+            abbr = "tRNA";
+        } else {
+            tint = 0xCCCCCC;
+            abbr = itemId;
+        }
+        int color = stack.isEmpty() ? CONC_TEXT_COLOR : cardTextColor(tint);
+        graphics.drawString(font, abbr, pngX + 18 + 4, pngY, color, false);
         double rem = menu.getRemainder(slot.index);
         double totalCount = isInput ? Math.max(0, stack.getCount() - rem) : stack.getCount() + rem;
         // 进度条：宽 cardW-2，位置按卡片高度分档——
