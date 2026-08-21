@@ -135,12 +135,10 @@ public class TranscriberScreen extends SequenceMachineScreen {
         graphics.drawString(font, "模板", x + 6, templY - 11, 0xFF81C784, false);
         graphics.drawString(font, "mRNA", x + 6, mrnaY + 11, 0xFFF1C40F, false);
         int curInWindow = cur - (from - fromBase);
-        // 结束时光标定格最后一组并保持发光
         boolean doneGlow = isDone && total > 0;
         double donePulse = isDone ? (Math.sin(tick * 0.6) * 0.4 + 0.6) : pulse;
         for (int i = 0; i < templateSeg.length() && baseX0 + i * 8 < x + w - 10; i++) {
             char tBase = templateSeg.charAt(i);
-            // 上方模板固定窗口
             int tColor = switch (tBase) {
                 case 'A' -> BASE_A; case 'T' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFF9E9E9E;
             };
@@ -154,34 +152,39 @@ public class TranscriberScreen extends SequenceMachineScreen {
             int lineColor = isCurrent ? 0xFFFFFF00 : 0xFF555555;
             graphics.fill(bx + 3, pairY, bx + 4, pairY + 4, lineColor);
         }
-        // 下方 mRNA 从光标处向右延伸
-        for (int i = 0; i < mrnaSegFull.length() && baseX0 + curInWindow * 8 + i * 8 < x + w - 10; i++) {
-            if (i >= window) break;
-            char mBase = mrnaSegFull.charAt(Math.max(0, mrnaSegFull.length() - window + i));
-            // 简化：取末 window 段，首位对齐光标左侧
-            // 实际按 pos 延伸：mRNA 左端 = 光标 - (mrnaSegFull.length()-1)*8
-            // 为保持简单，末 window 段左端对齐光标 - window +1
-            int mx = baseX0 + curInWindow * 8 - (Math.min(window, mrnaSegFull.length()) - 1) * 8 + i * 8;
-            // 若未开始，mx 可能负，裁掉
-            if (mx < x + 16 || mx >= x + w - 10) continue;
-            // 取对应碱基：窗口内第 i 位对应 mrnaSegFull 的 (mrnaSegFull.length()-window+i)
-            int srcIdx = mrnaSegFull.length() - Math.min(window, mrnaSegFull.length()) + i;
-            if (srcIdx < 0 || srcIdx >= mrnaSegFull.length()) continue;
-            char mb = mrnaSegFull.charAt(srcIdx);
-            boolean isCurrentM = (running || isDone) && mx == baseX0 + curInWindow * 8;
-            int mColor = switch (mb) {
-                case 'A' -> BASE_A; case 'U' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFF5A5A5A;
-            };
-            if (isCurrentM) {
-                int glow = (int) (180 * (isDone ? donePulse : pulse)) << 24 | 0x00FFFFFF;
-                graphics.fill(mx - 1, mrnaY - 1, mx + 7, mrnaY + 9, glow);
-            }
-            graphics.drawString(font, String.valueOf(mb), mx, mrnaY, isCurrentM ? 0xFFFFFFFF : mColor, false);
-        }
-        // 未合成区 · 占位（光标右侧）
-        for (int i = curInWindow + 1; i < templateSeg.length() && baseX0 + i * 8 < x + w - 10; i++) {
+        // 下方 mRNA 从光标处向右延伸（修复错位：与模板同 x 对齐，光标左侧已合成，右侧 · 占位）
+        for (int i = 0; i < templateSeg.length() && baseX0 + i * 8 < x + w - 10; i++) {
             int bx = baseX0 + i * 8;
-            graphics.drawString(font, "·", bx, mrnaY, 0xFF5A5A5A, false);
+            char mBase = '?';
+            boolean hasMrna = false;
+            if (i <= curInWindow && i < mrnaSegFull.length()) {
+                // 光标左侧已合成区：模板 i 对应 mRNA 的 (mrnaSegFull.length() - curInWindow -1 + i) 需对齐
+                // 简化：mRNA 窗口与模板窗口同 from 偏移，直接取 mrnaSegFull 的对应段
+                int mrnaFrom = Math.max(0, mrnaSegFull.length() - window);
+                int srcIdx = mrnaFrom + i - (curInWindow - (mrnaSegFull.length() - mrnaFrom - 1));
+                // 更直观：已合成的 mRNA 左端对齐模板窗口左端，光标处为已合成末位
+                srcIdx = i - (curInWindow - mrnaSegFull.length() + 1);
+                if (srcIdx >= 0 && srcIdx < mrnaSegFull.length()) {
+                    mBase = mrnaSegFull.charAt(srcIdx);
+                    hasMrna = true;
+                }
+            }
+            // 回退到简单同 x 对齐：模板 i 与 mRNA i 同列，光标左侧显示 mRNA，否则 ·
+            if (hasMrna) {
+                boolean isCurrentM = (running || isDone) && i == curInWindow;
+                int mColor = switch (mBase) {
+                    case 'A' -> BASE_A; case 'U' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFF5A5A5A;
+                };
+                if (isCurrentM) {
+                    int glow = (int) (180 * (isDone ? donePulse : pulse)) << 24 | 0x00FFFFFF;
+                    graphics.fill(bx - 1, mrnaY - 1, bx + 7, mrnaY + 9, glow);
+                }
+                graphics.drawString(font, String.valueOf(mBase), bx, mrnaY, isCurrentM ? 0xFFFFFFFF : mColor, false);
+            } else if (i > curInWindow) {
+                graphics.drawString(font, "·", bx, mrnaY, 0xFF5A5A5A, false);
+            } else if (mrnaSegFull.isEmpty()) {
+                graphics.drawString(font, "·", bx, mrnaY, 0xFF5A5A5A, false);
+            }
         }
     }
 
