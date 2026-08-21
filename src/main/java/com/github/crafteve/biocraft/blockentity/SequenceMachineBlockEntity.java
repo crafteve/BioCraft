@@ -142,35 +142,15 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
                 }
             }
             case EXTENDING -> {
-                // 原料不足卡住时取出产物应重置而非重建同 NBT（fix：转录机 stalled 取产物重置）
-                if (inventory.getItem(operation.outputSlot()).isEmpty() && stepState.position() > 0) {
-                    // 仅当下一碱基所需 NTP/ATP 缺料或 ADP/PPi 已满（即 stalled 条件）才重置，否则保持“取走重建”语义
-                    boolean stalled = false;
-                    if (kind() == SequenceMachineKind.TRANSCRIBER && stepState.position() < stepState.total()) {
-                        char nextBase = stepState.chain().charAt(stepState.position());
-                        int ntpSlot = switch (nextBase) {
-                            case 'A' -> TranscriptionOperation.SLOT_ATP;
-                            case 'U' -> TranscriptionOperation.SLOT_UTP;
-                            case 'C' -> TranscriptionOperation.SLOT_CTP;
-                            case 'G' -> TranscriptionOperation.SLOT_GTP;
-                            default -> -1;
-                        };
-                        boolean needNtp = false, needAtp = false;
-                        // 余量制下是否需实物由 remainder 判断，保守按“槽空即缺料”判定 stalled
-                        if (ntpSlot >= 0 && inventory.getItem(ntpSlot).isEmpty()) needNtp = true;
-                        if (nextBase != 'A' && inventory.getItem(TranscriptionOperation.SLOT_ATP).isEmpty()) needAtp = true;
-                        boolean noRoomAdp = !inventory.getItem(TranscriptionOperation.SLOT_OUT_ADP).isEmpty()
-                                && inventory.getItem(TranscriptionOperation.SLOT_OUT_ADP).getCount() >= inventory.getItem(TranscriptionOperation.SLOT_OUT_ADP).getMaxStackSize();
-                        boolean noRoomPpi = !inventory.getItem(TranscriptionOperation.SLOT_OUT_PPI).isEmpty()
-                                && inventory.getItem(TranscriptionOperation.SLOT_OUT_PPI).getCount() >= inventory.getItem(TranscriptionOperation.SLOT_OUT_PPI).getMaxStackSize();
-                        stalled = needNtp || needAtp || noRoomAdp || noRoomPpi;
-                    }
-                    if (stalled) {
-                        stepState.reset();
-                        stepCooldown = 0;
-                        setChanged();
-                        return;
-                    }
+                // 转录机：取走 mRNA 则重置并等待再次点击转录（fix：转录中取走产物重置）
+                if (kind() == SequenceMachineKind.TRANSCRIBER
+                        && inventory.getItem(operation.outputSlot()).isEmpty()
+                        && stepState.position() > 0) {
+                    stepState.reset();
+                    lastTemplateSeq = "";
+                    stepCooldown = 0;
+                    setChanged();
+                    return;
                 }
                 if (--stepCooldown > 0) {
                     return;

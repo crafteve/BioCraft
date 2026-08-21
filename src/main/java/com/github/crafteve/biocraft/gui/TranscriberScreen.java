@@ -81,9 +81,8 @@ public class TranscriberScreen extends SequenceMachineScreen {
         int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
         boolean running = stage == 1 && total > 0;
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
-        // 聚合酶图标（右上角圆 + P，运行时上下浮动）
         int px = x + w - 18;
-        int py = y + 6 + (running ? (int) (Math.sin(tick * 0.35) * 1.5) : 0);
+        int py = y + 6;
         graphics.fill(px, py, px + 10, py + 10, 0xFF4FC3F7);
         graphics.fill(px + 1, py + 1, px + 9, py + 9, 0xFF0288D1);
         graphics.drawString(font, "P", px + 3, py + 1, 0xFFFFFFFF, false);
