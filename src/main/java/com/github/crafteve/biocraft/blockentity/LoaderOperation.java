@@ -156,6 +156,16 @@ public class LoaderOperation implements SequenceOperation {
         return null;
     }
 
+    /** 判断物品是否为 20 种氨基酸之一（GUI 工作状态检测用） */
+    public static boolean isAa(ItemStack stack) {
+        return findAaId(stack) != null;
+    }
+
+    /** 返回物品对应的氨基酸 id（非氨基酸返回 null；GUI 工作状态检测用） */
+    public static String aaIdOf(ItemStack stack) {
+        return findAaId(stack);
+    }
+
     public static String trnaIdForAa(String aaId) {
         return AA_TO_TRNA.get(aaId);
     }

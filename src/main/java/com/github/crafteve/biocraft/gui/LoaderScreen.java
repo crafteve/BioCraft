@@ -1,6 +1,7 @@
 package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.blockentity.LoaderOperation;
+import com.github.crafteve.biocraft.blockentity.SequenceContainerUtil;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
@@ -21,11 +22,10 @@ public class LoaderScreen extends SequenceMachineScreen {
     // 动画起点（进入合成时重置，独立 30 tick 循环不绑机器速度）
     private long animStart = -1;
     /**
-     * 连续非活跃 tick 计数：合成动作（stage==1 合成中）出现即清零；
-     * 停摆（stage 0/2 保持）累计超 6 tick 动画停止，避免 DONE 停摆时
-     * 动画永播（产满 DONE 阶段不再清零）
+     * 工作状态（绿灯）：输入槽有货 + 输出槽有空间 + 配方可执行时为 true；
+     * 每 tick 检测（containerTick），绿灯即播动画、红灯即停
      */
-    private int animIdleTicks = 0;
+    private boolean working = false;
 
     public LoaderScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -36,15 +36,9 @@ public class LoaderScreen extends SequenceMachineScreen {
     public void containerTick() {
         super.containerTick();
         if (menu.getKind() != SequenceMachineKind.LOADER) return;
-        // 动画活跃度追踪：合成动作（stage==1 合成中）出现即清零 idle 计数，
-        // 累计超过 6 tick 无合成才停止动画（开始即播、停 6tick 后结束；
-        // DONE 停摆阶段不算合成动作，产满时动画也停止）
-        int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
-        if (stage == 1) {
-            animIdleTicks = 0;
-        } else {
-            animIdleTicks++;
-        }
+        // 工作状态检测（每 tick）：输入槽有货 + 输出槽有空间 + 配方可执行 = 绿灯
+        // 绿灯开始动画播放，红灯停止（不依赖 stage 数据，槽位变化即响应）
+        working = checkWorkable();
         // guiv1 布局：左 3 INPUT 右 3 OUTPUT，覆盖父类 70,140 横向定位
         for (int i = 0; i < inputCards.size(); i++) {
             var slot = menu.getSlot(inputCards.get(i).containerSlot());
@@ -56,6 +50,32 @@ public class LoaderScreen extends SequenceMachineScreen {
             slot.x = 193 + SequenceMachineMenu.SLOT_X;
             slot.y = 41 + i * SequenceMachineMenu.CARD_STEP + SequenceMachineMenu.SLOT_Y;
         }
+    }
+
+    /**
+     * 工作状态判定（与 LoaderOperation.canStart 同规则）：
+     * tRNA/AA/ATP 三输入有货 + AA 为 20 种之一 + 输出 aa-tRNA 槽空或同种 +
+     * 三输出槽均有空间 = 可正常进行配方（绿灯）
+     */
+    private boolean checkWorkable() {
+        ItemStack trna = menu.getSlot(LoaderOperation.SLOT_TRNA).getItem();
+        ItemStack aa = menu.getSlot(LoaderOperation.SLOT_AA).getItem();
+        ItemStack atp = menu.getSlot(LoaderOperation.SLOT_ATP).getItem();
+        if (trna.isEmpty() || aa.isEmpty() || atp.isEmpty()) return false;
+        if (!SequenceContainerUtil.matchesId(trna, "trna")) return false;
+        if (!SequenceContainerUtil.matchesId(atp, "atp")) return false;
+        String aaId = LoaderOperation.aaIdOf(aa);
+        if (aaId == null) return false;
+        ItemStack out = menu.getSlot(LoaderOperation.SLOT_OUT_AATRNA).getItem();
+        if (!out.isEmpty() && !SequenceContainerUtil.matchesId(out, LoaderOperation.trnaIdForAa(aaId))) return false;
+        return hasRoom(LoaderOperation.SLOT_OUT_AATRNA)
+                && hasRoom(LoaderOperation.SLOT_OUT_AMP)
+                && hasRoom(LoaderOperation.SLOT_OUT_PPI);
+    }
+
+    private boolean hasRoom(int slot) {
+        ItemStack s = menu.getSlot(slot).getItem();
+        return s.isEmpty() || s.getCount() < s.getMaxStackSize();
     }
 
     @Override
@@ -171,8 +191,8 @@ public class LoaderScreen extends SequenceMachineScreen {
         int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
         boolean running = stage == 1;
         boolean done = stage == 2;
-        // 动画活跃：合成动作（stage 1）出现即播；停摆累计超 6 tick 停止
-        boolean animActive = animIdleTicks <= 6;
+        // 动画活跃 = 工作状态（绿灯）：输入有货 + 输出有空间 + 配方可执行即播，否则停
+        boolean animActive = working;
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         Slot aaSlot = menu.getSlot(LoaderOperation.SLOT_AA);
         ItemStack aaStack = aaSlot.getItem();
@@ -190,12 +210,14 @@ public class LoaderScreen extends SequenceMachineScreen {
         // 0..1 呼吸曲线（口袋缩放/光环脉动）
         double breath = (Math.sin(tick * 0.35) + 1) * 0.5;
 
-        // 顶标题 + 状态（同 helicase/转录风格）
+        // 顶标题 + 状态灯（工作绿 / 停摆红，替代 LOAD/DONE 文字）
         g.drawString(font, "装载", x + 6, y + 6, 0xFFE0E0E0, false);
-        String st = running ? "LOAD" : done ? "DONE" : "IDLE";
-        g.drawString(font, st, x + w - 6 - font.width(st), y + 6, 0xFF9E9E9E, false);
+        int lampColor = animActive ? 0xFF2ECC71 : 0xFFE74C3C;
+        g.fill(x + w - 22, y + 7, x + w - 14, y + 15, lampColor);
+        String lampText = animActive ? "工作" : "停止";
+        g.drawString(font, lampText, x + w - 12 - font.width(lampText), y + 6, 0xFF9E9E9E, false);
 
-        // 独立 30 tick 循环（合成动作出现时从 0 开始；停超 6 tick 归零停止）
+        // 独立 30 tick 循环（绿灯出现时从 0 开始；红灯归零停止）
         int t = 0;
         if (animActive) {
             if (animStart < 0) animStart = tick;
@@ -218,10 +240,8 @@ public class LoaderScreen extends SequenceMachineScreen {
         }
         // 口袋中心：装载的核心点（空 = tRNA 灰点，完成 = AA 色亮点）
         g.fill(cx - 1, cy - 1, cx + 2, cy + 2, loaded ? 0xFFFFFFFF : 0xFFB0C4DE);
-        // tRNA 标注：居中口袋上方，说明中心灰圆 = tRNA；装载完成后变为 aa-tRNA（aa 缩写）
-        String pocketLabel = loaded ? aaAbbr : "tRNA";
-        g.drawString(font, pocketLabel, cx - font.width(pocketLabel) / 2, cy - R - 12,
-                loaded ? aaTint : 0xFF90A4AE, false);
+        // tRNA 标注：居中口袋上方，固定不变（说明中心圆 = tRNA）
+        g.drawString(font, "tRNA", cx - font.width("tRNA") / 2, cy - R - 12, 0xFF90A4AE, false);
 
         if (!animActive) {
             // 静止：口袋两侧展示原料点（左 aa 右 ATP 三磷），短标注各一个词
