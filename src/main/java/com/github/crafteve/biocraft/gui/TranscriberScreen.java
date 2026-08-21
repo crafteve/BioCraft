@@ -130,6 +130,12 @@ public class TranscriberScreen extends SequenceMachineScreen {
         Slot out = menu.getSlot(TranscriptionOperation.SLOT_OUT_MRNA);
         SequenceData outData = out.getItem().get(ModDataComponents.SEQUENCE.get());
         if (outData != null) mrnaSegFull = outData.seq();
+        int mrnaFrom = from - fromBase;
+        String mrnaSeg = "";
+        if (mrnaFrom < mrnaSegFull.length()) {
+            int mrnaTo = Math.min(mrnaSegFull.length(), mrnaFrom + window);
+            if (mrnaFrom < mrnaTo) mrnaSeg = mrnaSegFull.substring(mrnaFrom, mrnaTo);
+        }
         int autoScroll = running ? (pos * 2) % 8 : 0;
         int baseX0 = x + 16 - autoScroll;
         int templY = y + 42;
@@ -140,7 +146,6 @@ public class TranscriberScreen extends SequenceMachineScreen {
         graphics.drawString(font, "模板", x + 6, templY - 11, 0xFF81C784, false);
         graphics.drawString(font, "mRNA", x + 6, mrnaY + 11, 0xFFF1C40F, false);
         int curInWindowRaw = cur - (from - fromBase);
-        // 完成时光标从居右 1/3 (window-6) 平滑右移至末位 (window-1)，模板已停滚
         int curInWindow = curInWindowRaw;
         if (isDone && doneStartTick >= 0) {
             int elapsed = tick - doneStartTick;
@@ -164,24 +169,14 @@ public class TranscriberScreen extends SequenceMachineScreen {
             int lineColor = isCurrent ? 0xFFFFFF00 : 0xFF555555;
             graphics.fill(bx + 3, pairY, bx + 4, pairY + 4, lineColor);
         }
-        // 下方 mRNA 从光标处向右延伸（修复错位：与模板同 x 对齐，光标左侧已合成，右侧 · 占位）
         for (int i = 0; i < templateSeg.length() && baseX0 + i * 8 < x + w - 10; i++) {
             int bx = baseX0 + i * 8;
             char mBase = '?';
             boolean hasMrna = false;
-            if (i <= curInWindow && i < mrnaSegFull.length()) {
-                // 光标左侧已合成区：模板 i 对应 mRNA 的 (mrnaSegFull.length() - curInWindow -1 + i) 需对齐
-                // 简化：mRNA 窗口与模板窗口同 from 偏移，直接取 mrnaSegFull 的对应段
-                int mrnaFrom = Math.max(0, mrnaSegFull.length() - window);
-                int srcIdx = mrnaFrom + i - (curInWindow - (mrnaSegFull.length() - mrnaFrom - 1));
-                // 更直观：已合成的 mRNA 左端对齐模板窗口左端，光标处为已合成末位
-                srcIdx = i - (curInWindow - mrnaSegFull.length() + 1);
-                if (srcIdx >= 0 && srcIdx < mrnaSegFull.length()) {
-                    mBase = mrnaSegFull.charAt(srcIdx);
-                    hasMrna = true;
-                }
+            if (i < mrnaSeg.length() && i <= curInWindow) {
+                mBase = mrnaSeg.charAt(i);
+                hasMrna = true;
             }
-            // 回退到简单同 x 对齐：模板 i 与 mRNA i 同列，光标左侧显示 mRNA，否则 ·
             if (hasMrna) {
                 boolean isCurrentM = (running || isDone) && i == curInWindow;
                 int mColor = switch (mBase) {
