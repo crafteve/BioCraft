@@ -113,22 +113,18 @@ public class TranscriberScreen extends SequenceMachineScreen {
         double pulse = (Math.sin(tick * 0.4) * 0.3 + 0.7);
         int window = Math.min(18, seq.length() - (idx + prom.length()));
         int fromBase = idx + prom.length();
-        // 窗口随转录进度自动右移，当前碱基保持在窗口内右侧 1/3
-        int cur = running ? Math.max(0, pos - idx - prom.length() - 1) : 0;
-        int from = fromBase + Math.max(0, cur - window + 6);
+        boolean isDone = stage == 2;
+        // 窗口：进行时 cur 居右 1/3，结束时强制右端对齐，光标定格最后一组
+        int cur = isDone ? Math.max(0, total - idx - prom.length() - 1) : (running ? Math.max(0, pos - idx - prom.length() - 1) : 0);
+        int from = isDone ? Math.max(fromBase, seq.length() - window)
+                : fromBase + Math.max(0, cur - window + 6);
         from = Math.min(from, Math.max(fromBase, seq.length() - window));
         int to = Math.min(seq.length(), from + window);
         String templateSeg = seq.substring(from, to);
-        String mrnaSeg = "";
+        String mrnaSegFull = "";
         Slot out = menu.getSlot(TranscriptionOperation.SLOT_OUT_MRNA);
         SequenceData outData = out.getItem().get(ModDataComponents.SEQUENCE.get());
-        if (outData != null) {
-            mrnaSeg = outData.seq();
-            // mRNA 窗口与模板同步偏移，保持配对对齐
-            int mrnaFrom = Math.max(0, cur - window + 6);
-            mrnaFrom = Math.min(mrnaFrom, Math.max(0, mrnaSeg.length() - window));
-            if (mrnaSeg.length() > window) mrnaSeg = mrnaSeg.substring(mrnaFrom, Math.min(mrnaSeg.length(), mrnaFrom + window));
-        }
+        if (outData != null) mrnaSegFull = outData.seq();
         int autoScroll = running ? (pos * 2) % 8 : 0;
         int baseX0 = x + 16 - autoScroll;
         int templY = y + 42;
@@ -139,26 +135,53 @@ public class TranscriberScreen extends SequenceMachineScreen {
         graphics.drawString(font, "模板", x + 6, templY - 11, 0xFF81C784, false);
         graphics.drawString(font, "mRNA", x + 6, mrnaY + 11, 0xFFF1C40F, false);
         int curInWindow = cur - (from - fromBase);
+        // 结束时光标定格最后一组并保持发光
+        boolean doneGlow = isDone && total > 0;
+        double donePulse = isDone ? (Math.sin(tick * 0.6) * 0.4 + 0.6) : pulse;
         for (int i = 0; i < templateSeg.length() && baseX0 + i * 8 < x + w - 10; i++) {
             char tBase = templateSeg.charAt(i);
-            char mBase = i < mrnaSeg.length() ? mrnaSeg.charAt(i) : '?';
-            boolean isCurrent = running && i == curInWindow && i < mrnaSeg.length();
+            // 上方模板固定窗口
             int tColor = switch (tBase) {
                 case 'A' -> BASE_A; case 'T' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFF9E9E9E;
             };
-            int mColor = switch (mBase) {
-                case 'A' -> BASE_A; case 'U' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFF5A5A5A;
-            };
             int bx = baseX0 + i * 8;
+            boolean isCurrent = (running || isDone) && i == curInWindow;
             if (isCurrent) {
-                int glow = (int) (180 * pulse) << 24 | 0x00FFFFFF;
+                int glow = (int) (180 * (isDone ? donePulse : pulse)) << 24 | 0x00FFFFFF;
                 graphics.fill(bx - 1, templY - 1, bx + 7, templY + 9, glow);
-                graphics.fill(bx - 1, mrnaY - 1, bx + 7, mrnaY + 9, glow);
             }
             graphics.drawString(font, String.valueOf(tBase), bx, templY, tColor, false);
-            graphics.drawString(font, String.valueOf(mBase == '?' ? "·" : mBase), bx, mrnaY, isCurrent ? 0xFFFFFFFF : mColor, false);
             int lineColor = isCurrent ? 0xFFFFFF00 : 0xFF555555;
             graphics.fill(bx + 3, pairY, bx + 4, pairY + 4, lineColor);
+        }
+        // 下方 mRNA 从光标处向右延伸
+        for (int i = 0; i < mrnaSegFull.length() && baseX0 + curInWindow * 8 + i * 8 < x + w - 10; i++) {
+            if (i >= window) break;
+            char mBase = mrnaSegFull.charAt(Math.max(0, mrnaSegFull.length() - window + i));
+            // 简化：取末 window 段，首位对齐光标左侧
+            // 实际按 pos 延伸：mRNA 左端 = 光标 - (mrnaSegFull.length()-1)*8
+            // 为保持简单，末 window 段左端对齐光标 - window +1
+            int mx = baseX0 + curInWindow * 8 - (Math.min(window, mrnaSegFull.length()) - 1) * 8 + i * 8;
+            // 若未开始，mx 可能负，裁掉
+            if (mx < x + 16 || mx >= x + w - 10) continue;
+            // 取对应碱基：窗口内第 i 位对应 mrnaSegFull 的 (mrnaSegFull.length()-window+i)
+            int srcIdx = mrnaSegFull.length() - Math.min(window, mrnaSegFull.length()) + i;
+            if (srcIdx < 0 || srcIdx >= mrnaSegFull.length()) continue;
+            char mb = mrnaSegFull.charAt(srcIdx);
+            boolean isCurrentM = (running || isDone) && mx == baseX0 + curInWindow * 8;
+            int mColor = switch (mb) {
+                case 'A' -> BASE_A; case 'U' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFF5A5A5A;
+            };
+            if (isCurrentM) {
+                int glow = (int) (180 * (isDone ? donePulse : pulse)) << 24 | 0x00FFFFFF;
+                graphics.fill(mx - 1, mrnaY - 1, mx + 7, mrnaY + 9, glow);
+            }
+            graphics.drawString(font, String.valueOf(mb), mx, mrnaY, isCurrentM ? 0xFFFFFFFF : mColor, false);
+        }
+        // 未合成区 · 占位（光标右侧）
+        for (int i = curInWindow + 1; i < templateSeg.length() && baseX0 + i * 8 < x + w - 10; i++) {
+            int bx = baseX0 + i * 8;
+            graphics.drawString(font, "·", bx, mrnaY, 0xFF5A5A5A, false);
         }
     }
 
