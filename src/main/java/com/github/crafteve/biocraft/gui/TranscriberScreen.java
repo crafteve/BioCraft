@@ -96,7 +96,6 @@ public class TranscriberScreen extends SequenceMachineScreen {
         String seq = data != null ? data.seq() : "";
         Boolean isTemplate = tmpl.get(ModDataComponents.IS_TEMPLATE.get());
         if (seq.isEmpty()) {
-            graphics.drawString(font, "放入模板 dna_single（模板链）", x + 6, y + 22, 0xFF6A9955, false);
             return;
         }
         if (isTemplate != null && isTemplate) {
@@ -145,8 +144,6 @@ public class TranscriberScreen extends SequenceMachineScreen {
             char tBase = templateSeg.charAt(i);
             char mBase = i < mrnaSeg.length() ? mrnaSeg.charAt(i) : '?';
             boolean isCurrent = running && i == curInWindow && i < mrnaSeg.length();
-            // 动起来：非当前位轻微波浪，当前位脉冲更强
-            int wave = running ? (int) (Math.sin(tick * 0.35 + i * 0.7) * 1.2) : 0;
             int tColor = switch (tBase) {
                 case 'A' -> BASE_A; case 'T' -> BASE_T; case 'C' -> BASE_C; case 'G' -> BASE_G; default -> 0xFF9E9E9E;
             };
@@ -156,21 +153,13 @@ public class TranscriberScreen extends SequenceMachineScreen {
             int bx = baseX0 + i * 8;
             if (isCurrent) {
                 int glow = (int) (180 * pulse) << 24 | 0x00FFFFFF;
-                graphics.fill(bx - 1, templY + wave - 1, bx + 7, templY + wave + 9, glow);
-                graphics.fill(bx - 1, mrnaY - wave - 1, bx + 7, mrnaY - wave + 9, glow);
+                graphics.fill(bx - 1, templY - 1, bx + 7, templY + 9, glow);
+                graphics.fill(bx - 1, mrnaY - 1, bx + 7, mrnaY + 9, glow);
             }
-            graphics.drawString(font, String.valueOf(tBase), bx, templY + wave, tColor, false);
-            graphics.drawString(font, String.valueOf(mBase == '?' ? "·" : mBase), bx, mrnaY - wave, isCurrent ? 0xFFFFFFFF : mColor, false);
+            graphics.drawString(font, String.valueOf(tBase), bx, templY, tColor, false);
+            graphics.drawString(font, String.valueOf(mBase == '?' ? "·" : mBase), bx, mrnaY, isCurrent ? 0xFFFFFFFF : mColor, false);
             int lineColor = isCurrent ? 0xFFFFFF00 : 0xFF555555;
-            // 短箭头改为随波上下 1px，更居中
-            graphics.fill(bx + 3, pairY + wave, bx + 4, pairY + wave + 4, lineColor);
-        }
-        // 底部进度细条
-        int barY = y + h - 6;
-        graphics.fill(x + 6, barY, x + w - 6, barY + 2, BAR_TRACK);
-        if (total > 0) {
-            int fill = (int) ((w - 12) * pos / (double) total);
-            graphics.fill(x + 6, barY, x + 6 + fill, barY + 2, 0xFF7ED6DF);
+            graphics.fill(bx + 3, pairY, bx + 4, pairY + 4, lineColor);
         }
     }
 
@@ -192,20 +181,25 @@ public class TranscriberScreen extends SequenceMachineScreen {
             SequenceData data = tmpl.get(ModDataComponents.SEQUENCE.get());
             Boolean isTemplate = tmpl.get(ModDataComponents.IS_TEMPLATE.get());
             String err = "";
-            if (data != null) {
-                if (isTemplate != null && isTemplate) {
-                    err = "编码链不可转录，请放入模板链(3'→5')";
-                } else if (!data.seq().contains(com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE)) {
-                    err = "未找到启动子 " + com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE + "（旧链请重制）";
-                }
+            boolean isMissing = false;
+            if (data == null || data.seq().isEmpty()) {
+                err = "未放ssDNA模板链";
+                isMissing = true;
+            } else if (isTemplate != null && isTemplate) {
+                err = "编码链不可转录，请放入模板链(3'→5')";
+            } else if (!data.seq().contains(com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE)) {
+                err = "未找到启动子 " + com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_TEMPLATE + "（旧链请重制）";
             }
             if (!err.isEmpty()) {
                 int x = leftPos + SequenceMachineMenu.EDIT_X + 3;
                 int y = topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9;
-                graphics.fill(x, y, x + 1, y + 8, 0xFFE53935);
-                graphics.drawString(font, "!", x + 3, y, 0xFFFFFFFF, false);
+                int barColor = isMissing ? 0xFF9E9E9E : 0xFFE53935;
+                int textColor = isMissing ? 0xFF707070 : 0xFFFFFFFF;
+                String prefix = isMissing ? "§7" : "§c";
+                graphics.fill(x, y, x + 1, y + 8, barColor);
+                graphics.drawString(font, "!", x + 3, y, textColor, false);
                 if (mouseX >= x && mouseX < x + 8 && mouseY >= y && mouseY < y + 8) {
-                    graphics.renderTooltip(font, java.util.List.of(Component.literal("§c" + err)), java.util.Optional.empty(), mouseX, mouseY);
+                    graphics.renderTooltip(font, java.util.List.of(Component.literal(prefix + err)), java.util.Optional.empty(), mouseX, mouseY);
                 }
             }
         }

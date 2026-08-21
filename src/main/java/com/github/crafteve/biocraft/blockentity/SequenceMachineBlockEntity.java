@@ -134,12 +134,9 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         }
         switch (stepState.stage()) {
             case IDLE -> {
+                // 转录机改为点击按钮才触发（fix：禁自动转录，fix2：不自动创建空 mRNA）
+                if (kind() == SequenceMachineKind.TRANSCRIBER) return;
                 if (operation.canStart(inventory, stepState) && operation.init(inventory, stepState)) {
-                    if (kind() == SequenceMachineKind.TRANSCRIBER) {
-                        ItemStack tmpl = inventory.getItem(TranscriptionOperation.SLOT_TEMPLATE);
-                        SequenceData d = tmpl.get(ModDataComponents.SEQUENCE.get());
-                        lastTemplateSeq = d != null ? d.seq() : "";
-                    }
                     materialize();
                     setChanged();
                 }
