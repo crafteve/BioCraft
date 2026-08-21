@@ -72,6 +72,10 @@ public class LoaderOperation implements SequenceOperation {
         if (aaId == null) return false;
         lastAaId = aaId;
         state.beginExtending(aaId);
+        // 装载机 1:1 合成（1 tRNA + 1 aa + 1 ATP → 1 aa-tRNA + AMP + PPi），
+        // 一次 step 即完成一轮装载；beginExtending 默认 total=chain.length()
+        // 会把 aaId 字符串长度误当步数，须强制 total=1 保证 step 一次即 DONE
+        state.setTotal(1);
         return true;
     }
 

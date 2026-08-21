@@ -176,9 +176,12 @@ public class LoaderScreen extends SequenceMachineScreen {
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         Slot aaSlot = menu.getSlot(LoaderOperation.SLOT_AA);
         ItemStack aaStack = aaSlot.getItem();
+        // aa 缩写：随 AA 槽物品变化（如 Gly/Ala），非固定 "aa"
         int aaTint = 0xFF7CFC00;
+        String aaAbbr = "aa";
         if (!aaStack.isEmpty() && aaStack.getItem() instanceof MoleculeItem mi) {
             aaTint = mi.getTintColor() | 0xFF000000;
+            aaAbbr = mi.getAbbreviation();
         }
         // 分子主题色从 substances.json 取（勿硬编码）：ATP 红、AMP 橙、PPi 深橙
         int atpTint = moleculeTint("atp", 0xFFE74C3C);
@@ -215,13 +218,15 @@ public class LoaderScreen extends SequenceMachineScreen {
         }
         // 口袋中心：装载的核心点（空 = tRNA 灰点，完成 = AA 色亮点）
         g.fill(cx - 1, cy - 1, cx + 2, cy + 2, loaded ? 0xFFFFFFFF : 0xFFB0C4DE);
-        // tRNA 标注：居中口袋上方，说明中心灰色圆 = tRNA
-        g.drawString(font, "tRNA", cx - font.width("tRNA") / 2, cy - R - 12, 0xFF90A4AE, false);
+        // tRNA 标注：居中口袋上方，说明中心灰圆 = tRNA；装载完成后变为 aa-tRNA（aa 缩写）
+        String pocketLabel = loaded ? aaAbbr : "tRNA";
+        g.drawString(font, pocketLabel, cx - font.width(pocketLabel) / 2, cy - R - 12,
+                loaded ? aaTint : 0xFF90A4AE, false);
 
         if (!animActive) {
             // 静止：口袋两侧展示原料点（左 aa 右 ATP 三磷），短标注各一个词
             g.fill(x + 20, cy - 1, x + 22, cy + 1, aaTint);
-            g.drawString(font, "aa", x + 16, cy + 4, aaTint, false);
+            g.drawString(font, aaAbbr, x + 16, cy + 4, aaTint, false);
             g.fill(x + w - 26, cy - 1, x + w - 24, cy + 1, atpTint);
             g.fill(x + w - 22, cy - 1, x + w - 20, cy + 1, atpTint);
             g.fill(x + w - 18, cy - 1, x + w - 16, cy + 1, atpTint);
@@ -234,9 +239,9 @@ public class LoaderScreen extends SequenceMachineScreen {
         int aaX = (int) (x + 20 + (cx - R - 3 - (x + 20)) * prog);
         int atpX = (int) (x + w - 26 + (cx + R + 3 - (x + w - 26)) * prog);
         if (t < 11) {
-            // aa 点（带 aa 标注跟随，与静止态一致）
+            // aa 点（带 aa 缩写标注跟随，与静止态一致）
             g.fill(aaX - 1, cy - 1, aaX + 1, cy + 1, aaTint);
-            g.drawString(font, "aa", aaX - 2, cy + 4, aaTint, false);
+            g.drawString(font, aaAbbr, aaX - 2, cy + 4, aaTint, false);
             // ATP 三磷（主题红，横向排列）+ ATP 标注（随点移动）
             for (int p = 0; p < 3; p++) {
                 int px = atpX + p * 4;
@@ -254,11 +259,12 @@ public class LoaderScreen extends SequenceMachineScreen {
             g.fill(cx - 3 - f, cy - 3 - f, cx + 4 + f, cy + 4 + f, 0x44FFFFFF);
         }
 
-        // 副产物弹出：PPi 深橙双点从右上坠落（11-16），AMP 橙点从左下坠落（15-20）
+        // 副产物弹出：PPi 深橙双点从右上坠落（11-16，带 PPi 标注），AMP 橙点从左下坠落（15-20）
         if (t >= 11 && t < 16) {
             int fall = (t - 11) * 2;
             g.fill(cx + R + 4 + fall, cy - 6 + fall, cx + R + 6 + fall, cy - 4 + fall, ppiTint);
             g.fill(cx + R + 8 + fall, cy - 4 + fall, cx + R + 10 + fall, cy - 2 + fall, ppiTint);
+            g.drawString(font, "PPi", cx + R + 8 + fall - font.width("PPi") / 2, cy - 12 + fall, ppiTint, false);
         }
         if (t >= 15 && t < 21) {
             int fall = (t - 15) * 2;

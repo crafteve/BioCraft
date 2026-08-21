@@ -61,6 +61,11 @@ public final class SeqStepState {
         this.position = position;
     }
 
+    /** 写入总步数（默认 beginExtending 用 chain.length()，装载机 1:1 需覆写为 1） */
+    public void setTotal(int total) {
+        this.total = total;
+    }
+
     public void setPendingProgram(String pendingProgram) {
         this.pendingProgram = pendingProgram;
     }
