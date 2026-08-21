@@ -130,52 +130,57 @@ public class LoaderScreen extends SequenceMachineScreen {
         g.drawString(font, "x" + countText, pngX + 18 + 4, pngY + 18 + 1 - 8, CONC_TEXT_COLOR, false);
     }
 
-    private void drawLoaderAnimation(GuiGraphics graphics) {
-        int x = leftPos + SequenceMachineMenu.EDIT_X;
-        int y = topPos + SequenceMachineMenu.EDIT_Y;
-        int w = SequenceMachineMenu.EDIT_W;
-        int h = SequenceMachineMenu.EDIT_H;
-        graphics.fill(x, y, x + w, y + h, EDIT_PANEL_COLOR);
-        graphics.fill(x, y, x + w, y + 1, 0xFF3A3A3A);
+    // guiv1 动画区常量（复用 helicase）
+    private static final int ANIM_X = 68;
+    private static final int ANIM_Y = 38;
+    private static final int ANIM_W = 122;
+    private static final int ANIM_H = 126;
+
+    private void drawLoaderAnimation(GuiGraphics g) {
+        int x = leftPos + ANIM_X;
+        int y = topPos + ANIM_Y;
+        int w = ANIM_W;
+        int h = ANIM_H;
+        g.fill(x, y, x + w, y + h, EDIT_PANEL_COLOR);
+        g.fill(x, y, x + w, y + 1, 0xFF3A3A3A);
         int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
         boolean running = stage == 1;
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         Slot aaSlot = menu.getSlot(LoaderOperation.SLOT_AA);
         ItemStack aaStack = aaSlot.getItem();
-        String aaName = aaStack.isEmpty() ? "等待 AA" : aaStack.getHoverName().getString();
         int aaTint = 0xFFB0BEC5;
-        if (!aaStack.isEmpty() && aaStack.getItem() instanceof MoleculeItem mi) aaTint = mi.getTintColor() | 0xFF000000;
-        graphics.drawString(font, aaName, x + 6, y + 6, aaTint, false);
-        String status = running ? "装载中" : stage == 2 ? "完成" : "待机";
-        graphics.drawString(font, status, x + w - 6 - font.width(status), y + 6, 0xFF9E9E9E, false);
-        int cx = x + w / 2;
-        int cy = y + h / 2 + 4;
-        // 背景网格
-        for (int gx = x + 12; gx < x + w; gx += 16) graphics.fill(gx, y + 16, gx + 1, y + h - 8, 0x0FFFFFFF);
-        // 左 tRNA
-        int leftX = cx - 38;
-        int rightX = cx + 18;
-        graphics.fill(leftX, cy - 14, leftX + 22, cy + 14, 0xFF2A2A2E);
-        graphics.fill(leftX + 1, cy - 13, leftX + 21, cy + 13, 0xFF3A3A3A);
-        graphics.drawString(font, "tRNA", leftX + 4, cy - 4, 0xFFB0BEC5, false);
-        // 右 aa-tRNA（染色为 AA 色）
-        graphics.fill(rightX, cy - 14, rightX + 22, cy + 14, aaTint & 0x44FFFFFF);
-        graphics.fill(rightX + 1, cy - 13, rightX + 21, cy + 13, aaTint);
-        String abbr = aaStack.isEmpty() ? "aa" : (aaStack.getItem() instanceof MoleculeItem mi2 ? mi2.getAbbreviation() : aaName);
-        graphics.drawString(font, abbr, rightX + 11 - font.width(abbr) / 2, cy - 4, 0xFFFFFFFF, false);
-        // 中间 ATP 箭头
-        int ax = cx - 8;
-        int ay = cy - 2;
-        double swing = running ? Math.sin(tick * 0.35) * 3 : 0;
-        graphics.fill(ax + (int) swing, ay, ax + 12 + (int) swing, ay + 2, 0xFFF1C40F);
-        graphics.fill(ax + 10 + (int) swing, ay - 3, ax + 14 + (int) swing, ay + 5, 0xFFF1C40F);
-        graphics.drawString(font, "ATP→AMP+PPi", cx - 28, cy + 20, 0xFF9E9E9E, false);
-        // 进度点
-        if (running) {
-            int dot = (tick / 4) % 4;
-            String dots = ".".repeat(dot);
-            graphics.drawString(font, "·" + dots, cx - 4, cy + 32, aaTint, false);
+        String abbr = "aa";
+        if (!aaStack.isEmpty() && aaStack.getItem() instanceof MoleculeItem mi) {
+            aaTint = mi.getTintColor() | 0xFF000000;
+            abbr = mi.getAbbreviation();
         }
+        // 标题短标注
+        g.drawString(font, abbr, x + 6, y + 6, aaTint, false);
+        String st = running ? "LOAD" : stage == 2 ? "DONE" : "IDLE";
+        g.drawString(font, st, x + w - 6 - font.width(st), y + 6, 0xFF9E9E9E, false);
+        // 网格
+        for (int gx = x + 10; gx < x + w; gx += 14) g.fill(gx, y + 14, gx + 1, y + h - 10, 0x0FFFFFFF);
+        int cx = x + w / 2;
+        int cy = y + h / 2 + 6;
+        // 左 tRNA 框
+        int lx = cx - 36;
+        int rx = cx + 14;
+        g.fill(lx, cy - 12, lx + 22, cy + 12, 0xFF2A2A2E);
+        g.fill(lx + 1, cy - 11, lx + 21, cy + 11, 0xFF3A3A3A);
+        g.drawString(font, "tRNA", lx + 4, cy - 4, 0xFFB0BEC5, false);
+        // 右 aa-tRNA 框（AA 色）
+        g.fill(rx, cy - 12, rx + 22, cy + 12, aaTint & 0x30FFFFFF);
+        g.fill(rx + 1, cy - 11, rx + 21, cy + 11, aaTint);
+        g.drawString(font, abbr, rx + 11 - font.width(abbr) / 2, cy - 4, 0xFFFFFFFF, false);
+        // 中间 ATP 箭头（脉冲左右 2px）
+        int ax = cx - 6;
+        int ay = cy - 1;
+        int swing = running ? (int) (Math.sin(tick * 0.4) * 2) : 0;
+        g.fill(ax + swing, ay, ax + 10 + swing, ay + 1, 0xFFF1C40F);
+        g.fill(ax + 8 + swing, ay - 2, ax + 12 + swing, ay + 3, 0xFFF1C40F);
+        // 底部短标注（3 字母内）
+        g.drawString(font, "ATP", cx - 16, cy + 18, 0xFFF1C40F, false);
+        g.drawString(font, "AMP", cx + 8, cy + 18, 0xFF9E9E9E, false);
     }
 
     @Override
