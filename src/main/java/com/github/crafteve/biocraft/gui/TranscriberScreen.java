@@ -15,6 +15,8 @@ import net.minecraft.world.item.ItemStack;
  */
 public class TranscriberScreen extends SequenceMachineScreen {
 
+    private int doneStartTick = -1;
+
     public TranscriberScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
     }
@@ -114,8 +116,11 @@ public class TranscriberScreen extends SequenceMachineScreen {
         int window = Math.min(18, seq.length() - (idx + prom.length()));
         int fromBase = idx + prom.length();
         boolean isDone = stage == 2;
-        // 窗口：进行时 cur 居右 1/3，结束时强制右端对齐，光标定格最后一组
-        int cur = isDone ? Math.max(0, total - idx - prom.length() - 1) : (running ? Math.max(0, pos - idx - prom.length() - 1) : 0);
+        if (isDone && doneStartTick < 0) doneStartTick = tick;
+        if (!isDone) doneStartTick = -1;
+        // 窗口：进行时 cur 居右 1/3，结束时模板停滚，光标从居右 1/3 平滑右移至末位
+        int curRaw = isDone ? Math.max(0, total - idx - prom.length() - 1) : (running ? Math.max(0, pos - idx - prom.length() - 1) : 0);
+        int cur = curRaw;
         int from = isDone ? Math.max(fromBase, seq.length() - window)
                 : fromBase + Math.max(0, cur - window + 6);
         from = Math.min(from, Math.max(fromBase, seq.length() - window));
@@ -134,7 +139,14 @@ public class TranscriberScreen extends SequenceMachineScreen {
         graphics.fill(x + 6, mrnaY - 2, x + w - 6, mrnaY + 10, 0xFF2A2A2E);
         graphics.drawString(font, "模板", x + 6, templY - 11, 0xFF81C784, false);
         graphics.drawString(font, "mRNA", x + 6, mrnaY + 11, 0xFFF1C40F, false);
-        int curInWindow = cur - (from - fromBase);
+        int curInWindowRaw = cur - (from - fromBase);
+        // 完成时光标从居右 1/3 (window-6) 平滑右移至末位 (window-1)，模板已停滚
+        int curInWindow = curInWindowRaw;
+        if (isDone && doneStartTick >= 0) {
+            int elapsed = tick - doneStartTick;
+            int steps = Math.min(5, elapsed / 3);
+            curInWindow = Math.min(window - 1, (window - 6) + steps);
+        }
         boolean doneGlow = isDone && total > 0;
         double donePulse = isDone ? (Math.sin(tick * 0.6) * 0.4 + 0.6) : pulse;
         for (int i = 0; i < templateSeg.length() && baseX0 + i * 8 < x + w - 10; i++) {
