@@ -179,7 +179,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         }
         // 输出
         if (!outputCards.isEmpty()) {
-            if (menu.getKind() == SequenceMachineKind.HELICASE) {
+            if (menu.getKind() == SequenceMachineKind.HELICASE || menu.getKind() == SequenceMachineKind.LOADER) {
                 for (int i = 0; i < outputCards.size(); i++) {
                     Slot slot = menu.getSlot(outputCards.get(i).containerSlot());
                     slot.x = 193 + SequenceMachineMenu.SLOT_X;
@@ -212,7 +212,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             scrollInput(verticalAmount);
             return true;
         }
-        if (menu.getKind() == SequenceMachineKind.HELICASE) {
+        if (menu.getKind() == SequenceMachineKind.HELICASE || menu.getKind() == SequenceMachineKind.LOADER) {
             if (inArea(lx, ly, 193, 41, 56, 112)) {
                 scrollInput(verticalAmount);
                 return true;
@@ -488,8 +488,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             return;
         }
         if (isOutput) {
-            // helicase 输出为右侧垂直双卡，非底部横向
-            if (menu.getKind() == SequenceMachineKind.HELICASE) {
+            if (menu.getKind() == SequenceMachineKind.HELICASE || menu.getKind() == SequenceMachineKind.LOADER) {
                 int x = leftPos + 193;
                 int y = topPos + 41;
                 graphics.enableScissor(x, y, x + 56, y + 112);

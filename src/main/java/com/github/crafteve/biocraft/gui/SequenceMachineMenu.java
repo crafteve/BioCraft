@@ -330,9 +330,9 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP},
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP * 2},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X + 57, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X + 114, OUT_Y + SLOT_Y},
+                    {193 + SLOT_X, 41 + SLOT_Y},
+                    {193 + SLOT_X, 41 + SLOT_Y + CARD_STEP},
+                    {193 + SLOT_X, 41 + SLOT_Y + CARD_STEP * 2},
             };
         };
     }

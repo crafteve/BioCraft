@@ -165,10 +165,30 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
                 setChanged();
             }
             case DONE -> {
-                // 完成态：产物可被取走；取走后自动回 IDLE——
-                // 转录仪（模板 KEEP）随即用同一模板自动开始新一轮；
-                // 编码器（pendingProgram 已空）停在 IDLE 等玩家重新提交程序；
-                // 解旋酶双产物需两槽皆空才回 IDLE（避免覆盖未取走的单链）
+                if (kind() == SequenceMachineKind.LOADER) {
+                    // 装载机连续作业：产满才停，否则自动回 IDLE 接下一轮
+                    boolean hasRoom = inventory.getItem(LoaderOperation.SLOT_OUT_AATRNA).isEmpty()
+                            || inventory.getItem(LoaderOperation.SLOT_OUT_AATRNA).getCount() < inventory.getItem(LoaderOperation.SLOT_OUT_AATRNA).getMaxStackSize();
+                    hasRoom = hasRoom && (inventory.getItem(LoaderOperation.SLOT_OUT_AMP).isEmpty()
+                            || inventory.getItem(LoaderOperation.SLOT_OUT_AMP).getCount() < 64);
+                    hasRoom = hasRoom && (inventory.getItem(LoaderOperation.SLOT_OUT_PPI).isEmpty()
+                            || inventory.getItem(LoaderOperation.SLOT_OUT_PPI).getCount() < 64);
+                    boolean hasInput = !inventory.getItem(LoaderOperation.SLOT_TRNA).isEmpty()
+                            && !inventory.getItem(LoaderOperation.SLOT_AA).isEmpty()
+                            && !inventory.getItem(LoaderOperation.SLOT_ATP).isEmpty();
+                    if (!hasRoom || !hasInput) {
+                        // 产满或缺料才需取走
+                        boolean doneEmpty = inventory.getItem(operation.outputSlot()).isEmpty();
+                        if (doneEmpty) {
+                            stepState.setStage(SeqStepState.Stage.IDLE);
+                            setChanged();
+                        }
+                    } else {
+                        stepState.setStage(SeqStepState.Stage.IDLE);
+                        setChanged();
+                    }
+                    break;
+                }
                 boolean doneEmpty;
                 if (kind() == SequenceMachineKind.HELICASE) {
                     doneEmpty = inventory.getItem(HelicaseOperation.SLOT_OUT_A).isEmpty()
