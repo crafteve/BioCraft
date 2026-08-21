@@ -155,6 +155,7 @@ public class LoaderScreen extends SequenceMachineScreen {
 
         int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
         boolean running = stage == 1;
+        boolean done = stage == 2;
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         Slot aaSlot = menu.getSlot(LoaderOperation.SLOT_AA);
         ItemStack aaStack = aaSlot.getItem();
@@ -162,100 +163,89 @@ public class LoaderScreen extends SequenceMachineScreen {
         if (!aaStack.isEmpty() && aaStack.getItem() instanceof MoleculeItem mi) {
             aaTint = mi.getTintColor() | 0xFF000000;
         }
-        double pulse = Math.sin(tick * 0.4) * 0.3 + 0.7;
+        // 0..1 呼吸曲线（口袋缩放/光环脉动）
+        double breath = (Math.sin(tick * 0.35) + 1) * 0.5;
 
-        // 顶标题同 helicase 转录：左转化右状态
-        g.drawString(font, "tRNA→aa-tRNA", x + 6, y + 6, 0xFFE0E0E0, false);
-        String st = running ? "LOAD" : stage == 2 ? "DONE" : "IDLE";
+        // 顶标题 + 状态（同 helicase/转录风格）
+        g.drawString(font, "装载", x + 6, y + 6, 0xFFE0E0E0, false);
+        String st = running ? "LOAD" : done ? "DONE" : "IDLE";
         g.drawString(font, st, x + w - 6 - font.width(st), y + 6, 0xFF9E9E9E, false);
 
-        // 双步标题（各自轨道上方，不与轨道重叠）
-        g.drawString(font, "ATP+aa→aa-AMP+PPi", x + 6, y + 16, 0xFFB0BEC5, false);
-        g.drawString(font, "aa-AMP+tRNA→aa-tRNA+AMP", x + 6, y + 56, 0xFFB0BEC5, false);
+        // 独立 30 tick 循环（进入 running 时从 0 开始），停机立刻停
+        int t = 0;
+        if (running) {
+            if (animStart < 0) animStart = tick;
+            t = (int) ((tick - animStart) % 30);
+        }
 
-        // 双轨（高 16，点行在轨内中线）
-        int yU = y + 28;
-        int yL = y + 68;
-        g.fill(x + 6, yU, x + w - 6, yU + 16, 0xFF2A2A2E);
-        g.fill(x + 6, yL, x + w - 6, yL + 16, 0xFF2A2A2E);
-        int pyU = yU + 7;
-        int pyL = yL + 7;
-
-        // 下轨两侧三叶草：左 tRNA 灰（缺口空），右 aa-tRNA 完成态 AA 色
-        int lx = x + 24;
-        int rx = x + 94;
-        drawClover(g, lx, pyL, 0xFFB0BEC5, false, 0);
-        boolean done = !running && stage == 2;
-        drawClover(g, rx, pyL, aaTint, done, aaTint);
+        // 中央装载口袋：大圆点阵描边（空闲灰 / 完成 AA 色），呼吸缩放
+        int cx = x + w / 2;
+        int cy = y + h / 2 + 2;
+        int R = 15 + (int) Math.round(breath * 2);
+        boolean loaded = done || (running && t >= 14);
+        int pocket = loaded ? aaTint : 0xFF7E8EA0;
+        for (int i = 0; i < 24; i++) {
+            double a = i * (Math.PI * 2 / 24);
+            int px = cx + (int) Math.round(Math.cos(a) * R);
+            int py = cy + (int) Math.round(Math.sin(a) * R);
+            g.fill(px, py, px + 1, py + 1, pocket);
+        }
+        // 口袋中心：装载的核心点（空 = tRNA 灰点，完成 = AA 色亮点）
+        g.fill(cx - 1, cy - 1, cx + 2, cy + 2, loaded ? 0xFFFFFFFF : 0xFFB0C4DE);
 
         if (!running) {
-            // 静止：上轨展示原料点（aa + ATP 三磷），下轨三叶草已画
-            g.fill(x + 16, pyU - 1, x + 18, pyU + 1, aaTint);
-            g.fill(x + 24, pyU - 1, x + 26, pyU + 1, 0xFFF1C40F);
-            g.fill(x + 28, pyU - 1, x + 30, pyU + 1, 0xFFF1C40F);
-            g.fill(x + 32, pyU - 1, x + 34, pyU + 1, 0xFFF1C40F);
+            // 静止：口袋两侧展示原料点（左 aa 右 ATP 三磷），无文字
+            g.fill(x + 20, cy - 1, x + 22, cy + 1, aaTint);
+            g.fill(x + w - 26, cy - 1, x + w - 24, cy + 1, 0xFFF1C40F);
+            g.fill(x + w - 22, cy - 1, x + w - 20, cy + 1, 0xFFF1C40F);
+            g.fill(x + w - 18, cy - 1, x + w - 16, cy + 1, 0xFFF1C40F);
             return;
         }
 
-        // 独立 20 tick 循环（进入 running 时从 0 开始），停机立刻停
-        if (animStart < 0) animStart = tick;
-        int t = (int) ((tick - animStart) % 20);
-        int glow = (int) (180 * pulse) << 24 | 0x00FFFFFF;
-
-        if (t < 10) {
-            // 上游 0-9：aa 点 + ATP 三磷点同步右移合成 aa-AMP
-            int prog = t * 5;
-            int ax = x + 16 + prog;
-            // aa 点带 glow
-            g.fill(ax - 1, pyU - 2, ax + 3, pyU + 4, glow);
-            g.fill(ax, pyU - 1, ax + 2, pyU + 1, aaTint);
-            // ATP 三磷（黄）
-            int bx = ax + 10;
-            g.fill(bx, pyU - 1, bx + 2, pyU + 1, 0xFFF1C40F);
-            g.fill(bx + 4, pyU - 1, bx + 6, pyU + 1, 0xFFF1C40F);
-            g.fill(bx + 8, pyU - 1, bx + 10, pyU + 1, 0xFFF1C40F);
-            // 轨迹虚线
-            for (int dx = 4; dx < prog; dx += 5) g.fill(x + 16 + dx, pyU + 3, x + 17 + dx, pyU + 4, 0x33FFFFFF);
-            if (t >= 8) {
-                // 合成：aa 与 ATP 之间黄键线
-                g.fill(ax + 2, pyU, bx, pyU + 1, 0xFFF1C40F);
-                // PPi 双磷下落
-                int fall = (t - 8) * 3;
-                g.fill(bx + 12, pyU + 2 + fall, bx + 14, pyU + 4 + fall, 0xFF9E9E9E);
-                g.fill(bx + 16, pyU + 2 + fall, bx + 18, pyU + 4 + fall, 0xFF9E9E9E);
+        // 原料滑动：aa 从左、ATP 从右沿中轴滑向口袋两侧（0-10）
+        double prog = Math.min(1.0, t / 10.0);
+        int aaX = (int) (x + 20 + (cx - R - 3 - (x + 20)) * prog);
+        int atpX = (int) (x + w - 26 + (cx + R + 3 - (x + w - 26)) * prog);
+        if (t < 11) {
+            // aa 点
+            g.fill(aaX - 1, cy - 1, aaX + 1, cy + 1, aaTint);
+            // ATP 三磷（黄，横向排列）
+            for (int p = 0; p < 3; p++) {
+                int px = atpX + p * 4;
+                g.fill(px - 1, cy - 1, px + 1, cy + 1, 0xFFF1C40F);
             }
         } else {
-            // 下游 10-19：aa-AMP 点群左移飘向 tRNA 缺口，填色完成
-            int pt = t - 10;
-            int prog = pt * 4;
-            int ax = x + 60 - prog;
-            g.fill(ax - 1, pyL - 2, ax + 5, pyL + 4, glow);
-            g.fill(ax, pyL - 1, ax + 2, pyL + 1, aaTint);
-            g.fill(ax + 3, pyL, ax + 5, pyL + 2, 0xFFF1C40F);
-            // 轨迹虚线（自起点向左延伸）
-            for (int dx = 4; dx < prog; dx += 5) g.fill(x + 60 - dx, pyL + 3, x + 61 - dx, pyL + 4, 0x33FFFFFF);
-            if (pt >= 8) {
-                // 到位：缺口填 AA 色 + 右 aa-tRNA 亮起 + AMP 弹出
-                g.fill(lx - 1, pyL + 4, lx + 1, pyL + 6, aaTint);
-                drawClover(g, rx, pyL, aaTint, true, aaTint);
-                int fall = (pt - 8) * 2;
-                g.fill(lx + 6, pyL + 4 + fall, lx + 8, pyL + 6 + fall, 0xFF9E9E9E);
-                g.fill(lx + 10, pyL + 4 + fall, lx + 12, pyL + 6 + fall, 0xFF9E9E9E);
+            // 已接触：aa 点落在口袋核心左侧，闪光扩散
+            g.fill(cx - R + 3, cy - 1, cx - R + 5, cy + 1, aaTint);
+        }
+
+        // 接触闪光（11-14）：口袋中心白光扩散
+        if (t >= 11 && t < 14) {
+            int f = (t - 11) * 2;
+            g.fill(cx - 3 - f, cy - 3 - f, cx + 4 + f, cy + 4 + f, 0x44FFFFFF);
+        }
+
+        // 副产物弹出：PPi 灰双点从右上坠落（11-16），AMP 黄点从左下坠落（15-20）
+        if (t >= 11 && t < 16) {
+            int fall = (t - 11) * 2;
+            g.fill(cx + R + 4 + fall, cy - 6 + fall, cx + R + 6 + fall, cy - 4 + fall, 0xFF9E9E9E);
+            g.fill(cx + R + 8 + fall, cy - 4 + fall, cx + R + 10 + fall, cy - 2 + fall, 0xFF9E9E9E);
+        }
+        if (t >= 15 && t < 21) {
+            int fall = (t - 15) * 2;
+            g.fill(cx - R - 8 - fall, cy + 4 + fall, cx - R - 6 - fall, cy + 6 + fall, 0xFFF1C40F);
+        }
+
+        // 完成态光环（14-30）：AA 色外圈脉动
+        if (t >= 14) {
+            int halo = R + 4 + (int) Math.round(breath * 3);
+            for (int i = 0; i < 20; i++) {
+                double a = i * (Math.PI * 2 / 20);
+                int px = cx + (int) Math.round(Math.cos(a) * halo);
+                int py = cy + (int) Math.round(Math.sin(a) * halo);
+                g.fill(px, py, px + 1, py + 1, 0x44FFFFFF);
             }
         }
-    }
-
-    private void drawClover(GuiGraphics g, int cx, int cy, int color, boolean filled, int aaTint) {
-        // 三叶点阵 Y：6 点围成丫，缺口在下方（filled 时缺口填 AA 色）
-        for (int i = 0; i < 6; i++) {
-            int py = cy - 8 + i * 3;
-            int off = i < 3 ? i : 5 - i;
-            int c = filled ? color : 0xFFB0BEC5;
-            g.fill(cx - off, py, cx - off + 1, py + 1, c);
-            g.fill(cx + off, py, cx + off + 1, py + 1, c);
-        }
-        if (filled) g.fill(cx - 1, cy + 4, cx + 1, cy + 6, aaTint);
-        else g.fill(cx - 1, cy + 4, cx + 1, cy + 6, 0xFF555555);
     }
 
     @Override
