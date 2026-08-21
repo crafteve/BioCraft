@@ -18,6 +18,9 @@ public class LoaderScreen extends SequenceMachineScreen {
     private static final net.minecraft.resources.ResourceLocation GUI_V1 =
             net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.github.crafteve.biocraft.BioCraft.MODID, "textures/gui/gui_v1.png");
 
+    // 动画起点（进入 running 时重置，独立 20 tick 循环不绑机器速度）
+    private long animStart = -1;
+
     public LoaderScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
         if (menu.getKind() == SequenceMachineKind.LOADER) containerTick();
@@ -156,10 +159,8 @@ public class LoaderScreen extends SequenceMachineScreen {
         Slot aaSlot = menu.getSlot(LoaderOperation.SLOT_AA);
         ItemStack aaStack = aaSlot.getItem();
         int aaTint = 0xFF7CFC00;
-        String abbr = "aa";
         if (!aaStack.isEmpty() && aaStack.getItem() instanceof MoleculeItem mi) {
             aaTint = mi.getTintColor() | 0xFF000000;
-            abbr = mi.getAbbreviation();
         }
         double pulse = Math.sin(tick * 0.4) * 0.3 + 0.7;
 
@@ -168,93 +169,84 @@ public class LoaderScreen extends SequenceMachineScreen {
         String st = running ? "LOAD" : stage == 2 ? "DONE" : "IDLE";
         g.drawString(font, st, x + w - 6 - font.width(st), y + 6, 0xFF9E9E9E, false);
 
-        // 双步标题
-        g.drawString(font, "ATP+aa→aa-AMP+PPi", x + 6, y + 18, 0xFFB0BEC5, false);
-        g.drawString(font, "aa-AMP+tRNA→aa-tRNA+AMP", x + 6, y + 64, 0xFFB0BEC5, false);
+        // 双步标题（各自轨道上方，不与轨道重叠）
+        g.drawString(font, "ATP+aa→aa-AMP+PPi", x + 6, y + 16, 0xFFB0BEC5, false);
+        g.drawString(font, "aa-AMP+tRNA→aa-tRNA+AMP", x + 6, y + 56, 0xFFB0BEC5, false);
 
-        // 轨道底
-        int yU = y + 36;
-        int yL = y + 82;
-        g.fill(x + 6, yU - 2, x + w - 6, yU + 10, 0xFF2A2A2E);
-        g.fill(x + 6, yL - 2, x + w - 6, yL + 10, 0xFF2A2A2E);
-        // 轨道标签
-        g.drawString(font, "上游", x + 6, yU - 11, 0xFFF1C40F, false);
-        g.drawString(font, "下游", x + 6, yL - 11, 0xFF81C784, false);
+        // 双轨（高 16，点行在轨内中线）
+        int yU = y + 28;
+        int yL = y + 68;
+        g.fill(x + 6, yU, x + w - 6, yU + 16, 0xFF2A2A2E);
+        g.fill(x + 6, yL, x + w - 6, yL + 16, 0xFF2A2A2E);
+        int pyU = yU + 7;
+        int pyL = yL + 7;
 
-        int cx = x + w / 2;
-        // 静止态：点阵三叶草与原料点
-        // 左 tRNA 点阵
-        int lx = x + 14;
-        drawClover(g, lx + 10, yL, 0xFFB0BEC5, false, 0);
-        // 右 aa-tRNA 点阵
-        int rx = x + w - 28;
-        drawClover(g, rx + 10, yL, aaTint, !running && stage == 2 ? true : false, aaTint);
+        // 下轨两侧三叶草：左 tRNA 灰（缺口空），右 aa-tRNA 完成态 AA 色
+        int lx = x + 24;
+        int rx = x + 94;
+        drawClover(g, lx, pyL, 0xFFB0BEC5, false, 0);
+        boolean done = !running && stage == 2;
+        drawClover(g, rx, pyL, aaTint, done, aaTint);
 
         if (!running) {
-            // 静止只展示原料点，不播放
-            g.fill(x + 14, yU + 3, x + 16, yU + 5, aaTint);
-            g.fill(x + 22, yU + 3, x + 24, yU + 5, 0xFFF1C40F);
-            g.fill(x + 26, yU + 3, x + 28, yU + 5, 0xFFF1C40F);
-            g.fill(x + 30, yU + 3, x + 32, yU + 5, 0xFFF1C40F);
-            g.drawString(font, abbr, x + 12, yU - 12, aaTint, false);
+            // 静止：上轨展示原料点（aa + ATP 三磷），下轨三叶草已画
+            g.fill(x + 16, pyU - 1, x + 18, pyU + 1, aaTint);
+            g.fill(x + 24, pyU - 1, x + 26, pyU + 1, 0xFFF1C40F);
+            g.fill(x + 28, pyU - 1, x + 30, pyU + 1, 0xFFF1C40F);
+            g.fill(x + 32, pyU - 1, x + 34, pyU + 1, 0xFFF1C40F);
             return;
         }
 
-        // 独立 20 tick 循环，停机立刻停（与转录 helicase 同 tick 源，不绑机器速度）
-        int t = tick % 20;
+        // 独立 20 tick 循环（进入 running 时从 0 开始），停机立刻停
+        if (animStart < 0) animStart = tick;
+        int t = (int) ((tick - animStart) % 20);
         int glow = (int) (180 * pulse) << 24 | 0x00FFFFFF;
 
         if (t < 10) {
-            // 上游 0-9：aa 点与 ATP 三磷点平移合成，动效代替箭头
-            int prog = t * 6;
-            int ax = x + 14 + prog;
-            int bx = x + 22 + prog;
+            // 上游 0-9：aa 点 + ATP 三磷点同步右移合成 aa-AMP
+            int prog = t * 5;
+            int ax = x + 16 + prog;
             // aa 点带 glow
-            g.fill(ax - 1, yU - 1, ax + 3, yU + 6, glow);
-            g.fill(ax, yU + 3, ax + 2, yU + 5, aaTint);
-            // ATP 三磷
-            g.fill(bx, yU + 3, bx + 2, yU + 5, 0xFFF1C40F);
-            g.fill(bx + 4, yU + 3, bx + 6, yU + 5, 0xFFF1C40F);
-            g.fill(bx + 8, yU + 3, bx + 10, yU + 5, 0xFFF1C40F);
-            // 虚线轨迹
-            for (int dx = 0; dx < prog; dx += 4) g.fill(x + 14 + dx, yU + 6, x + 15 + dx, yU + 7, 0x33FFFFFF);
-            if (t >= 7) {
-                // 合成瞬间 aa-AMP 键闪
-                int mx = cx - 6;
-                g.fill(mx, yU + 4, mx + 8, yU + 5, 0xFFF1C40F);
-                g.fill(mx + 2, yU + 2, mx + 4, yU + 6, aaTint);
-            }
+            g.fill(ax - 1, pyU - 2, ax + 3, pyU + 4, glow);
+            g.fill(ax, pyU - 1, ax + 2, pyU + 1, aaTint);
+            // ATP 三磷（黄）
+            int bx = ax + 10;
+            g.fill(bx, pyU - 1, bx + 2, pyU + 1, 0xFFF1C40F);
+            g.fill(bx + 4, pyU - 1, bx + 6, pyU + 1, 0xFFF1C40F);
+            g.fill(bx + 8, pyU - 1, bx + 10, pyU + 1, 0xFFF1C40F);
+            // 轨迹虚线
+            for (int dx = 4; dx < prog; dx += 5) g.fill(x + 16 + dx, pyU + 3, x + 17 + dx, pyU + 4, 0x33FFFFFF);
             if (t >= 8) {
-                // PPi 弹出
-                int py = yU + 8 + (t - 8) * 2;
-                g.fill(cx + 10, py, cx + 12, py + 2, 0xFF9E9E9E);
-                g.fill(cx + 14, py, cx + 16, py + 2, 0xFF9E9E9E);
+                // 合成：aa 与 ATP 之间黄键线
+                g.fill(ax + 2, pyU, bx, pyU + 1, 0xFFF1C40F);
+                // PPi 双磷下落
+                int fall = (t - 8) * 3;
+                g.fill(bx + 12, pyU + 2 + fall, bx + 14, pyU + 4 + fall, 0xFF9E9E9E);
+                g.fill(bx + 16, pyU + 2 + fall, bx + 18, pyU + 4 + fall, 0xFF9E9E9E);
             }
         } else {
-            // 下游 10-19：aa-AMP 点群飘向 tRNA 缺口，填色完成
+            // 下游 10-19：aa-AMP 点群左移飘向 tRNA 缺口，填色完成
             int pt = t - 10;
-            int prog = pt * 6;
-            int ax = x + 54 + prog;
-            // aa-AMP 点群
-            g.fill(ax - 1, yL - 1, ax + 5, yL + 6, glow);
-            g.fill(ax, yL + 3, ax + 2, yL + 5, aaTint);
-            g.fill(ax + 3, yL + 4, ax + 5, yL + 6, 0xFFF1C40F);
-            for (int dx = 0; dx < prog; dx += 4) g.fill(x + 54 + dx, yL + 6, x + 55 + dx, yL + 7, 0x33FFFFFF);
-            if (pt >= 6) {
-                // 到缺口填色
-                g.fill(lx + 9, yL + 4, lx + 11, yL + 6, aaTint);
-                // 右 aa-tRNA 亮起
-                drawClover(g, rx + 10, yL, aaTint, true, aaTint);
-                // AMP 弹出
-                int my = yL + 8 + (pt - 6) * 2;
-                g.fill(cx + 18, my, cx + 20, my + 2, 0xFF9E9E9E);
-                g.fill(cx + 22, my, cx + 24, my + 2, 0xFF9E9E9E);
+            int prog = pt * 4;
+            int ax = x + 60 - prog;
+            g.fill(ax - 1, pyL - 2, ax + 5, pyL + 4, glow);
+            g.fill(ax, pyL - 1, ax + 2, pyL + 1, aaTint);
+            g.fill(ax + 3, pyL, ax + 5, pyL + 2, 0xFFF1C40F);
+            // 轨迹虚线（自起点向左延伸）
+            for (int dx = 4; dx < prog; dx += 5) g.fill(x + 60 - dx, pyL + 3, x + 61 - dx, pyL + 4, 0x33FFFFFF);
+            if (pt >= 8) {
+                // 到位：缺口填 AA 色 + 右 aa-tRNA 亮起 + AMP 弹出
+                g.fill(lx - 1, pyL + 4, lx + 1, pyL + 6, aaTint);
+                drawClover(g, rx, pyL, aaTint, true, aaTint);
+                int fall = (pt - 8) * 2;
+                g.fill(lx + 6, pyL + 4 + fall, lx + 8, pyL + 6 + fall, 0xFF9E9E9E);
+                g.fill(lx + 10, pyL + 4 + fall, lx + 12, pyL + 6 + fall, 0xFF9E9E9E);
             }
         }
     }
 
     private void drawClover(GuiGraphics g, int cx, int cy, int color, boolean filled, int aaTint) {
-        // 三叶点阵 Y：6 点围成丫，缺口在下方
+        // 三叶点阵 Y：6 点围成丫，缺口在下方（filled 时缺口填 AA 色）
         for (int i = 0; i < 6; i++) {
             int py = cy - 8 + i * 3;
             int off = i < 3 ? i : 5 - i;
