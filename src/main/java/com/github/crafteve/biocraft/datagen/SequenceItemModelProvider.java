@@ -30,7 +30,7 @@ public class SequenceItemModelProvider implements DataProvider {
             "mrna", "flask",
             "polypeptide", "test_tube",
             "trna_gene", "test_tube",
-            "trna", "flask",
+            "trna", "test_tube",
             "misfolded_protein", "beaker",
             "rna_polymerase", "beaker");
 

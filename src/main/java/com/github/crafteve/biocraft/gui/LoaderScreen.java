@@ -63,14 +63,11 @@ public class LoaderScreen extends SequenceMachineScreen {
         int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
         String status = switch (stage) {
             case 0 -> "IDLE";
-            case 1 -> "LOAD " + pos + "/" + total;
+            case 1 -> "LOAD";
             case 2 -> "DONE";
             default -> "IDLE";
         };
         graphics.drawString(font, status, leftPos + imageWidth - 8 - font.width(status), topPos + 13, CONC_TEXT_COLOR, false);
-        int fill = total > 0 ? (int) ((imageWidth - 16) * pos / (double) total) : 0;
-        graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + imageWidth - 16, topPos + 25, BAR_TRACK);
-        if (fill > 0) graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + fill, topPos + 25, 0xFF7ED6DF);
     }
 
     private void drawLoaderInputCards(GuiGraphics g) {
@@ -102,7 +99,15 @@ public class LoaderScreen extends SequenceMachineScreen {
         ItemStack stack = slot.getItem();
         String abbr;
         int tint;
-        if (!stack.isEmpty()) {
+        if (slot.index == LoaderOperation.SLOT_TRNA) {
+            abbr = "tRNA"; tint = 0xB0C4DE;
+        } else if (slot.index == LoaderOperation.SLOT_OUT_AATRNA) {
+            if (!stack.isEmpty() && stack.getItem() instanceof com.github.crafteve.biocraft.item.MoleculeItem mi) {
+                abbr = "tRNA"; tint = mi.getTintColor();
+            } else {
+                abbr = "tRNA"; tint = 0xCCCCCC;
+            }
+        } else if (!stack.isEmpty()) {
             if (stack.getItem() instanceof com.github.crafteve.biocraft.item.MoleculeItem mi) {
                 abbr = mi.getAbbreviation(); tint = mi.getTintColor();
             } else {
@@ -110,7 +115,6 @@ public class LoaderScreen extends SequenceMachineScreen {
             }
         } else {
             if (slot.index == LoaderOperation.SLOT_AA) { abbr = "aa"; tint = 0xCCCCCC; }
-            else if (slot.index == LoaderOperation.SLOT_OUT_AATRNA) { abbr = "aa-tRNA"; tint = 0xCCCCCC; }
             else {
                 var di = com.github.crafteve.biocraft.init.ModItems.byId(itemId);
                 if (di != null) { var mi = di.get(); abbr = mi.getAbbreviation(); tint = mi.getTintColor(); }
@@ -148,39 +152,47 @@ public class LoaderScreen extends SequenceMachineScreen {
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         Slot aaSlot = menu.getSlot(LoaderOperation.SLOT_AA);
         ItemStack aaStack = aaSlot.getItem();
-        int aaTint = 0xFFB0BEC5;
+        int aaTint = 0xFF7CFC00;
         String abbr = "aa";
         if (!aaStack.isEmpty() && aaStack.getItem() instanceof MoleculeItem mi) {
             aaTint = mi.getTintColor() | 0xFF000000;
             abbr = mi.getAbbreviation();
         }
-        // 标题短标注
+        // 顶部短标注：AA 缩写（左）+ 状态（右）
         g.drawString(font, abbr, x + 6, y + 6, aaTint, false);
         String st = running ? "LOAD" : stage == 2 ? "DONE" : "IDLE";
         g.drawString(font, st, x + w - 6 - font.width(st), y + 6, 0xFF9E9E9E, false);
-        // 网格
-        for (int gx = x + 10; gx < x + w; gx += 14) g.fill(gx, y + 14, gx + 1, y + h - 10, 0x0FFFFFFF);
         int cx = x + w / 2;
-        int cy = y + h / 2 + 6;
-        // 左 tRNA 框
-        int lx = cx - 36;
+        int cy = y + h / 2 + 8;
+        // 细网格背景
+        for (int gx = x + 10; gx < x + w; gx += 16) g.fill(gx, y + 16, gx + 1, y + h - 12, 0x08FFFFFF);
+        // 左 tRNA 三叶草简绘（灰）
+        int lx = cx - 34;
+        g.fill(lx, cy - 10, lx + 20, cy + 10, 0xFF2A2A2E);
+        g.fill(lx + 1, cy - 9, lx + 19, cy + 9, 0xFF3A3A3A);
+        g.drawString(font, "tRNA", lx + 3, cy - 4, 0xFFB0BEC5, false);
+        // 右 aa-tRNA（AA 染色，带白边）
         int rx = cx + 14;
-        g.fill(lx, cy - 12, lx + 22, cy + 12, 0xFF2A2A2E);
-        g.fill(lx + 1, cy - 11, lx + 21, cy + 11, 0xFF3A3A3A);
-        g.drawString(font, "tRNA", lx + 4, cy - 4, 0xFFB0BEC5, false);
-        // 右 aa-tRNA 框（AA 色）
-        g.fill(rx, cy - 12, rx + 22, cy + 12, aaTint & 0x30FFFFFF);
-        g.fill(rx + 1, cy - 11, rx + 21, cy + 11, aaTint);
-        g.drawString(font, abbr, rx + 11 - font.width(abbr) / 2, cy - 4, 0xFFFFFFFF, false);
-        // 中间 ATP 箭头（脉冲左右 2px）
-        int ax = cx - 6;
-        int ay = cy - 1;
-        int swing = running ? (int) (Math.sin(tick * 0.4) * 2) : 0;
-        g.fill(ax + swing, ay, ax + 10 + swing, ay + 1, 0xFFF1C40F);
-        g.fill(ax + 8 + swing, ay - 2, ax + 12 + swing, ay + 3, 0xFFF1C40F);
-        // 底部短标注（3 字母内）
-        g.drawString(font, "ATP", cx - 16, cy + 18, 0xFFF1C40F, false);
-        g.drawString(font, "AMP", cx + 8, cy + 18, 0xFF9E9E9E, false);
+        g.fill(rx - 1, cy - 11, rx + 21, cy + 11, 0xFFFFFFFF);
+        g.fill(rx, cy - 10, rx + 20, cy + 10, aaTint);
+        g.drawString(font, "tRNA", rx + 3, cy - 4, 0xFFFFFFFF, false);
+        // AA 小点附着动画（从左向右飘）
+        if (running) {
+            int prog = (tick * 3) % 40;
+            int ax = lx + 20 + prog;
+            if (ax < rx) {
+                g.fill(ax, cy - 3, ax + 4, cy + 3, aaTint);
+                g.drawString(font, abbr, ax - 2, cy - 12, aaTint, false);
+            }
+        } else if (!aaStack.isEmpty()) {
+            g.fill(rx + 8, cy - 3, rx + 12, cy + 3, aaTint);
+        }
+        // 中心 ATP 能量环（黄）
+        int ex = cx - 4;
+        int ey = cy + 18;
+        int pulse = running ? (tick % 10 < 5 ? 0xFFF1C40F : 0xFFFFEB3B) : 0xFF9E9E9E;
+        g.fill(ex, ey, ex + 12, ey + 1, pulse);
+        g.fill(ex + 5, ey - 3, ex + 7, ey + 4, pulse);
     }
 
     @Override
