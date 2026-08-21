@@ -562,12 +562,25 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         }
         if (!renderStack.isEmpty()) {
             graphics.renderItem(renderStack, slot.x, slot.y, slot.x + slot.y * imageWidth);
-            if (slot.index != 5) {
-                // DNA 槽不画堆叠数（序列号代替）；其余槽按位数自动缩放
+            // 仅 DNA 序列槽（编码器/转录仪的槽 5）不画堆叠数（序列号代替）；
+            // 其余槽（含装载机 PPi 槽 index 5）按位数自动缩放堆叠数 + 修饰符
+            if (!isDnaSeqSlot(slot.index)) {
                 renderStackCount(graphics, renderStack, slot.x, slot.y, countText);
             }
         }
         graphics.pose().popPose();
+    }
+
+    /**
+     * 判断槽位是否为 DNA/mRNA 序列槽（槽 5）：
+     * <p>
+     * 编码器输出 DNA、转录仪输出 mRNA 都在槽 5，其堆叠数由 drawDnaCard 的
+     * 序列号代替，渲染时跳过堆叠数/修饰符；装载机的 PPi 槽虽也是 index 5，
+     * 但它是普通分子物品（非序列），必须正常显示堆叠数与物品修饰符
+     */
+    private boolean isDnaSeqSlot(int slotIndex) {
+        SequenceMachineKind kind = menu.getKind();
+        return slotIndex == 5 && (kind == SequenceMachineKind.DNA_ENCODER || kind == SequenceMachineKind.TRANSCRIBER);
     }
 
     /**

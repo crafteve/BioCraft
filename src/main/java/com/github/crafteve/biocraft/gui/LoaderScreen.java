@@ -18,8 +18,10 @@ public class LoaderScreen extends SequenceMachineScreen {
     private static final net.minecraft.resources.ResourceLocation GUI_V1 =
             net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.github.crafteve.biocraft.BioCraft.MODID, "textures/gui/gui_v1.png");
 
-    // 动画起点（进入 running 时重置，独立 20 tick 循环不绑机器速度）
+    // 动画起点（进入合成时重置，独立 30 tick 循环不绑机器速度）
     private long animStart = -1;
+    /** 连续非活跃（IDLE）tick 计数：合成动作出现即清零，累计超 6 tick 动画停止 */
+    private int animIdleTicks = 0;
 
     public LoaderScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -30,6 +32,14 @@ public class LoaderScreen extends SequenceMachineScreen {
     public void containerTick() {
         super.containerTick();
         if (menu.getKind() != SequenceMachineKind.LOADER) return;
+        // 动画活跃度追踪：合成动作（stage 非 IDLE）出现即清零 idle 计数，
+        // 累计超过 6 tick 无合成才停止动画（开始即播、停 6tick 后结束）
+        int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
+        if (stage == 1 || stage == 2) {
+            animIdleTicks = 0;
+        } else {
+            animIdleTicks++;
+        }
         // guiv1 布局：左 3 INPUT 右 3 OUTPUT，覆盖父类 70,140 横向定位
         for (int i = 0; i < inputCards.size(); i++) {
             var slot = menu.getSlot(inputCards.get(i).containerSlot());
@@ -156,6 +166,8 @@ public class LoaderScreen extends SequenceMachineScreen {
         int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
         boolean running = stage == 1;
         boolean done = stage == 2;
+        // 动画活跃：有合成动作（stage 1/2）即播；无合成动作累计超 6 tick 停止
+        boolean animActive = animIdleTicks <= 6;
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         Slot aaSlot = menu.getSlot(LoaderOperation.SLOT_AA);
         ItemStack aaStack = aaSlot.getItem();
@@ -171,18 +183,20 @@ public class LoaderScreen extends SequenceMachineScreen {
         String st = running ? "LOAD" : done ? "DONE" : "IDLE";
         g.drawString(font, st, x + w - 6 - font.width(st), y + 6, 0xFF9E9E9E, false);
 
-        // 独立 30 tick 循环（进入 running 时从 0 开始），停机立刻停
+        // 独立 30 tick 循环（合成动作出现时从 0 开始；停超 6 tick 归零停止）
         int t = 0;
-        if (running) {
+        if (animActive) {
             if (animStart < 0) animStart = tick;
             t = (int) ((tick - animStart) % 30);
+        } else {
+            animStart = -1;
         }
 
         // 中央装载口袋：大圆点阵描边（空闲灰 / 完成 AA 色），呼吸缩放
         int cx = x + w / 2;
         int cy = y + h / 2 + 2;
         int R = 15 + (int) Math.round(breath * 2);
-        boolean loaded = done || (running && t >= 14);
+        boolean loaded = done || (animActive && t >= 14);
         int pocket = loaded ? aaTint : 0xFF7E8EA0;
         for (int i = 0; i < 24; i++) {
             double a = i * (Math.PI * 2 / 24);
@@ -193,12 +207,14 @@ public class LoaderScreen extends SequenceMachineScreen {
         // 口袋中心：装载的核心点（空 = tRNA 灰点，完成 = AA 色亮点）
         g.fill(cx - 1, cy - 1, cx + 2, cy + 2, loaded ? 0xFFFFFFFF : 0xFFB0C4DE);
 
-        if (!running) {
-            // 静止：口袋两侧展示原料点（左 aa 右 ATP 三磷），无文字
+        if (!animActive) {
+            // 静止：口袋两侧展示原料点（左 aa 右 ATP 三磷），短标注各一个词
             g.fill(x + 20, cy - 1, x + 22, cy + 1, aaTint);
+            g.drawString(font, "aa", x + 16, cy + 4, aaTint, false);
             g.fill(x + w - 26, cy - 1, x + w - 24, cy + 1, 0xFFF1C40F);
             g.fill(x + w - 22, cy - 1, x + w - 20, cy + 1, 0xFFF1C40F);
             g.fill(x + w - 18, cy - 1, x + w - 16, cy + 1, 0xFFF1C40F);
+            g.drawString(font, "ATP", x + w - 30, cy + 4, 0xFFF1C40F, false);
             return;
         }
 
@@ -209,11 +225,12 @@ public class LoaderScreen extends SequenceMachineScreen {
         if (t < 11) {
             // aa 点
             g.fill(aaX - 1, cy - 1, aaX + 1, cy + 1, aaTint);
-            // ATP 三磷（黄，横向排列）
+            // ATP 三磷（黄，横向排列）+ ATP 标注（随点移动）
             for (int p = 0; p < 3; p++) {
                 int px = atpX + p * 4;
                 g.fill(px - 1, cy - 1, px + 1, cy + 1, 0xFFF1C40F);
             }
+            g.drawString(font, "ATP", atpX - 1, cy - 11, 0xFFF1C40F, false);
         } else {
             // 已接触：aa 点落在口袋核心左侧，闪光扩散
             g.fill(cx - R + 3, cy - 1, cx - R + 5, cy + 1, aaTint);
@@ -225,7 +242,7 @@ public class LoaderScreen extends SequenceMachineScreen {
             g.fill(cx - 3 - f, cy - 3 - f, cx + 4 + f, cy + 4 + f, 0x44FFFFFF);
         }
 
-        // 副产物弹出：PPi 灰双点从右上坠落（11-16），AMP 黄点从左下坠落（15-20）
+        // 副产物弹出：PPi 灰双点从右上坠落（11-16），AMP 橙点从左下坠落（15-20）
         if (t >= 11 && t < 16) {
             int fall = (t - 11) * 2;
             g.fill(cx + R + 4 + fall, cy - 6 + fall, cx + R + 6 + fall, cy - 4 + fall, 0xFF9E9E9E);
@@ -233,7 +250,9 @@ public class LoaderScreen extends SequenceMachineScreen {
         }
         if (t >= 15 && t < 21) {
             int fall = (t - 15) * 2;
-            g.fill(cx - R - 8 - fall, cy + 4 + fall, cx - R - 6 - fall, cy + 6 + fall, 0xFFF1C40F);
+            // AMP 用 AMP 主题橙（substances.json amp color #E67E22），标注一个词
+            g.fill(cx - R - 8 - fall, cy + 4 + fall, cx - R - 6 - fall, cy + 6 + fall, 0xFFE67E22);
+            g.drawString(font, "AMP", cx - R - 12 - fall, cy + 9 + fall, 0xFFE67E22, false);
         }
 
         // 完成态光环（14-30）：AA 色外圈脉动
