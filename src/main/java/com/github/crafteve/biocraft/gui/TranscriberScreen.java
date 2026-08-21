@@ -98,8 +98,7 @@ public class TranscriberScreen extends SequenceMachineScreen {
             graphics.drawString(font, head, x + 6, y + 34, 0xFFB0BEC5, false);
             return;
         }
-        graphics.drawString(font, "启动子@" + idx, x + 6, y + 22, 0xFF7ED6DF, false);
-        // 中央双链可视化：上排模板 3'→5'，下排 mRNA 5'→3'，中线配对，当前碱基发光
+        graphics.drawString(font, "启动子@" + idx, x + 6, y + 21, 0xFF7ED6DF, false);
         double pulse = (Math.sin(tick * 0.4) * 0.3 + 0.7);
         int window = Math.min(18, seq.length() - (idx + prom.length()));
         int fromBase = idx + prom.length();
@@ -119,15 +118,14 @@ public class TranscriberScreen extends SequenceMachineScreen {
             mrnaFrom = Math.min(mrnaFrom, Math.max(0, mrnaSeg.length() - window));
             if (mrnaSeg.length() > window) mrnaSeg = mrnaSeg.substring(mrnaFrom, Math.min(mrnaSeg.length(), mrnaFrom + window));
         }
-        // 自动向右滚动：转录时链带随 pos 右移，空闲时随 tick 缓慢漂移
-        int autoScroll = running ? (pos * 2) % 8 : (tick / 6) % 8;
-        int baseX0 = x + 10 - autoScroll;
+        int autoScroll = running ? (pos * 2) % 8 : 0;
+        int baseX0 = x + 16 - autoScroll;
         int templY = y + 42;
         int mrnaY = y + 62;
         int pairY = y + 54;
         graphics.fill(x + 6, templY - 2, x + w - 6, templY + 10, 0xFF2A2A2E);
         graphics.fill(x + 6, mrnaY - 2, x + w - 6, mrnaY + 10, 0xFF2A2A2E);
-        graphics.drawString(font, "模板", x + 6, templY - 10, 0xFF81C784, false);
+        graphics.drawString(font, "模板", x + 6, templY - 11, 0xFF81C784, false);
         graphics.drawString(font, "mRNA", x + 6, mrnaY + 11, 0xFFF1C40F, false);
         int curInWindow = cur - (from - fromBase);
         for (int i = 0; i < templateSeg.length() && baseX0 + i * 8 < x + w - 10; i++) {
