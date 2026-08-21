@@ -61,6 +61,7 @@ public final class ModCreativeTabs {
                         output.accept(ModBlocks.DNA_ENCODER_ITEM.get());
                         output.accept(ModBlocks.TRANSCRIBER_ITEM.get());
                         output.accept(ModBlocks.HELICASE_ITEM.get());
+                        output.accept(ModBlocks.LOADER_ITEM.get());
                     })
                     .build());
 

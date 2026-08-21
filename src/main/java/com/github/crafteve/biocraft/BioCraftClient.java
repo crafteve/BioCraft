@@ -4,6 +4,7 @@ import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
 import com.github.crafteve.biocraft.client.EmissiveLampBakedModel;
 import com.github.crafteve.biocraft.gui.EncoderScreen;
 import com.github.crafteve.biocraft.gui.HelicaseScreen;
+import com.github.crafteve.biocraft.gui.LoaderScreen;
 import com.github.crafteve.biocraft.gui.MachineScreen;
 import com.github.crafteve.biocraft.gui.SequenceMachineScreen;
 import com.github.crafteve.biocraft.gui.TranscriberScreen;
@@ -34,6 +35,7 @@ public class BioCraftClient {
         event.register(ModBlocks.DNA_ENCODER_MENU.get(), EncoderScreen::new);
         event.register(ModBlocks.TRANSCRIBER_MENU.get(), TranscriberScreen::new);
         event.register(ModBlocks.HELICASE_MENU.get(), HelicaseScreen::new);
+        event.register(ModBlocks.LOADER_MENU.get(), LoaderScreen::new);
     }
 
     @SubscribeEvent

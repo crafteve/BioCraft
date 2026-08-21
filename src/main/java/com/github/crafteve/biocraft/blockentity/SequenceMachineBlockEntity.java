@@ -395,6 +395,12 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
             }
             return true;
         }
+        if (kind() == SequenceMachineKind.LOADER) {
+            if (slot == LoaderOperation.SLOT_TRNA || slot == LoaderOperation.SLOT_AA || slot == LoaderOperation.SLOT_ATP) {
+                return false;
+            }
+            return true;
+        }
         return true;
     }
 }

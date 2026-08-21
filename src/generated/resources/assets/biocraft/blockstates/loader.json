@@ -1,0 +1,1 @@
+{"variants":{"facing=north":{"model":"biocraft:block/loader","y":0},"facing=east":{"model":"biocraft:block/loader","y":90},"facing=south":{"model":"biocraft:block/loader","y":180},"facing=west":{"model":"biocraft:block/loader","y":270}}}

@@ -78,7 +78,8 @@ public final class ModItems {
         for (JsonElement element : substances) {
             JsonObject substance = element.getAsJsonObject();
             String id = substance.get("id").getAsString();
-            String smiles = substance.get("smiles").getAsString();
+            JsonElement smilesEl = substance.get("smiles");
+            String smiles = smilesEl != null && !smilesEl.isJsonNull() ? smilesEl.getAsString() : "";
             String abbreviation = substance.get("abbreviation").getAsString();
             int color = SubstanceData.parseColor(substance.get("color").getAsString());
             MoleculeCategoryData category = categories.get(substance.get("category").getAsString());

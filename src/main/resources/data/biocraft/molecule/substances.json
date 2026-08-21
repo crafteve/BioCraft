@@ -72,6 +72,13 @@
             "name_en":  "Amino Acid",
             "color":  "#7CFC00",
             "structure":  true
+        },
+        {
+            "id":  "aatRNA",
+            "name_zn":  "氨酰-tRNA",
+            "name_en":  "Aminoacyl-tRNA",
+            "color":  "#7CFC00",
+            "structure":  false
         }
     ],
     "substances":  [
@@ -784,6 +791,196 @@
             "smiles":  "OP(=O)(O)OP(=O)(O)O",
             "abbreviation":  "PPi",
             "category":  "ion"
+        },
+        {
+            "id":  "amp",
+            "name_zn":  "一磷酸腺苷",
+            "name_en":  "Adenosine Monophosphate",
+            "container":  "flask",
+            "color":  "#E67E22",
+            "smiles":  "C1=NC(=C2C(=N1)N(C=N2)C3C(C(C(O3)COP(=O)(O)O)O)O)N",
+            "abbreviation":  "AMP",
+            "category":  "nucleotide"
+        },
+        {
+            "id":  "trna_ala",
+            "name_zn":  "丙氨酰-tRNA",
+            "name_en":  "Alanyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#A8D8EA",
+            "abbreviation":  "Ala-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_arg",
+            "name_zn":  "精氨酰-tRNA",
+            "name_en":  "Arginyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#CB4335",
+            "abbreviation":  "Arg-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_asn",
+            "name_zn":  "天冬酰胺酰-tRNA",
+            "name_en":  "Asparaginyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#73C6B6",
+            "abbreviation":  "Asn-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_asp",
+            "name_zn":  "天冬氨酰-tRNA",
+            "name_en":  "Aspartyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#E67E22",
+            "abbreviation":  "Asp-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_cys",
+            "name_zn":  "半胱氨酰-tRNA",
+            "name_en":  "Cysteinyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#F4D03F",
+            "abbreviation":  "Cys-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_gln",
+            "name_zn":  "谷氨酰胺酰-tRNA",
+            "name_en":  "Glutaminyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#1ABC9C",
+            "abbreviation":  "Gln-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_glu",
+            "name_zn":  "谷氨酰-tRNA",
+            "name_en":  "Glutamyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#D35400",
+            "abbreviation":  "Glu-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_gly",
+            "name_zn":  "甘氨酰-tRNA",
+            "name_en":  "Glycyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#E6E6E6",
+            "abbreviation":  "Gly-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_his",
+            "name_zn":  "组氨酰-tRNA",
+            "name_en":  "Histidyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#F1948A",
+            "abbreviation":  "His-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_ile",
+            "name_zn":  "异亮氨酰-tRNA",
+            "name_en":  "Isoleucyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#C0392B",
+            "abbreviation":  "Ile-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_leu",
+            "name_zn":  "亮氨酰-tRNA",
+            "name_en":  "Leucyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#E74C3C",
+            "abbreviation":  "Leu-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_lys",
+            "name_zn":  "赖氨酰-tRNA",
+            "name_en":  "Lysyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#AF7AC5",
+            "abbreviation":  "Lys-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_met",
+            "name_zn":  "甲硫氨酰-tRNA",
+            "name_en":  "Methionyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#58D68D",
+            "abbreviation":  "Met-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_phe",
+            "name_zn":  "苯丙氨酰-tRNA",
+            "name_en":  "Phenylalanyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#7D3C98",
+            "abbreviation":  "Phe-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_pro",
+            "name_zn":  "脯氨酰-tRNA",
+            "name_en":  "Prolyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#F7DC6F",
+            "abbreviation":  "Pro-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_ser",
+            "name_zn":  "丝氨酰-tRNA",
+            "name_en":  "Seryl-tRNA",
+            "container":  "test_tube",
+            "color":  "#85C1E9",
+            "abbreviation":  "Ser-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_thr",
+            "name_zn":  "苏氨酰-tRNA",
+            "name_en":  "Threonyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#2E86C1",
+            "abbreviation":  "Thr-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_trp",
+            "name_zn":  "色氨酰-tRNA",
+            "name_en":  "Tryptophanyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#5B2C6F",
+            "abbreviation":  "Trp-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_tyr",
+            "name_zn":  "酪氨酰-tRNA",
+            "name_en":  "Tyrosyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#A04000",
+            "abbreviation":  "Tyr-tRNA",
+            "category":  "aatRNA"
+        },
+        {
+            "id":  "trna_val",
+            "name_zn":  "缬氨酰-tRNA",
+            "name_en":  "Valyl-tRNA",
+            "container":  "test_tube",
+            "color":  "#F5B041",
+            "abbreviation":  "Val-tRNA",
+            "category":  "aatRNA"
         }
     ]
 }
