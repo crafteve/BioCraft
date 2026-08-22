@@ -92,6 +92,8 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "DNA 解旋酶" : "DNA Helicase");
         translations.put("block.biocraft.loader",
                 zh ? "装载机" : "Loader");
+        translations.put("block.biocraft.translator",
+                zh ? "翻译机" : "Translator");
         translations.put("tooltip.biocraft.molar_mass",
                 zh ? "摩尔质量 %s g/mol" : "Molar Mass %s g/mol");
         translations.put("tooltip.biocraft.smiles_error",
