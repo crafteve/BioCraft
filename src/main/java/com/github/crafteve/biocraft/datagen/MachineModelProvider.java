@@ -228,49 +228,38 @@ public class MachineModelProvider implements DataProvider {
     }
 
     /**
-     * 新贴片：2立方体叠染（酶窗/灯各1元素六面），凸出分层防z-fighting
+     * 新贴片：30小窗叠染（酶窗6面4×4 + 灯24点四角1×1），凸出分层防z-fighting
      * <p>
-     * 原理：MC每个quad只有一个tintindex，一面要染两色必须两层。1元素可带6面，
-     * 因此1酶窗立方体（六面同tint0）+ 1灯立方体（六面同tint1）共2元素即可覆盖六面，
-     * 比12单面薄板少10次drawcall，且六面同图天然中心对称。外扩0.002/0.004分层防共面闪烁。
+     * 酶窗4×4居中(6,6-9,9,tint0)不占四角，灯四角1×1(5,5/10,5/5,10/10,10,tint1)与窗零重叠，
+     * 透明染黑不覆盖。0.002窗/0.004灯分层。
      *
-     * @return 贴片元素列表（2元素）
+     * @return 贴片元素列表（30元素）
      */
     private JsonArray chamberPatchElements() {
         JsonArray patches = new JsonArray();
-        // 酶窗立方体（tint0）— 外扩0.002盖在白底上
-        patches.add(cubePatch(-0.002f, "#theme_window", 0));
-        // 灯立方体（tint1）— 再外扩0.002压在窗上，避免窗灯同平面互闪
-        patches.add(cubePatch(-0.004f, "#theme_lamp", 1));
-        return patches;
-    }
-
-    /**
-     * 构造单立方体叠染元素（六面同纹理同tint，全幅UV 0-16）
-     *
-     * @param expand 外扩量（负值向外，正值向内；0.002≈1/500格）
-     * @param texture 贴图引用
-     * @param tintIndex tint序号
-     * @return 立方体元素
-     */
-    private JsonObject cubePatch(float expand, String texture, int tintIndex) {
-        JsonObject element = new JsonObject();
-        element.add("from", floatArray(expand, expand, expand));
-        element.add("to", floatArray(16 - expand, 16 - expand, 16 - expand));
-        JsonObject faces = new JsonObject();
-        // 六面同UV 0,0-16,16，纹理中心窗口 5,5-11,11 透明外自动露出底
-        for (String dir : new String[]{"down", "up", "north", "south", "west", "east"}) {
-            JsonObject f = new JsonObject();
-            JsonArray uv = new JsonArray();
-            uv.add(0); uv.add(0); uv.add(16); uv.add(16);
-            f.add("uv", uv);
-            f.addProperty("texture", texture);
-            f.addProperty("tintindex", tintIndex);
-            f.addProperty("cullface", dir);
-            faces.add(dir, f);
+        // 酶窗6面 4×4
+        patches.add(patch(6, 6, -0.002f, 10, 10, 0, "north", 6, 6, 10, 10, "#theme_window", 0));
+        patches.add(patch(6, 6, 16, 10, 10, 16.002f, "south", 6, 6, 10, 10, "#theme_window", 0));
+        patches.add(patch(16, 6, 6, 16.002f, 10, 10, "east", 6, 6, 10, 10, "#theme_window", 0));
+        patches.add(patch(-0.002f, 6, 6, 0, 10, 10, "west", 6, 6, 10, 10, "#theme_window", 0));
+        patches.add(patch(6, 16, 6, 10, 16.002f, 10, "up", 6, 6, 10, 10, "#theme_window", 0));
+        patches.add(patch(6, -0.002f, 6, 10, 0, 10, "down", 6, 6, 10, 10, "#theme_window", 0));
+        // 灯6面×4角=24点
+        int[][] corners = {{5,5},{10,5},{5,10},{10,10}};
+        String[] dirs = {"north","south","east","west","up","down"};
+        for (String dir : dirs) {
+            for (int[] c : corners) {
+                int x=c[0], y=c[1];
+                // 根据面朝向选择 from/to，复用小窗逻辑但1×1
+                if ("north".equals(dir)) patches.add(patch(x, y, -0.004f, x+1, y+1, -0.002f, dir, x, y, x+1, y+1, "#theme_lamp", 1));
+                else if ("south".equals(dir)) patches.add(patch(x, y, 16.002f, x+1, y+1, 16.004f, dir, x, y, x+1, y+1, "#theme_lamp", 1));
+                else if ("east".equals(dir)) patches.add(patch(16.002f, y, x, 16.004f, y+1, x+1, dir, x, y, x+1, y+1, "#theme_lamp", 1));
+                else if ("west".equals(dir)) patches.add(patch(-0.004f, y, x, -0.002f, y+1, x+1, dir, x, y, x+1, y+1, "#theme_lamp", 1));
+                else if ("up".equals(dir)) patches.add(patch(x, 16.002f, y, x+1, 16.004f, y+1, dir, x, y, x+1, y+1, "#theme_lamp", 1));
+                else if ("down".equals(dir)) patches.add(patch(x, -0.004f, y, x+1, -0.002f, y+1, dir, x, y, x+1, y+1, "#theme_lamp", 1));
+            }
         }
-        element.add("faces", faces);
-        return element;
+        return patches;
     }
 
     /**

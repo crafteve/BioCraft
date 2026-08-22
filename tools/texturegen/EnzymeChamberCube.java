@@ -51,11 +51,10 @@ public class EnzymeChamberCube {
         c.hline(5,10,5,GLASS_HI); c.vline(5,10,5,GLASS_HI);
         return c;
     }
-    // 灰度酶窗（tint0）— 热修：改实心6×6方块确保可见，再调回菱形
+    // 灰度酶窗（tint0）— 4×4实心居中，不占四角留给灯，避免透明染黑覆盖
     static PixelCanvas themeWindow() {
         PixelCanvas c = new PixelCanvas(16,16);
-        // 实心方块 5,5-10,10 全白，中心对称，极大可视
-        c.rect(5,5,10,10,G_WHITE);
+        c.rect(6,6,9,9,G_WHITE);
         return c;
     }
     // 灰度四角灯（tint1）
