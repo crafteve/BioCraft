@@ -73,14 +73,26 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     /** 灭灯暗色（无酶时所有指示灯的 tint 色） */
     public static final int EMPTY_LAMP_ARGB = 0xFF1D2129;
 
-    /** 红灯（反应速度 v < 1e-6：停摆/平衡，需要玩家干预） */
+    /** 红灯（全部物种浓度 ≈0：空料，需补料） */
     public static final int LAMP_RED_ARGB = 0xFFE53935;
 
-    /** 黄灯（全部物种浓度 ≈0：等料/空闲） */
+    /** 黄灯（速率 < 1e-3 个/tick：低速/接近平衡） */
     public static final int LAMP_YELLOW_ARGB = 0xFFF2C94C;
 
-    /** 绿灯（浓度正常且速度正常：平稳运行） */
+    /** 绿灯（速率 ≥ 1e-3 个/tick：平稳运行） */
     public static final int LAMP_GREEN_ARGB = 0xFF43A047;
+
+    /** 灯态迟滞：连续满足新状态的 tick 数才切换（防阈值抖动闪烁） */
+    private static final int LAMP_HYSTERESIS_TICKS = 5;
+
+    /** 灯态迟滞回差带（个/tick）：±0.2e-3，避免临界跳变 */
+    private static final double LAMP_HYSTERESIS_BAND = 0.2e-3;
+
+    /** 待切换灯色（与当前不同时进入迟滞计数） */
+    private int pendingLampArgb = Integer.MIN_VALUE;
+
+    /** 迟滞计数器（连续命中 pending 的 tick 数） */
+    private int lampHysteresisTicks = 0;
 
     /** 引擎模拟器实例（有酶时构建，无酶为 null） */
     private EnzymeSimulator simulator;
@@ -388,18 +400,27 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     @Override
     public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider registries) {
         super.handleUpdateTag(tag, registries);
+        boolean changed = false;
         if (tag.contains("themeLiquidArgb")) {
-            this.themeLiquidArgb = tag.getInt("themeLiquidArgb");
+            int v = tag.getInt("themeLiquidArgb");
+            if (v != themeLiquidArgb) {
+                themeLiquidArgb = v;
+                changed = true;
+            }
         }
         if (tag.contains("themeLampArgb")) {
-            this.themeLampArgb = tag.getInt("themeLampArgb");
+            int v = tag.getInt("themeLampArgb");
+            if (v != themeLampArgb) {
+                themeLampArgb = v;
+                changed = true;
+                // 灯态已定，重置迟滞计数，避免旧 pending 干扰
+                pendingLampArgb = Integer.MIN_VALUE;
+                lampHysteresisTicks = 0;
+            }
         }
-        // 客户端收到 BE 数据包后必须主动触发本地重渲染：随包下发的
-        // BlockUpdatePacket 的 state 与当前相同，Level.setBlock 因状态不变
-        // 直接 no-op（源码实证），不会重烘焙该方块——不主动刷新则 BlockColor
-        // 不会重新查询（实测"热插拔不变色、读档才刷新"根因）；区块加载时
-        // 冗余触发一次无害
-        requestThemeRenderUpdate();
+        if (changed) {
+            requestThemeRenderUpdate();
+        }
     }
 
     /**
@@ -437,13 +458,26 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
         if (tag == null) {
             return;
         }
+        boolean changed = false;
         if (tag.contains("themeLiquidArgb")) {
-            this.themeLiquidArgb = tag.getInt("themeLiquidArgb");
+            int v = tag.getInt("themeLiquidArgb");
+            if (v != themeLiquidArgb) {
+                themeLiquidArgb = v;
+                changed = true;
+            }
         }
         if (tag.contains("themeLampArgb")) {
-            this.themeLampArgb = tag.getInt("themeLampArgb");
+            int v = tag.getInt("themeLampArgb");
+            if (v != themeLampArgb) {
+                themeLampArgb = v;
+                changed = true;
+                pendingLampArgb = Integer.MIN_VALUE;
+                lampHysteresisTicks = 0;
+            }
         }
-        requestThemeRenderUpdate();
+        if (changed) {
+            requestThemeRenderUpdate();
+        }
     }
 
     /**
@@ -763,41 +797,65 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      * 请求客户端重渲染本方块（主题色变化的渲染刷新）
      * <p>
      * 客户端 sendBlockUpdated → LevelRenderer.blockChanged → setBlockDirty
-     * → section 重烘焙 → BlockColor 重新查询；无递归（只标记 dirty 不触
-     * 发 setChanged/数据包）
+     * → section 重烘焙 → BlockColor 重新查询；无递归
+     * 合并同步后仅在颜色真实变化时调用，避免双通道重烘焙闪烁
      */
     private void requestThemeRenderUpdate() {
         if (level != null && level.isClientSide) {
+            // 仅标记脏，不发网络包，合并前服务端已发 BlockUpdatePacket + BE 数据包
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
     /**
-     * 状态灯更新（每 tick 判定，服务端专用，用户 2026-08-16 重定语义）
+     * 状态灯更新（每 tick 判定，服务端专用，2026-08-23 重定语义）
      * <p>
-     * 三态判定顺序：
+     * 新语义：
      * <ol>
-     *   <li>全部物种浓度 ≈0 → 黄灯（等料/空闲）</li>
-     *   <li>反应速度 v < 1e-6 → 红灯（停摆/平衡，需要玩家干预）</li>
-     *   <li>其余 → 绿灯（浓度正常且速度正常，平稳运行）</li>
+     *   <li>浓度全0 → 红灯（空料）</li>
+     *   <li>速率 |v| < 1e-3 个/tick → 黄灯（低速/接近平衡，需干预）</li>
+     *   <li>其余 → 绿灯（平稳运行）</li>
      * </ol>
-     * v = cachedFluxX1000 / 1000（主产物个/tick 定点 ×1000，与 GUI 速率
-     * 读数同口径）；cachedFluxX1000 为 int 定点，v < 1e-6 等价于
-     * 定点值 < 1e-3，即整数 0 或负（无正向产出，含平衡/逆向吞料）；状态翻转时把灯色缓存切换并走主题色更新包通道通知
-     * 客户端（getUpdatePacket 携带 themeLampArgb，客户端 handleUpdateTag
-     * + requestThemeRenderUpdate 完成重渲染闭环，零客户端改动）；
-     * 以 themeLampArgb 为"已同步状态"做变化检测，避免每 tick 广播
+     * v = cachedFluxX1000 / 1000.0；fluxX1000 已是×1000定点，阈值1即1e-3
+     * 迟滞：新状态需连续命中 {@link #LAMP_HYSTERESIS_TICKS}=5 tick 且带 ±0.2e-3 回差带才切换，防临界闪烁
      *
-     * @param allZero 本次判定是否全部物种浓度 ≈0（tick 流水线的 asleep 判定）
+     * @param allZero 本次判定是否全部物种浓度 ≈0
      */
     private void updateStatusLamp(boolean allZero) {
         if (enzymeData == null || simulator == null) {
-            return; // 无酶保持灭灯（EMPTY_LAMP_ARGB）
+            pendingLampArgb = Integer.MIN_VALUE;
+            lampHysteresisTicks = 0;
+            return; // 无酶保持灭灯
         }
-        int newLamp = allZero ? LAMP_YELLOW_ARGB
-                : (cachedFluxX1000 < 1e-3 ? LAMP_RED_ARGB : LAMP_GREEN_ARGB);
-        if (newLamp != themeLampArgb) {
-            themeLampArgb = newLamp;
+        double absFlux = Math.abs(cachedFluxX1000 / 1000.0); // 个/tick，阈值 1e-3
+        int newLamp;
+        if (allZero) {
+            newLamp = LAMP_RED_ARGB; // 浓度全0 → 红（空料）
+        } else if (themeLampArgb == LAMP_GREEN_ARGB) {
+            // 绿→黄迟滞：需 <0.8e-3 才切黄
+            newLamp = absFlux < (1.0e-3 - LAMP_HYSTERESIS_BAND) ? LAMP_YELLOW_ARGB : LAMP_GREEN_ARGB;
+        } else if (themeLampArgb == LAMP_YELLOW_ARGB) {
+            // 黄→绿迟滞：需 ≥1.2e-3 才切绿
+            newLamp = absFlux >= (1.0e-3 + LAMP_HYSTERESIS_BAND) ? LAMP_GREEN_ARGB : LAMP_YELLOW_ARGB;
+        } else {
+            // 从红/初态直接按 1e-3 判定
+            newLamp = absFlux < 1.0e-3 ? LAMP_YELLOW_ARGB : LAMP_GREEN_ARGB;
+        }
+        if (newLamp == themeLampArgb) {
+            pendingLampArgb = Integer.MIN_VALUE;
+            lampHysteresisTicks = 0;
+            return;
+        }
+        if (newLamp != pendingLampArgb) {
+            pendingLampArgb = newLamp;
+            lampHysteresisTicks = 1;
+            return;
+        }
+        lampHysteresisTicks++;
+        if (lampHysteresisTicks >= LAMP_HYSTERESIS_TICKS) {
+            themeLampArgb = pendingLampArgb;
+            pendingLampArgb = Integer.MIN_VALUE;
+            lampHysteresisTicks = 0;
             if (level != null && !level.isClientSide) {
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             }
