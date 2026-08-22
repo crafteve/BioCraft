@@ -94,8 +94,15 @@ public class MachineModelProvider implements DataProvider {
             JsonObject model = new JsonObject();
             model.addProperty("parent", "minecraft:block/cube_all");
             JsonObject textures = new JsonObject();
-            textures.addProperty("all", "biocraft:block/enzyme_chamber_side");
-            textures.addProperty("particle", "biocraft:block/enzyme_chamber_side");
+            // 纯几何中心对称单贴图（V4，同 chassis 白箱+黑晶，点缀高饱和色区分）
+            String tex;
+            if ("dna_encoder".equals(blockName)) tex = "biocraft:block/dna_encoder";
+            else if ("transcriber".equals(blockName)) tex = "biocraft:block/transcriber";
+            else if ("helicase".equals(blockName)) tex = "biocraft:block/helicase";
+            else if ("loader".equals(blockName)) tex = "biocraft:block/loader";
+            else tex = "biocraft:block/enzyme_chamber_side";
+            textures.addProperty("all", tex);
+            textures.addProperty("particle", tex);
             model.add("textures", textures);
 
             JsonObject itemModel = new JsonObject();

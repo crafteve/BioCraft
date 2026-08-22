@@ -1,1 +1,1 @@
-{"parent":"minecraft:block/cube_all","textures":{"all":"biocraft:block/enzyme_chamber_side","particle":"biocraft:block/enzyme_chamber_side"}}
+{"parent":"minecraft:block/cube_all","textures":{"all":"biocraft:block/loader","particle":"biocraft:block/loader"}}
