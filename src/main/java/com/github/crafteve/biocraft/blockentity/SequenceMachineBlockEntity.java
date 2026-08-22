@@ -152,6 +152,15 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
                     setChanged();
                     return;
                 }
+                // 翻译机：取走多肽则重置（与转录机同理，防止半成品被取后继续）
+                if (kind() == SequenceMachineKind.TRANSLATOR
+                        && inventory.getItem(operation.outputSlot()).isEmpty()
+                        && stepState.position() > 0) {
+                    stepState.reset();
+                    stepCooldown = 0;
+                    setChanged();
+                    return;
+                }
                 if (--stepCooldown > 0) {
                     return;
                 }
@@ -175,6 +184,20 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
                         setChanged();
                     } else {
                         // 不可工作（缺料/产满/错种）需取走产物才回 IDLE
+                        boolean doneEmpty = inventory.getItem(operation.outputSlot()).isEmpty();
+                        if (doneEmpty) {
+                            stepState.setStage(SeqStepState.Stage.IDLE);
+                            setChanged();
+                        }
+                    }
+                    break;
+                }
+                if (kind() == SequenceMachineKind.TRANSLATOR) {
+                    boolean workable = TranslatorOperation.isWorkable(inventory);
+                    if (workable) {
+                        stepState.setStage(SeqStepState.Stage.IDLE);
+                        setChanged();
+                    } else {
                         boolean doneEmpty = inventory.getItem(operation.outputSlot()).isEmpty();
                         if (doneEmpty) {
                             stepState.setStage(SeqStepState.Stage.IDLE);
@@ -412,6 +435,15 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         if (kind() == SequenceMachineKind.LOADER) {
             if (slot == LoaderOperation.SLOT_TRNA || slot == LoaderOperation.SLOT_AA || slot == LoaderOperation.SLOT_ATP) {
                 return false;
+            }
+            return true;
+        }
+        if (kind() == SequenceMachineKind.TRANSLATOR) {
+            if (slot == TranslatorOperation.SLOT_MRNA || slot == TranslatorOperation.SLOT_GTP) return false;
+            if (slot >= TranslatorOperation.SLOT_AATRNA_START && slot <= TranslatorOperation.SLOT_AATRNA_END) return false;
+            if (slot == TranslatorOperation.SLOT_OUT_POLYPEPTIDE) {
+                SequenceData d = inventory.getItem(slot).get(ModDataComponents.SEQUENCE.get());
+                return d != null && d.complete();
             }
             return true;
         }

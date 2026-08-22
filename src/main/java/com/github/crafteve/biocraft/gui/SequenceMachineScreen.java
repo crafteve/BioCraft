@@ -373,8 +373,8 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
      * 库存卡片（输入/输出副产物通用）：
      * 输入：count - remainder（消耗时单调递减，余量为待扣部分）；输出：count + remainder（产出时单调递增）
      */
-    private void drawStockCard(GuiGraphics graphics, int cardX, int cardY, int cardW, int cardH,
-                               String itemId, Slot slot, boolean isInput) {
+    protected void drawStockCard(GuiGraphics graphics, int cardX, int cardY, int cardW, int cardH,
+                                 String itemId, Slot slot, boolean isInput) {
         graphics.fill(cardX, cardY, cardX + cardW, cardY + cardH, CARD_COLOR);
         int pngX = cardX + SequenceMachineMenu.SLOT_PNG_X;
         int pngY = cardY + SequenceMachineMenu.SLOT_PNG_Y;
