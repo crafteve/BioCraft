@@ -147,20 +147,11 @@ public class MachineModelProvider implements DataProvider {
     }
 
     /**
-     * 生成酶反应腔方块资源：blockstate + 方块模型 + 物品模型
+     * 生成酶反应腔方块资源：blockstate + 方块模型 + 物品模型（V4 纯几何中心对称）
      * <p>
-     * 渲染机制（设计文档《酶容器方块概念设计_2026-08-16.md》）：
-     * <ul>
-     *   <li>主元素：六面 base 中性贴图（front/side/back/top/bottom，西面用
-     *       side 镜像——西面 UV u=16−z 与东面互为镜像，镜像贴图让管道在
-     *       东西两侧都位于前端，物理镜像对称），无 tint</li>
-     *   <li>贴片元素：每主题区一个凸出主面 0.001 的薄元素（BlockElement 校验
-     *       允许 [-16,32]，已核对反编译源码），独立 tintindex（0=液体、1=灯），
-     *       UV 裁剪对应 theme 贴图内容区，灰度反照率 × BlockColor 酶色 =
-     *       "带左上光照的主题色"；无酶时 BlockColor 返回暗灰 → 空机外观，
-     *       同一模型零 blockstate 表达状态</li>
-     *   <li>blockstate：FACING 四向（y 0/90/180/270），放置时正面朝玩家</li>
-     * </ul>
+     * 新管线（2026-08-23）：白箱黑晶单底图六面复用 + 双灰度主题贴片（tint0 中央6高菱形酶窗 / tint1 四角1px灯）
+     * 渲染机制：1主元素（6面同 base，无tint）+ 12贴片（6面×2主题，凸出0.002，tintindex分区，灰度×BlockColor）
+     * 中心对称 cube_all，六面同图，指示灯/酶窗状态由 BlockColor 每帧染，无 blockstate 变体
      *
      * @return 输出路径到 JSON 内容的映射
      */
@@ -169,7 +160,6 @@ public class MachineModelProvider implements DataProvider {
         String blockName = ModBlocks.ENZYME_CHAMBER.getId().getPath();
         ResourceLocation blockModel = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/" + blockName);
 
-        // 方块状态：FACING 四向旋转（正面贴图在 north，朝玩家放置靠 getStateForPlacement）
         JsonObject blockState = new JsonObject();
         JsonObject variants = new JsonObject();
         String[] facings = {"north", "east", "south", "west"};
@@ -187,8 +177,8 @@ public class MachineModelProvider implements DataProvider {
         blockModelJson.add("display", chamberDisplay());
         blockModelJson.add("textures", chamberTextures());
         JsonArray elements = new JsonArray();
-        elements.add(mainElement());
-        for (JsonElement patch : patchElements()) {
+        elements.add(chamberMainElement());
+        for (JsonElement patch : chamberPatchElements()) {
             elements.add(patch);
         }
         blockModelJson.add("elements", elements);
@@ -203,30 +193,64 @@ public class MachineModelProvider implements DataProvider {
     }
 
     /**
-     * 模型贴图引用表：base 中性贴图 6 张（西面用 side 镜像）+ theme 灰度贴图 7 张
-     * <p>
-     * particle 单独指向正面贴图（破坏方块粒子效果用；vanilla 缺省取第一个
-     * 面纹理，显式声明避免歧义）
+     * 新贴图引用表：单底图六面复用 + 双灰度主题（窗/灯）
      *
      * @return textures 段的 JSON 对象
      */
     private JsonObject chamberTextures() {
         JsonObject textures = new JsonObject();
-        textures.addProperty("particle", "biocraft:block/enzyme_chamber_front");
-        textures.addProperty("front", "biocraft:block/enzyme_chamber_front");
-        textures.addProperty("side", "biocraft:block/enzyme_chamber_side");
-        textures.addProperty("side_m", "biocraft:block/enzyme_chamber_side_mirrored");
-        textures.addProperty("back", "biocraft:block/enzyme_chamber_back");
-        textures.addProperty("top", "biocraft:block/enzyme_chamber_top");
-        textures.addProperty("bottom", "biocraft:block/enzyme_chamber_bottom");
+        // 单底图六面复用（中心对称 cube_all，白箱+黑晶，无tint）
+        textures.addProperty("particle", "biocraft:block/enzyme_chamber");
+        textures.addProperty("base", "biocraft:block/enzyme_chamber");
         textures.addProperty("theme_window", "biocraft:block/enzyme_chamber_theme_window");
-        textures.addProperty("theme_pipe", "biocraft:block/enzyme_chamber_theme_pipe");
-        textures.addProperty("theme_porthole", "biocraft:block/enzyme_chamber_theme_porthole");
-        textures.addProperty("theme_flange", "biocraft:block/enzyme_chamber_theme_flange");
-        textures.addProperty("theme_top", "biocraft:block/enzyme_chamber_theme_top");
-        textures.addProperty("theme_ring", "biocraft:block/enzyme_chamber_theme_ring");
         textures.addProperty("theme_lamp", "biocraft:block/enzyme_chamber_theme_lamp");
         return textures;
+    }
+
+    /**
+     * 新主元素：六面同 base（cube_all 语义，cullface 全开）
+     *
+     * @return 主元素 JSON
+     */
+    private JsonObject chamberMainElement() {
+        JsonObject element = new JsonObject();
+        element.add("from", floatArray(0, 0, 0));
+        element.add("to", floatArray(16, 16, 16));
+        JsonObject faces = new JsonObject();
+        faces.add("down", plainFace("#base", "down"));
+        faces.add("up", plainFace("#base", "up"));
+        faces.add("north", plainFace("#base", "north"));
+        faces.add("south", plainFace("#base", "south"));
+        faces.add("west", plainFace("#base", "west"));
+        faces.add("east", plainFace("#base", "east"));
+        element.add("faces", faces);
+        return element;
+    }
+
+    /**
+     * 新贴片：六面×双主题 12贴片（酶窗菱形 + 四角灯），凸出0.002防z-fighting
+     * <p>
+     * 每面1酶窗+1灯，共12贴片，UV 同 5,5-11,11 中心对称区，透明外不染
+     *
+     * @return 贴片元素列表
+     */
+    private JsonArray chamberPatchElements() {
+        JsonArray patches = new JsonArray();
+        // 酶窗菱形（tint0）六面
+        patches.add(patch(5, 5, -0.002f, 11, 11, 0, "north", 5, 5, 11, 11, "#theme_window", 0));
+        patches.add(patch(5, 5, 16, 11, 11, 16.002f, "south", 5, 5, 11, 11, "#theme_window", 0));
+        patches.add(patch(16, 5, 5, 16.002f, 11, 11, "east", 5, 5, 11, 11, "#theme_window", 0));
+        patches.add(patch(-0.002f, 5, 5, 0, 11, 11, "west", 5, 5, 11, 11, "#theme_window", 0));
+        patches.add(patch(5, 16, 5, 11, 16.002f, 11, "up", 5, 5, 11, 11, "#theme_window", 0));
+        patches.add(patch(5, -0.002f, 5, 11, 0, 11, "down", 5, 5, 11, 11, "#theme_window", 0));
+        // 四角灯（tint1）六面
+        patches.add(patch(5, 5, -0.002f, 11, 11, 0, "north", 5, 5, 11, 11, "#theme_lamp", 1));
+        patches.add(patch(5, 5, 16, 11, 11, 16.002f, "south", 5, 5, 11, 11, "#theme_lamp", 1));
+        patches.add(patch(16, 5, 5, 16.002f, 11, 11, "east", 5, 5, 11, 11, "#theme_lamp", 1));
+        patches.add(patch(-0.002f, 5, 5, 0, 11, 11, "west", 5, 5, 11, 11, "#theme_lamp", 1));
+        patches.add(patch(5, 16, 5, 11, 16.002f, 11, "up", 5, 5, 11, 11, "#theme_lamp", 1));
+        patches.add(patch(5, -0.002f, 5, 11, 0, 11, "down", 5, 5, 11, 11, "#theme_lamp", 1));
+        return patches;
     }
 
     /**
