@@ -174,6 +174,8 @@ public class MachineModelProvider implements DataProvider {
 
         JsonObject blockModelJson = new JsonObject();
         blockModelJson.addProperty("gui_light", "side");
+        // 全幅透明叠染需 cutout，否则透明染黑覆盖（你遇到的灯盖窗 bug 根因）
+        blockModelJson.addProperty("render_type", "minecraft:cutout");
         blockModelJson.add("display", chamberDisplay());
         blockModelJson.add("textures", chamberTextures());
         JsonArray elements = new JsonArray();
@@ -228,38 +230,37 @@ public class MachineModelProvider implements DataProvider {
     }
 
     /**
-     * 新贴片：30小窗叠染（酶窗6面4×4 + 灯24点四角1×1），凸出分层防z-fighting
+     * 新贴片：2立方体全幅叠染（酶窗/灯各1元素六面），cutout 下透明真丢弃
      * <p>
-     * 酶窗4×4居中(6,6-9,9,tint0)不占四角，灯四角1×1(5,5/10,5/5,10/10,10,tint1)与窗零重叠，
-     * 透明染黑不覆盖。0.002窗/0.004灯分层。
+     * 之前 12/30 小窗是为 solid 下避透明染黑；设 render_type=cutout 后透明真透明，
+     * 1张 16×16 描图纸全幅盖六面即可，窗中央 4×4 与灯四角 1×1 同图共存不遮挡。
+     * 比 30 片少 28 次 drawcall，命名也干净。
      *
-     * @return 贴片元素列表（30元素）
+     * @return 贴片元素列表（2元素）
      */
     private JsonArray chamberPatchElements() {
         JsonArray patches = new JsonArray();
-        // 酶窗6面 4×4
-        patches.add(patch(6, 6, -0.002f, 10, 10, 0, "north", 6, 6, 10, 10, "#theme_window", 0));
-        patches.add(patch(6, 6, 16, 10, 10, 16.002f, "south", 6, 6, 10, 10, "#theme_window", 0));
-        patches.add(patch(16, 6, 6, 16.002f, 10, 10, "east", 6, 6, 10, 10, "#theme_window", 0));
-        patches.add(patch(-0.002f, 6, 6, 0, 10, 10, "west", 6, 6, 10, 10, "#theme_window", 0));
-        patches.add(patch(6, 16, 6, 10, 16.002f, 10, "up", 6, 6, 10, 10, "#theme_window", 0));
-        patches.add(patch(6, -0.002f, 6, 10, 0, 10, "down", 6, 6, 10, 10, "#theme_window", 0));
-        // 灯6面×4角=24点
-        int[][] corners = {{5,5},{10,5},{5,10},{10,10}};
-        String[] dirs = {"north","south","east","west","up","down"};
-        for (String dir : dirs) {
-            for (int[] c : corners) {
-                int x=c[0], y=c[1];
-                // 根据面朝向选择 from/to，复用小窗逻辑但1×1
-                if ("north".equals(dir)) patches.add(patch(x, y, -0.004f, x+1, y+1, -0.002f, dir, x, y, x+1, y+1, "#theme_lamp", 1));
-                else if ("south".equals(dir)) patches.add(patch(x, y, 16.002f, x+1, y+1, 16.004f, dir, x, y, x+1, y+1, "#theme_lamp", 1));
-                else if ("east".equals(dir)) patches.add(patch(16.002f, y, x, 16.004f, y+1, x+1, dir, x, y, x+1, y+1, "#theme_lamp", 1));
-                else if ("west".equals(dir)) patches.add(patch(-0.004f, y, x, -0.002f, y+1, x+1, dir, x, y, x+1, y+1, "#theme_lamp", 1));
-                else if ("up".equals(dir)) patches.add(patch(x, 16.002f, y, x+1, 16.004f, y+1, dir, x, y, x+1, y+1, "#theme_lamp", 1));
-                else if ("down".equals(dir)) patches.add(patch(x, -0.004f, y, x+1, -0.002f, y+1, dir, x, y, x+1, y+1, "#theme_lamp", 1));
-            }
-        }
+        patches.add(cubePatch(-0.002f, "#theme_window", 0));
+        patches.add(cubePatch(-0.004f, "#theme_lamp", 1));
         return patches;
+    }
+
+    private JsonObject cubePatch(float expand, String texture, int tintIndex) {
+        JsonObject element = new JsonObject();
+        element.add("from", floatArray(expand, expand, expand));
+        element.add("to", floatArray(16 - expand, 16 - expand, 16 - expand));
+        JsonObject faces = new JsonObject();
+        for (String dir : new String[]{"down", "up", "north", "south", "west", "east"}) {
+            JsonObject f = new JsonObject();
+            JsonArray uv = new JsonArray(); uv.add(0); uv.add(0); uv.add(16); uv.add(16);
+            f.add("uv", uv);
+            f.addProperty("texture", texture);
+            f.addProperty("tintindex", tintIndex);
+            f.addProperty("cullface", dir);
+            faces.add(dir, f);
+        }
+        element.add("faces", faces);
+        return element;
     }
 
     /**
