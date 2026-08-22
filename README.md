@@ -153,6 +153,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 
 ### 2026-08-23
 
+- **fix** 翻译机动画图文重叠优化（向装载机看齐）：肽链层上移至独立顶部层 `N-/ -C` 分置两端、密码子在轨上方 10px / AA 缩写在轨下方 8px 分层、入位 `aa-tRNA` 与 `GTP×2` 标签分上下 9/13px 跟随、产物 `GDP/Pi` 坠落点与文字分离 8px 且水平错开、`tRNA` 回收点文字在下方 7px；核糖体加阴影、分子色走表（`gtp/gdp/pi`）、`moleculeTint` 统一样式，彻底消除文字压图
 - **feat** 翻译机落地：`mRNA + 20种 aa-tRNA + GTP → 多肽 + 空载tRNA + GDP + Pi`，26 槽（`GTP` 置顶 +20 专槽 aa-tRNA +`mRNA` 9,8 +底 4 卡多肽/tRNA/GDP/Pi），`0.1 aa-tRNA/0.2 GTP→0.1 tRNA/0.2 GDP/0.2 Pi` 分数计量，起始额外 `2.5 GTP` 终止 `1 GTP`（起始 2~3 +延伸 2n +终止 1），多肽卡 `104` 宽 AA 单字母着色滚动（`Met-Ala-...`），核糖体动画（`mRNA` 轨道+密码子窗口 `AUG` 黄高亮+ `A/P` 位 `aa-tRNA` 进位 + `GTP×2` 双闪→`GDP/Pi` 坠落 + 空载 `tRNA` 回收 + 肽链 `N-C` 上长）；输入 21 卡纵向滚动 `GTP` 首卡绿底高亮，输出 4 卡横向滚动
 - **feat** 新增 `GDP` 分子与 `NDPK`/`AK` 双酶再生 `GTP`：`ATP+GDP⇌ADP+GTP` 与 `ATP+AMP⇌2ADP` 均 `keq1` `km0.06-0.09` `kcat500/100`（AK 逆向 670 由 Haldane 自动）
 - **fix** 余量区扩至 32 覆盖翻译机 26 槽，`SequenceMachineScreen` `stockCard` 改 `protected` 供翻译机复用
