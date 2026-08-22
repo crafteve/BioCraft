@@ -13,6 +13,8 @@
     "biocraft:enzyme_lactate_dehydrogenase",
     "biocraft:enzyme_pyruvate_decarboxylase",
     "biocraft:enzyme_alcohol_dehydrogenase",
-    "biocraft:enzyme_atp_hydrolase"
+    "biocraft:enzyme_atp_hydrolase",
+    "biocraft:enzyme_nucleoside_diphosphate_kinase",
+    "biocraft:enzyme_adenylate_kinase"
   ]
 }

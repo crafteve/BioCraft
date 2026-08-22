@@ -48,12 +48,12 @@
 
 **最终目标 = 细胞工厂**：以酶工厂网络模拟完整细胞代谢，实现近乎创造模式的全物质合成，且完全依赖生化产线供能。
 
-## 目前进度（2026-08-21 同步）
+## 目前进度（2026-08-23 同步）
 
 ### 已实现
 
 **物品体系（完成度较高）**
-- 71 个分子物品：20 种氨基酸、14 种离子、5 种原子、2 种无机物、5 种碱基（A/T/C/G/U）、8 种核苷酸（4 NTP + 4 种脱氧核苷酸 dATP/dTTP/dCTP/dGTP）、3 种辅酶（NAD⁺/NADH/ADP）、14 种糖酵解中间体/发酵产物（含乳酸/乙醛/乙醇）
+- 72 个分子物品：20 种氨基酸、14 种离子、5 种原子、2 种无机物、5 种碱基（A/T/C/G/U）、9 种核苷酸（4 NTP + GDP + 4 种脱氧核苷酸 dATP/dTTP/dCTP/dGTP）、3 种辅酶（NAD⁺/NADH/ADP）、14 种糖酵解中间体/发酵产物（含乳酸/乙醛/乙醇）
 - `substances.json` 数据表驱动注册，datagen 自动生成模型与中英语言文件
 - 视觉三件套：ItemColor 动态着色 + 图标缩写标注（白字黑阴影，Unicode 上下标如 H⁺/Ca²⁺/NH₄⁺）+ 双层容器纹理（烧杯/试管/烧瓶）
 
@@ -106,11 +106,14 @@
 **转录仪重做（2026-08-21）**
 - RNA 聚合酶催化 DNA 模板 3'→5'（ATATTA 启动子 / TTTTT 终止子）→ mRNA 5'→3' T→U，容器 8 槽 0 模板 1-4 NTP 5 mRNA 6 ADP 7 PPi（槽位 9,8 仿酶工厂 slot0，标题 28,13 避挡）；六项打磨：①DNA tooltip 单行修复 ②模板槽避挡 ③滚动区 scissor 通用化（helicase 垂直分支）④动画区双链+聚合酶 P 波浪脉冲+箭头下移 ⑤U 黄色 ⑥计量 0.1 NTP+0.1 ATP（10 碱基 1 组产 ADP/PPi）；续 5 项修复：窗口随 pos 右移+tick 漂移 autoScroll，短竖线 52→54，tooltip 去空格，mRNA 补 Shift 彩色/U 黄与 Ctrl 程序（U→T 剥离 TATAAT/TTTTT），DNA Ctrl 剥离前后缀修复
 
+**翻译机（2026-08-23）**
+- 核糖体催化 `mRNA + 20种 aa-tRNA + GTP → 多肽 + 空载tRNA + GDP + Pi`，26 槽（GTP 置顶 +20 专槽 aa-tRNA +mRNA 9,8 +底 4 卡多肽/tRNA/GDP/Pi），`0.1 aa-tRNA/0.2 GTP→0.1 tRNA/0.2 GDP/0.2 Pi` 分数计量，起始额外 `2.5 GTP`（0.25 首步）终止 `1 GTP`（0.1 尾步）；多肽卡 `104` 宽 AA 单字母着色滚动，核糖体动画（密码子窗口/肽链 N-C 上长/GTP双闪）
+
 ### 待开发
 
 **近期目标**
 
-- 中心法则信息层剩余机器（复制酶 / 翻译仪 / 装载机 / 折叠机 / 试剂盒，tRNA 体系与放射解锁系统；解旋酶/转录仪已落地）
+- 中心法则信息层剩余机器（复制酶 / 折叠机 / 试剂盒，tRNA 装载与翻译已落地；解旋酶/转录仪/翻译机已落地）
 - 糖酵解流水线搭建（14 步酶数据已齐含乳酸发酵线，机器布局与产线衔接待做；LDH/PDC/ADH 需供 H⁺、ATPase 需供水，产 H⁺ 机制待电解水补）
 - TNT 爆炸转化、熔炉燃烧产 ATP
 - 温度机制（引擎温度修正已就绪，外部温度源未接入）
@@ -147,6 +150,12 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 本模组的玩法灵感来源于 [AlChemistry（炼金化学）](https://www.curseforge.com/minecraft/mc-mods/alchemistry)：以真实化学原理驱动合成与反应；部分物品贴图借鉴自 AlChemistry，特此致谢。
 
 ## 更新日志
+
+### 2026-08-23
+
+- **feat** 翻译机落地：`mRNA + 20种 aa-tRNA + GTP → 多肽 + 空载tRNA + GDP + Pi`，26 槽（`GTP` 置顶 +20 专槽 aa-tRNA +`mRNA` 9,8 +底 4 卡多肽/tRNA/GDP/Pi），`0.1 aa-tRNA/0.2 GTP→0.1 tRNA/0.2 GDP/0.2 Pi` 分数计量，起始额外 `2.5 GTP` 终止 `1 GTP`（起始 2~3 +延伸 2n +终止 1），多肽卡 `104` 宽 AA 单字母着色滚动（`Met-Ala-...`），核糖体动画（`mRNA` 轨道+密码子窗口 `AUG` 黄高亮+ `A/P` 位 `aa-tRNA` 进位 + `GTP×2` 双闪→`GDP/Pi` 坠落 + 空载 `tRNA` 回收 + 肽链 `N-C` 上长）；输入 21 卡纵向滚动 `GTP` 首卡绿底高亮，输出 4 卡横向滚动
+- **feat** 新增 `GDP` 分子与 `NDPK`/`AK` 双酶再生 `GTP`：`ATP+GDP⇌ADP+GTP` 与 `ATP+AMP⇌2ADP` 均 `keq1` `km0.06-0.09` `kcat500/100`（AK 逆向 670 由 Haldane 自动）
+- **fix** 余量区扩至 32 覆盖翻译机 26 槽，`SequenceMachineScreen` `stockCard` 改 `protected` 供翻译机复用
 
 ### 2026-08-22
 
