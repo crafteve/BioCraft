@@ -530,6 +530,79 @@
             "deltaH":  null,
             "kcat":  100.0,
             "tempOptimum":  298.15
+        },
+        {
+            "id":  "nucleoside_diphosphate_kinase",
+            "name_zn":  "核苷二磷酸激酶",
+            "name_en":  "Nucleoside Diphosphate Kinase",
+            "abbreviation":  "NDPK",
+            "category":  "EC2",
+            "color":  "#7BD88F",
+            "reaction":  {
+                "reversible":  true,
+                "reactants":  [
+                    {
+                        "item":  "atp",
+                        "count":  1,
+                        "km":  0.06
+                    },
+                    {
+                        "item":  "gdp",
+                        "count":  1,
+                        "km":  0.09
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "adp",
+                        "count":  1,
+                        "km":  0.09
+                    },
+                    {
+                        "item":  "gtp",
+                        "count":  1,
+                        "km":  0.09
+                    }
+                ]
+            },
+            "keq":  1.0,
+            "deltaH":  null,
+            "kcat":  500.0,
+            "tempOptimum":  298.15
+        },
+        {
+            "id":  "adenylate_kinase",
+            "name_zn":  "腺苷酸激酶",
+            "name_en":  "Adenylate Kinase",
+            "abbreviation":  "AK",
+            "category":  "EC2",
+            "color":  "#F5B041",
+            "reaction":  {
+                "reversible":  true,
+                "reactants":  [
+                    {
+                        "item":  "atp",
+                        "count":  1,
+                        "km":  0.06
+                    },
+                    {
+                        "item":  "amp",
+                        "count":  1,
+                        "km":  0.09
+                    }
+                ],
+                "products":  [
+                    {
+                        "item":  "adp",
+                        "count":  2,
+                        "km":  0.09
+                    }
+                ]
+            },
+            "keq":  1.0,
+            "deltaH":  null,
+            "kcat":  100.0,
+            "tempOptimum":  298.15
         }
     ]
 }

@@ -563,6 +563,16 @@
             "category": "nucleotide"
         },
         {
+            "id": "gdp",
+            "name_zn": "二磷酸鸟苷",
+            "name_en": "Guanosine Diphosphate",
+            "container": "flask",
+            "color": "#A0D995",
+            "smiles": "C1=NC2=C(N1C3C(C(C(O3)COP(=O)(O)OP(=O)(O)O)O)O)N=C(NC2=O)N",
+            "abbreviation": "GDP",
+            "category": "nucleotide"
+        },
+        {
             "id": "utp",
             "name_zn": "三磷酸尿苷",
             "name_en": "Uridine Triphosphate",
