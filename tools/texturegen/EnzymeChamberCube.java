@@ -51,20 +51,11 @@ public class EnzymeChamberCube {
         c.hline(5,10,5,GLASS_HI); c.vline(5,10,5,GLASS_HI);
         return c;
     }
-    // 灰度菱形酶窗（tint0）
+    // 灰度酶窗（tint0）— 热修：改实心6×6方块确保可见，再调回菱形
     static PixelCanvas themeWindow() {
         PixelCanvas c = new PixelCanvas(16,16);
-        // 中央6高菱形 2-4-6-6-4-2，同编码器，灰度
-        // y5: 7,8 白
-        c.set(7,5,G_WHITE); c.set(8,5,G_WHITE);
-        // y6: 6,7,8,9 中白
-        c.set(6,6,G_WHITE); c.set(7,6,G_MID); c.set(8,6,G_MID); c.set(9,6,G_WHITE);
-        // y7: 5-10 6宽
-        c.set(5,7,G_WHITE); c.set(6,7,G_MID); c.set(7,7,G_WHITE); c.set(8,7,G_WHITE); c.set(9,7,G_MID); c.set(10,7,G_WHITE);
-        c.set(5,8,G_WHITE); c.set(6,8,G_MID); c.set(7,8,G_WHITE); c.set(8,8,G_WHITE); c.set(9,8,G_MID); c.set(10,8,G_WHITE);
-        // y9: 6-9
-        c.set(6,9,G_WHITE); c.set(7,9,G_MID); c.set(8,9,G_MID); c.set(9,9,G_WHITE);
-        c.set(7,10,G_WHITE); c.set(8,10,G_WHITE);
+        // 实心方块 5,5-10,10 全白，中心对称，极大可视
+        c.rect(5,5,10,10,G_WHITE);
         return c;
     }
     // 灰度四角灯（tint1）
