@@ -118,6 +118,16 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             cards.add(new InputCard(2, "atp"));
             return cards;
         }
+        if (kind == SequenceMachineKind.TRANSLATOR) {
+            List<InputCard> cards = new ArrayList<>();
+            cards.add(new InputCard(1, "gtp"));
+            // 20 种 aa-tRNA 专槽（2..21，GTP 置顶）
+            String[] trnas = {"trna_ala","trna_arg","trna_asn","trna_asp","trna_cys","trna_gln","trna_glu","trna_gly","trna_his","trna_ile","trna_leu","trna_lys","trna_met","trna_phe","trna_pro","trna_ser","trna_thr","trna_trp","trna_tyr","trna_val"};
+            for (int i = 0; i < trnas.length; i++) {
+                cards.add(new InputCard(2 + i, trnas[i]));
+            }
+            return cards;
+        }
         return List.of();
     }
 
@@ -147,6 +157,14 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             cards.add(new OutputCard(3, "trna_ala", 56, false));
             cards.add(new OutputCard(4, "amp", 56, false));
             cards.add(new OutputCard(5, "ppi", 56, false));
+            return cards;
+        }
+        if (kind == SequenceMachineKind.TRANSLATOR) {
+            List<OutputCard> cards = new ArrayList<>();
+            cards.add(new OutputCard(22, "polypeptide", 104, false));
+            cards.add(new OutputCard(23, "trna", 56, false));
+            cards.add(new OutputCard(24, "gdp", 56, false));
+            cards.add(new OutputCard(25, "phosphate_ion", 56, false));
             return cards;
         }
         return List.of();
