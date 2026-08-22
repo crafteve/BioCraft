@@ -130,6 +130,39 @@ public class LoaderOperation implements SequenceOperation {
         return s.isEmpty() || s.getCount() < s.getMaxStackSize();
     }
 
+    /**
+     * 每 tick 工作状态检测（与 GUI checkWorkable 同口径）：
+     * 输入三槽有货 + 类型正确 + AA 为 20 种之一 + 输出对应 aa-tRNA 空或同种 + 三输出槽均有空间
+     * → 当前 tick 可工作（绿灯），否则停止（红灯）
+     */
+    public static boolean isWorkable(SimpleContainer container) {
+        return isWorkable(
+                container.getItem(SLOT_TRNA),
+                container.getItem(SLOT_AA),
+                container.getItem(SLOT_ATP),
+                container.getItem(SLOT_OUT_AATRNA),
+                container.getItem(SLOT_OUT_AMP),
+                container.getItem(SLOT_OUT_PPI));
+    }
+
+    /** 工作状态检测重载：直接按 6 槽 ItemStack 判定（GUI menu 槽位复用，避免 SimpleContainer 包装） */
+    public static boolean isWorkable(ItemStack trna, ItemStack aa, ItemStack atp,
+                                     ItemStack outAatrna, ItemStack outAmp, ItemStack outPpi) {
+        if (trna.isEmpty() || aa.isEmpty() || atp.isEmpty()) return false;
+        if (!SequenceContainerUtil.matchesId(trna, "trna")) return false;
+        if (!SequenceContainerUtil.matchesId(atp, "atp")) return false;
+        String aaId = findAaId(aa);
+        if (aaId == null) return false;
+        String outId = AA_TO_TRNA.get(aaId);
+        if (outId == null) return false;
+        if (!outAatrna.isEmpty() && !SequenceContainerUtil.matchesId(outAatrna, outId)) return false;
+        return hasRoom(outAatrna) && hasRoom(outAmp) && hasRoom(outPpi);
+    }
+
+    private static boolean hasRoom(ItemStack stack) {
+        return stack.isEmpty() || stack.getCount() < stack.getMaxStackSize();
+    }
+
     @Override
     public void materialize(SimpleContainer container, SeqStepState state) {
         // aa-tRNA 输出已在 step 中直接产出，此处无需物化（保持空实现避免覆盖）

@@ -166,26 +166,20 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
             }
             case DONE -> {
                 if (kind() == SequenceMachineKind.LOADER) {
-                    // 装载机连续作业：产满才停，否则自动回 IDLE 接下一轮
-                    boolean hasRoom = inventory.getItem(LoaderOperation.SLOT_OUT_AATRNA).isEmpty()
-                            || inventory.getItem(LoaderOperation.SLOT_OUT_AATRNA).getCount() < inventory.getItem(LoaderOperation.SLOT_OUT_AATRNA).getMaxStackSize();
-                    hasRoom = hasRoom && (inventory.getItem(LoaderOperation.SLOT_OUT_AMP).isEmpty()
-                            || inventory.getItem(LoaderOperation.SLOT_OUT_AMP).getCount() < 64);
-                    hasRoom = hasRoom && (inventory.getItem(LoaderOperation.SLOT_OUT_PPI).isEmpty()
-                            || inventory.getItem(LoaderOperation.SLOT_OUT_PPI).getCount() < 64);
-                    boolean hasInput = !inventory.getItem(LoaderOperation.SLOT_TRNA).isEmpty()
-                            && !inventory.getItem(LoaderOperation.SLOT_AA).isEmpty()
-                            && !inventory.getItem(LoaderOperation.SLOT_ATP).isEmpty();
-                    if (!hasRoom || !hasInput) {
-                        // 产满或缺料才需取走
+                    // 每 tick 二态检测：输入齐全+输出有空间+类型匹配=可工作（RUNNING），否则停止（IDLE）
+                    // 与 GUI working 同口径（LoaderOperation.isWorkable），废弃 stage 三态显示
+                    boolean workable = LoaderOperation.isWorkable(inventory);
+                    if (workable) {
+                        // 可工作则连续作业自动回 IDLE 接下一轮（1 tick 一轮）
+                        stepState.setStage(SeqStepState.Stage.IDLE);
+                        setChanged();
+                    } else {
+                        // 不可工作（缺料/产满/错种）需取走产物才回 IDLE
                         boolean doneEmpty = inventory.getItem(operation.outputSlot()).isEmpty();
                         if (doneEmpty) {
                             stepState.setStage(SeqStepState.Stage.IDLE);
                             setChanged();
                         }
-                    } else {
-                        stepState.setStage(SeqStepState.Stage.IDLE);
-                        setChanged();
                     }
                     break;
                 }

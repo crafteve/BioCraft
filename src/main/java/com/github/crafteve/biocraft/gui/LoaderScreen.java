@@ -53,29 +53,16 @@ public class LoaderScreen extends SequenceMachineScreen {
     }
 
     /**
-     * 工作状态判定（与 LoaderOperation.canStart 同规则）：
-     * tRNA/AA/ATP 三输入有货 + AA 为 20 种之一 + 输出 aa-tRNA 槽空或同种 +
-     * 三输出槽均有空间 = 可正常进行配方（绿灯）
+     * 工作状态判定：委托 LoaderOperation 同口径静态方法（输入齐全 + 输出有空间即工作）
      */
     private boolean checkWorkable() {
-        ItemStack trna = menu.getSlot(LoaderOperation.SLOT_TRNA).getItem();
-        ItemStack aa = menu.getSlot(LoaderOperation.SLOT_AA).getItem();
-        ItemStack atp = menu.getSlot(LoaderOperation.SLOT_ATP).getItem();
-        if (trna.isEmpty() || aa.isEmpty() || atp.isEmpty()) return false;
-        if (!SequenceContainerUtil.matchesId(trna, "trna")) return false;
-        if (!SequenceContainerUtil.matchesId(atp, "atp")) return false;
-        String aaId = LoaderOperation.aaIdOf(aa);
-        if (aaId == null) return false;
-        ItemStack out = menu.getSlot(LoaderOperation.SLOT_OUT_AATRNA).getItem();
-        if (!out.isEmpty() && !SequenceContainerUtil.matchesId(out, LoaderOperation.trnaIdForAa(aaId))) return false;
-        return hasRoom(LoaderOperation.SLOT_OUT_AATRNA)
-                && hasRoom(LoaderOperation.SLOT_OUT_AMP)
-                && hasRoom(LoaderOperation.SLOT_OUT_PPI);
-    }
-
-    private boolean hasRoom(int slot) {
-        ItemStack s = menu.getSlot(slot).getItem();
-        return s.isEmpty() || s.getCount() < s.getMaxStackSize();
+        return LoaderOperation.isWorkable(
+                menu.getSlot(LoaderOperation.SLOT_TRNA).getItem(),
+                menu.getSlot(LoaderOperation.SLOT_AA).getItem(),
+                menu.getSlot(LoaderOperation.SLOT_ATP).getItem(),
+                menu.getSlot(LoaderOperation.SLOT_OUT_AATRNA).getItem(),
+                menu.getSlot(LoaderOperation.SLOT_OUT_AMP).getItem(),
+                menu.getSlot(LoaderOperation.SLOT_OUT_PPI).getItem());
     }
 
     @Override
@@ -96,15 +83,8 @@ public class LoaderScreen extends SequenceMachineScreen {
 
     private void drawLoaderStatusBar(GuiGraphics graphics) {
         graphics.drawString(font, title, leftPos + 8, topPos + 13, NAME_COLOR, false);
-        int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
-        int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
-        int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
-        String status = switch (stage) {
-            case 0 -> "IDLE";
-            case 1 -> "LOAD";
-            case 2 -> "DONE";
-            default -> "IDLE";
-        };
+        // 二态工作检测：每 tick 按输入/输出判定，结果与动画灯 animActive=working 同口径，不再用 stage 三态
+        String status = working ? "RUNNING" : "IDLE";
         graphics.drawString(font, status, leftPos + imageWidth - 8 - font.width(status), topPos + 13, CONC_TEXT_COLOR, false);
     }
 
@@ -188,9 +168,6 @@ public class LoaderScreen extends SequenceMachineScreen {
         for (int gx = x + 12; gx < x + w; gx += 14) g.fill(gx, y + 12, gx + 1, y + h - 6, 0x08FFFFFF);
         for (int gy = y + 18; gy < y + h; gy += 14) g.fill(x + 6, gy, x + w - 6, gy + 1, 0x08FFFFFF);
 
-        int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
-        boolean running = stage == 1;
-        boolean done = stage == 2;
         // 动画活跃 = 工作状态（绿灯）：输入有货 + 输出有空间 + 配方可执行即播，否则停
         boolean animActive = working;
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
@@ -210,12 +187,10 @@ public class LoaderScreen extends SequenceMachineScreen {
         // 0..1 呼吸曲线（口袋缩放/光环脉动）
         double breath = (Math.sin(tick * 0.35) + 1) * 0.5;
 
-        // 顶标题 + 状态灯（工作绿 / 停摆红，替代 LOAD/DONE 文字）
+        // 顶标题 + 状态灯（工作绿 / 停摆红，仅灯无文字）
         g.drawString(font, "装载", x + 6, y + 6, 0xFFE0E0E0, false);
         int lampColor = animActive ? 0xFF2ECC71 : 0xFFE74C3C;
         g.fill(x + w - 22, y + 7, x + w - 14, y + 15, lampColor);
-        String lampText = animActive ? "工作" : "停止";
-        g.drawString(font, lampText, x + w - 12 - font.width(lampText), y + 6, 0xFF9E9E9E, false);
 
         // 独立 30 tick 循环（绿灯出现时从 0 开始；红灯归零停止）
         int t = 0;
@@ -226,20 +201,20 @@ public class LoaderScreen extends SequenceMachineScreen {
             animStart = -1;
         }
 
-        // 中央装载口袋：大圆点阵描边（空闲灰 = tRNA / 完成 AA 色），呼吸缩放
+        // 中央装载口袋：大圆点阵描边（始终 AA 色，无 AA 时灰），呼吸缩放
         int cx = x + w / 2;
         int cy = y + h / 2 + 2;
         int R = 15 + (int) Math.round(breath * 2);
-        boolean loaded = done || (animActive && t >= 14);
-        int pocket = loaded ? aaTint : 0xFF7E8EA0;
+        boolean hasAa = !aaStack.isEmpty();
+        int pocket = hasAa ? aaTint : 0xFF7E8EA0;
         for (int i = 0; i < 24; i++) {
             double a = i * (Math.PI * 2 / 24);
             int px = cx + (int) Math.round(Math.cos(a) * R);
             int py = cy + (int) Math.round(Math.sin(a) * R);
             g.fill(px, py, px + 1, py + 1, pocket);
         }
-        // 口袋中心：装载的核心点（空 = tRNA 灰点，完成 = AA 色亮点）
-        g.fill(cx - 1, cy - 1, cx + 2, cy + 2, loaded ? 0xFFFFFFFF : 0xFFB0C4DE);
+        // 口袋中心：随 AA 槽有无显示 AA 色，无 AA 时 tRNA 灰点（不随动画跳变）
+        g.fill(cx - 1, cy - 1, cx + 2, cy + 2, hasAa ? aaTint : 0xFFB0C4DE);
         // tRNA 标注：居中口袋上方，固定不变（说明中心圆 = tRNA）
         g.drawString(font, "tRNA", cx - font.width("tRNA") / 2, cy - R - 12, 0xFF90A4AE, false);
 
