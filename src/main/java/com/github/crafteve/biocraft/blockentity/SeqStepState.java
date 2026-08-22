@@ -14,8 +14,8 @@ public final class SeqStepState {
 
     public enum Stage { IDLE, EXTENDING, DONE }
 
-    /** 余量槽位数（固定 8，覆盖编码器最大容器；转录仪不使用恒 0） */
-    private static final int REMAINDER_SLOTS = 8;
+    /** 余量槽位数（扩至 32，覆盖翻译机 26 槽；编码器 8/转录仪不使用恒 0） */
+    private static final int REMAINDER_SLOTS = 32;
 
     private Stage stage = Stage.IDLE;
     private int position = 0;

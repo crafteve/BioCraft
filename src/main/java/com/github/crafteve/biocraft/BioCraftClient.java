@@ -8,6 +8,7 @@ import com.github.crafteve.biocraft.gui.LoaderScreen;
 import com.github.crafteve.biocraft.gui.MachineScreen;
 import com.github.crafteve.biocraft.gui.SequenceMachineScreen;
 import com.github.crafteve.biocraft.gui.TranscriberScreen;
+import com.github.crafteve.biocraft.gui.TranslatorScreen;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.client.resources.model.ModelResourceLocation;
@@ -36,6 +37,7 @@ public class BioCraftClient {
         event.register(ModBlocks.TRANSCRIBER_MENU.get(), TranscriberScreen::new);
         event.register(ModBlocks.HELICASE_MENU.get(), HelicaseScreen::new);
         event.register(ModBlocks.LOADER_MENU.get(), LoaderScreen::new);
+        event.register(ModBlocks.TRANSLATOR_MENU.get(), TranslatorScreen::new);
     }
 
     @SubscribeEvent

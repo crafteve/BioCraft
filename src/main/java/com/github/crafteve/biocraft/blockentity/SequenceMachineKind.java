@@ -18,7 +18,8 @@ public enum SequenceMachineKind {
     DNA_ENCODER("dna_encoder", DnaSynthesisOperation::new, 8),
     TRANSCRIBER("transcriber", TranscriptionOperation::new, 8),
     HELICASE("helicase", HelicaseOperation::new, 3),
-    LOADER("loader", LoaderOperation::new, 6);
+    LOADER("loader", LoaderOperation::new, 6),
+    TRANSLATOR("translator", TranslatorOperation::new, 26);
 
     private final String blockId;
     private final Supplier<SequenceOperation> operationFactory;

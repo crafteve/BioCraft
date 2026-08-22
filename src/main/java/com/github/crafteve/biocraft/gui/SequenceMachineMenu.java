@@ -6,6 +6,7 @@ import com.github.crafteve.biocraft.blockentity.SequenceMachineBlockEntity;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
 import com.github.crafteve.biocraft.blockentity.SequenceOperation;
 import com.github.crafteve.biocraft.blockentity.TranscriptionOperation;
+import com.github.crafteve.biocraft.blockentity.TranslatorOperation;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.seq.SequenceData;
@@ -39,9 +40,9 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
     public static final int DATA_STAGE = 0;
     public static final int DATA_POSITION = 1;
     public static final int DATA_TOTAL = 2;
-    /** 分子余量数据起始下标（每槽一个 ×1000 定点，酶工厂同款） */
+    /** 分子余量数据起始下标（每槽一个 ×1000 定点，酶工厂同款，扩至 32 覆盖翻译机 26 槽） */
     public static final int DATA_REMAINDER_BASE = 3;
-    private static final int DATA_COUNT = DATA_REMAINDER_BASE + 8;
+    private static final int DATA_COUNT = DATA_REMAINDER_BASE + 32;
 
     /** 窗口尺寸（贴图 256×256 全屏） */
     public static final int WINDOW_W = 256;
@@ -231,6 +232,10 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                 if (index == TranscriptionOperation.SLOT_TEMPLATE || index == TranscriptionOperation.SLOT_OUT_MRNA) return 1;
                 return 64;
             }
+            if (kind == SequenceMachineKind.TRANSLATOR) {
+                if (index == TranslatorOperation.SLOT_MRNA || index == TranslatorOperation.SLOT_OUT_POLYPEPTIDE) return 1;
+                return 64;
+            }
             return super.getMaxStackSize(stack);
         }
 
@@ -334,6 +339,34 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                     {193 + SLOT_X, 41 + SLOT_Y + CARD_STEP},
                     {193 + SLOT_X, 41 + SLOT_Y + CARD_STEP * 2},
             };
+            case TRANSLATOR -> new int[][]{
+                    {9, 8},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+            };
         };
     }
 
@@ -374,7 +407,7 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
      * 进度条按 (count + 余量)/64 归一化——酶工厂浓度重建同款口径
      */
     public double getRemainder(int slot) {
-        if (slot < 0 || slot >= 8) {
+        if (slot < 0 || slot >= 32) {
             return 0.0;
         }
         return data.get(DATA_REMAINDER_BASE + slot) / 1000.0;

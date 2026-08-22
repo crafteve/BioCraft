@@ -91,6 +91,10 @@ public final class ModBlocks {
     public static final DeferredBlock<SequenceMachineBlock> LOADER = BLOCKS.register(
             "loader", () -> new SequenceMachineBlock(SequenceMachineKind.LOADER));
 
+    /** 翻译机（mRNA + aa-tRNA + GTP → 多肽 + tRNA + GDP + Pi） */
+    public static final DeferredBlock<SequenceMachineBlock> TRANSLATOR = BLOCKS.register(
+            "translator", () -> new SequenceMachineBlock(SequenceMachineKind.TRANSLATOR));
+
     public static final DeferredItem<BlockItem> DNA_ENCODER_ITEM = ModItems.ITEMS.register(
             "dna_encoder", () -> new BlockItem(DNA_ENCODER.get(), new Item.Properties()));
 
@@ -103,11 +107,14 @@ public final class ModBlocks {
     public static final DeferredItem<BlockItem> LOADER_ITEM = ModItems.ITEMS.register(
             "loader", () -> new BlockItem(LOADER.get(), new Item.Properties()));
 
+    public static final DeferredItem<BlockItem> TRANSLATOR_ITEM = ModItems.ITEMS.register(
+            "translator", () -> new BlockItem(TRANSLATOR.get(), new Item.Properties()));
+
     /** 共享序列机 BE 类型（kind 由方块状态解析，无需每机器一个 BE） */
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SequenceMachineBlockEntity>> SEQUENCE_BE =
             BE_TYPES.register("sequence_machine",
                     () -> BlockEntityType.Builder.of(SequenceMachineBlockEntity::new,
-                            DNA_ENCODER.get(), TRANSCRIBER.get(), HELICASE.get(), LOADER.get()).build(null));
+                            DNA_ENCODER.get(), TRANSCRIBER.get(), HELICASE.get(), LOADER.get(), TRANSLATOR.get()).build(null));
 
     /** DNA 编码器菜单类型（工厂捕获 kind，避免初始化自引用） */
     public static final DeferredHolder<MenuType<?>, MenuType<SequenceMachineMenu>> DNA_ENCODER_MENU =
@@ -129,11 +136,17 @@ public final class ModBlocks {
             MENUS.register("loader", () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(
                     (id, inv, buf) -> new SequenceMachineMenu(SequenceMachineKind.LOADER, id, inv, buf)));
 
+    /** 翻译机菜单类型 */
+    public static final DeferredHolder<MenuType<?>, MenuType<SequenceMachineMenu>> TRANSLATOR_MENU =
+            MENUS.register("translator", () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(
+                    (id, inv, buf) -> new SequenceMachineMenu(SequenceMachineKind.TRANSLATOR, id, inv, buf)));
+
     static {
         SequenceMachineKind.DNA_ENCODER.setMenuHolder(DNA_ENCODER_MENU);
         SequenceMachineKind.TRANSCRIBER.setMenuHolder(TRANSCRIBER_MENU);
         SequenceMachineKind.HELICASE.setMenuHolder(HELICASE_MENU);
         SequenceMachineKind.LOADER.setMenuHolder(LOADER_MENU);
+        SequenceMachineKind.TRANSLATOR.setMenuHolder(TRANSLATOR_MENU);
     }
 
     /**
