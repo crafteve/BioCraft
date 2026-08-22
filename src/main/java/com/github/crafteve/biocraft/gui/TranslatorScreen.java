@@ -25,7 +25,6 @@ public class TranslatorScreen extends SequenceMachineScreen {
 
     private static final ResourceLocation GUI_V1 = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/gui_encoder.png");
 
-    private long animStart = -1;
     private boolean working = false;
 
     public TranslatorScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
@@ -230,7 +229,7 @@ public class TranslatorScreen extends SequenceMachineScreen {
         return 0xCCCCCC;
     }
 
-    // 动画区 — 向 loader 看齐：分层留白 + 文本跟随偏移 + 居中，杜绝压图
+    // 动画区 —— 已清空，仅保留黑框（按需求暂不展示动画）
     private void drawTranslationAnimation(GuiGraphics g) {
         int x = leftPos + SequenceMachineMenu.EDIT_X;
         int y = topPos + SequenceMachineMenu.EDIT_Y;
@@ -238,162 +237,6 @@ public class TranslatorScreen extends SequenceMachineScreen {
         int h = SequenceMachineMenu.EDIT_H;
         g.fill(x, y, x + w, y + h, EDIT_PANEL_COLOR);
         g.fill(x, y, x + w, y + 1, 0xFF3A3A3A);
-        for (int gx = x + 12; gx < x + w; gx += 14) g.fill(gx, y + 12, gx + 1, y + h - 6, 0x08FFFFFF);
-        for (int gy = y + 18; gy < y + h; gy += 14) g.fill(x + 6, gy, x + w - 6, gy + 1, 0x08FFFFFF);
-
-        int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
-        int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
-        int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
-        boolean run = stage == 1;
-        boolean done = stage == 2;
-        g.drawString(font, "翻译", x + 6, y + 6, 0xFFE0E0E0, false);
-        String st = run ? pos + "/" + total : done ? "完成" : working ? "就绪" : "待机";
-        g.drawString(font, st, x + w - 6 - font.width(st), y + 6, 0xFF9E9E9E, false);
-        int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
-        boolean animActive = working && run;
-        int t = 0;
-        if (animActive) { if (animStart < 0) animStart = tick; t = (int) ((tick - animStart) % 30); } else animStart = -1;
-
-        // 中心与分层：loader 口袋 cy=h/2+2，本机核糖体下移 8 使顶部留出肽链层
-        int cx = x + w / 2;
-        int cy = y + h / 2 + 8;
-        // 分子主题色走表（loader 同款，不硬编码）
-        int gtpTint = moleculeTint("gtp", 0xFF27AE60);
-        int gdpTint = moleculeTint("gdp", 0xFFA0D995);
-        int piTint = moleculeTint("phosphate_ion", 0xFFF39C12);
-        int trnaTint = 0xFFB0C4DE;
-
-        // 肽链层（顶部独立层，离核糖体 ≥18px，仿 loader tRNA 在口袋外 12px）
-        ItemStack pep = menu.getSlot(TranslatorOperation.SLOT_OUT_POLYPEPTIDE).getItem();
-        SequenceData pd = pep.get(ModDataComponents.SEQUENCE.get());
-        String pseq = pd != null ? pd.seq() : "";
-        int pepY = y + 18;
-        if (!pseq.isEmpty()) {
-            int window = Math.min(6, pseq.length());
-            String tail = pseq.substring(Math.max(0, pseq.length() - window));
-            int chainW = tail.length() * 7;
-            int chainX0 = cx - chainW / 2;
-            // N-/ -C 分置链两端外侧，避免挤在链上
-            g.drawString(font, "N-", x + 6, pepY, 0xFF90A4AE, false);
-            g.drawString(font, "-C", x + w - 6 - font.width("-C"), pepY, 0xFF90A4AE, false);
-            // 链居中，字母间 7px，末位高亮不在此层（卡片已高亮）
-            for (int i = 0; i < tail.length(); i++) {
-                char aa1 = tail.charAt(i);
-                int ac = aaColor(aa1) | 0xFF000000;
-                int bx = chainX0 + i * 7;
-                g.drawString(font, String.valueOf(aa1), bx, pepY, ac, false);
-            }
-        } else if (!animActive) {
-            // 空链占位提示，不压图
-            g.drawString(font, "— 肽链 —", cx - font.width("— 肽链 —") / 2, pepY, 0xFF5A6A7A, false);
-        }
-
-        // 核糖体 — 加阴影与层次（helicase/loader 同款 0x40000000 阴影）
-        g.fill(cx - 28 + 1, cy - 9 + 1, cx + 28 + 1, cy + 7 + 1, 0x40000000);
-        g.fill(cx - 28, cy - 10, cx + 28, cy + 6, 0xFF3A3A42);
-        g.fill(cx - 26, cy - 8, cx + 26, cy + 4, 0xFF5A5A64);
-        g.fill(cx - 20, cy + 4, cx + 20, cy + 8, 0xFF7ED6DF);
-        // mRNA 轨道（细绿线，居中）
-        g.fill(x + 10, cy, x + w - 10, cy + 2, 0xFF8BC34A);
-
-        // 密码子窗口 — 向 loader 文本跟随看齐：密码子在轨上方 8px，AA 在轨下方 8px，互不压线
-        ItemStack mrna = menu.getSlot(TranslatorOperation.SLOT_MRNA).getItem();
-        SequenceData d = mrna.get(ModDataComponents.SEQUENCE.get());
-        String seq = d != null ? d.seq() : "";
-        int start = seq.indexOf("AUG");
-        if (start >= 0 && total > 0) {
-            int curCodonIdx = Math.min(pos, total - 1);
-            for (int i = -1; i <= 1; i++) {
-                int idx = curCodonIdx + i;
-                if (idx < 0 || idx >= total) continue;
-                int base = start + idx * 3;
-                if (base + 3 > seq.length()) continue;
-                String cod = seq.substring(base, base + 3);
-                int bx = cx + i * 24 - 9;
-                // 当前框高亮底色，上下各留 2px 不贴字
-                if (i == 0) g.fill(bx - 2, cy - 12, bx + 20, cy + 14, 0x33FFEB3B);
-                int col = i == 0 ? 0xFFFFFF00 : 0xFFB0BEC5;
-                // 密码子在轨上方 10px（cy-13），AA 缩写在轨下方 10px（cy+8），文本与圆点层错开
-                g.drawString(font, cod, bx, cy - 13, col, false);
-                char aa1 = '?'; try { aa1 = com.github.crafteve.biocraft.seq.CodonTable.codonToAa(cod); } catch (Exception e) {}
-                if (aa1 != '*') {
-                    String aa3 = aa1To3(aa1);
-                    int ac = aaColor(aa1);
-                    // AA 文字居中密码子下方，下方 8px，避免压在轨道上
-                    int ax = bx + 2;
-                    g.drawString(font, aa3, ax, cy + 8, ac | 0xFF000000, false);
-                }
-            }
-        }
-
-        if (!animActive) {
-            if (working) g.drawString(font, "缺 GTP 或对应 aa-tRNA", x + 6, y + h - 10, 0xFFE67E22, false);
-            return;
-        }
-        // 进入动画：aa-tRNA 从右沿中线滑入 A 位 — 文本在点上方，点在轨上方，避免重叠
-        double prog = Math.min(1.0, t / 10.0);
-        int aX = (int) (x + w - 20 + (cx + 14 - (x + w - 20)) * prog);
-        char curAa = '?'; String curCod = ""; if (start >= 0 && pos < total) {
-            int b = start + pos * 3; if (b + 3 <= seq.length()) curCod = seq.substring(b, b + 3);
-            try { curAa = com.github.crafteve.biocraft.seq.CodonTable.codonToAa(curCod); } catch (Exception e) {}
-        }
-        int curTint = aaColor(curAa) | 0xFF000000;
-        // aa-tRNA 方点 6×6 在 cy-10 线上，标签分两层：AA 单字母在点上方 9px，GTP×2 在更上方 13px，水平错开不重叠
-        if (t < 11) {
-            g.fill(aX - 1, cy - 10, aX + 6, cy - 4, curTint);
-            String aaLabel = curAa == '?' ? "?" : String.valueOf(curAa);
-            int aaLabX = aX + 3 - font.width(aaLabel) / 2;
-            g.drawString(font, aaLabel, aaLabX, cy - 19, curTint, false);
-            for (int p = 0; p < 2; p++) g.fill(aX + 8 + p * 4, cy - 10, aX + 10 + p * 4, cy - 8, gtpTint);
-            String gtpLab = "GTP×2";
-            int gtpLabX = aX + 10 - font.width(gtpLab) / 2;
-            g.drawString(font, gtpLab, gtpLabX, cy - 23, gtpTint, false);
-        } else g.fill(cx + 14, cy - 10, cx + 18, cy - 6, curTint);
-
-        // 接触闪光
-        if (t >= 11 && t < 14) g.fill(cx - 4, cy - 4, cx + 4, cy + 4, 0x44FFFFFF);
-
-        // 副产物坠落 — 仿 loader：点与文本分离 8px，GDP 在上、Pi 在下水平错开避免压字
-        if (t >= 11 && t < 16) {
-            int f = (t - 11) * 2;
-            // GDP 点
-            int gdx = cx + 18 + f; int gdy = cy - 14 + f;
-            g.fill(gdx, gdy, gdx + 6, gdy + 4, gdpTint);
-            String gdpLab = "GDP";
-            int gdpLabX = gdx + 3 - font.width(gdpLab) / 2;
-            g.drawString(font, gdpLab, gdpLabX, gdy - 9, gdpTint, false);
-            // Pi 点右下错开 8px，避免与 GDP 压一起
-            int pix = cx + 26 + f; int piy = cy - 6 + f;
-            g.fill(pix, piy, pix + 4, piy + 4, piTint);
-            String piLab = "Pi";
-            int piLabX = pix + 2 - font.width(piLab) / 2;
-            g.drawString(font, piLab, piLabX, piy - 9, piTint, false);
-        }
-        if (t >= 15 && t < 21) {
-            int f = (t - 15) * 2;
-            int tx = cx - 24 - f; int ty = cy + 4 + f;
-            g.fill(tx, ty, tx + 6, ty + 4, trnaTint);
-            String lab = "tRNA";
-            int labX = tx + 3 - font.width(lab) / 2;
-            g.drawString(font, lab, labX, ty + 7, trnaTint, false);
-        }
-        if (t >= 14) {
-            double breath = (Math.sin(tick * 0.35) + 1) * 0.5;
-            int halo = 12 + (int) Math.round(breath * 2);
-            for (int i = 0; i < 16; i++) {
-                double a = i * Math.PI * 2 / 16;
-                int px = cx + (int) Math.round(Math.cos(a) * halo);
-                int py = cy - 4 + (int) Math.round(Math.sin(a) * halo);
-                if (i % 2 == 0) g.fill(px, py, px + 1, py + 1, 0x44FFFFFF);
-            }
-        }
-    }
-
-    /** 取分子主题色，不存在回退（loader 同款） */
-    private static int moleculeTint(String id, int fallback) {
-        var di = ModItems.byId(id);
-        if (di != null && di.get() instanceof MoleculeItem mi) return mi.getTintColor() | 0xFF000000;
-        return fallback;
     }
 
     @Override
