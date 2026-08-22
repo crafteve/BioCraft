@@ -11,8 +11,11 @@ import net.minecraft.world.entity.player.Player;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 /**
- * 转录按钮包：客户端点击转录区右下角“转录”按钮 → 服务端
- * 仿 dnaEncoder 的编码按钮，手动检测条件并启动转录（自动 tick 仍保留，按钮为显式触发）
+ * 序列机启动工序包：客户端点击"转录/翻译"按钮 → 服务端手动触发开工
+ * <p>
+ * 泛化自原转录包（原只支持 TRANSCRIBER）：服务端按 BE kind 校验，
+ * 转录仪与翻译机共用同一通道——两机均为"点按钮才开工"语义（禁自动），
+ * 触发时执行 canStart+init，转录仪额外记录模板指纹（翻译机指纹由 BE tick 追踪）
  */
 public record ServerboundTranscribePacket(BlockPos pos) implements CustomPacketPayload {
 
@@ -34,14 +37,23 @@ public record ServerboundTranscribePacket(BlockPos pos) implements CustomPacketP
             Player player = ctx.player();
             if (player == null || player.level().isClientSide) return;
             if (player.level().getBlockEntity(pos) instanceof SequenceMachineBlockEntity be
-                    && be.kind() == SequenceMachineKind.TRANSCRIBER
+                    && (be.kind() == SequenceMachineKind.TRANSCRIBER || be.kind() == SequenceMachineKind.TRANSLATOR)
                     && player.blockPosition().distSqr(pos) <= 64) {
                 if (be.stepState().stage() == com.github.crafteve.biocraft.blockentity.SeqStepState.Stage.IDLE
                         && be.operation().canStart(be.getContainer(), be.stepState())
                         && be.operation().init(be.getContainer(), be.stepState())) {
-                    var tmpl = be.getContainer().getItem(com.github.crafteve.biocraft.blockentity.TranscriptionOperation.SLOT_TEMPLATE);
-                    var d = tmpl.get(com.github.crafteve.biocraft.init.ModDataComponents.SEQUENCE.get());
-                    be.setLastTemplateSeq(d != null ? d.seq() : "");
+                    // 记录模板指纹：转录仪 = ssDNA 模板槽，翻译机 = mRNA 槽
+                    // （指纹用于 BE tick 检测模板被拿走/换链，见 SequenceMachineBlockEntity）
+                    int templateSlot = switch (be.kind()) {
+                        case TRANSCRIBER -> com.github.crafteve.biocraft.blockentity.TranscriptionOperation.SLOT_TEMPLATE;
+                        case TRANSLATOR -> com.github.crafteve.biocraft.blockentity.TranslatorOperation.SLOT_MRNA;
+                        default -> -1;
+                    };
+                    if (templateSlot >= 0) {
+                        var tmpl = be.getContainer().getItem(templateSlot);
+                        var d = tmpl.get(com.github.crafteve.biocraft.init.ModDataComponents.SEQUENCE.get());
+                        be.setLastTemplateSeq(d != null ? d.seq() : "");
+                    }
                     be.setChanged();
                 }
             }

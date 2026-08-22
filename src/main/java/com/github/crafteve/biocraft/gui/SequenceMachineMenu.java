@@ -266,6 +266,17 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                 }
                 return true;
             }
+            // 半成品锁（GUI 路）：转录仪 mRNA / 翻译机多肽仅完成后可取——
+            // 此前只给编码器/解旋酶写了门控，GUI 点击可拿走半成品
+            // （BE canTakeItemInternal 只拦漏斗/管道，GUI 取物走 Slot.remove 绕过）
+            if (kind == SequenceMachineKind.TRANSCRIBER && index == TranscriptionOperation.SLOT_OUT_MRNA) {
+                SequenceData data = getItem().get(ModDataComponents.SEQUENCE.get());
+                return data != null && data.complete();
+            }
+            if (kind == SequenceMachineKind.TRANSLATOR && index == TranslatorOperation.SLOT_OUT_POLYPEPTIDE) {
+                SequenceData data = getItem().get(ModDataComponents.SEQUENCE.get());
+                return data != null && data.complete();
+            }
             return true;
         }
 

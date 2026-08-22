@@ -155,51 +155,36 @@ public class TranslatorOperation implements SequenceOperation {
         boolean needGdp = gdpRem >= 1.0 - 1e-9;
         boolean needPi = piRem >= 1.0 - 1e-9;
 
+        // 前置全查：所有消耗/产出条件在动物品前一次性判定——
+        // 槽位内容已由 isItemValidForSlot 过滤保证 id 正确，hasRoom/hasAny
+        // 即充分条件，任一不满足直接停摆，绝不出现"动了半步要回滚"
+        // （旧实现边动边退、退账余量写错白送/欠账分子，已废弃）
         if (needAa && !hasAny(container, slot)) return StepResult.STALLED;
         if (needGtp && !hasAny(container, SLOT_GTP)) return StepResult.STALLED;
         if (needTrna && !hasRoom(container, SLOT_OUT_TRNA)) return StepResult.STALLED;
         if (needGdp && !hasRoom(container, SLOT_OUT_GDP)) return StepResult.STALLED;
         if (needPi && !hasRoom(container, SLOT_OUT_PI)) return StepResult.STALLED;
 
-        // 消耗
+        // 前置全查通过，顺序结算（消耗侧先于产出侧，余量满额归零为既定口径）
         if (needAa) {
-            if (!SequenceContainerUtil.consumeOne(container, slot, trnaId)) return StepResult.STALLED;
+            SequenceContainerUtil.consumeOne(container, slot, trnaId);
             state.setRemainder(slot, 0.0);
         } else state.setRemainder(slot, aaRem);
         if (needGtp) {
-            if (!SequenceContainerUtil.consumeOne(container, SLOT_GTP, "gtp")) {
-                if (needAa) { SequenceContainerUtil.addOne(container, slot, trnaId); state.setRemainder(slot, aaRem); }
-                return StepResult.STALLED;
-            }
+            SequenceContainerUtil.consumeOne(container, SLOT_GTP, "gtp");
             state.setRemainder(SLOT_GTP, 0.0);
         } else state.setRemainder(SLOT_GTP, gtpRem);
 
-        // 产出
         if (needTrna) {
-            if (!SequenceContainerUtil.addOne(container, SLOT_OUT_TRNA, "trna")) {
-                if (needAa) { SequenceContainerUtil.addOne(container, slot, trnaId); state.setRemainder(slot, 0.0); }
-                if (needGtp) { SequenceContainerUtil.addOne(container, SLOT_GTP, "gtp"); state.setRemainder(SLOT_GTP, 0.0); }
-                return StepResult.STALLED;
-            }
+            SequenceContainerUtil.addOne(container, SLOT_OUT_TRNA, "trna");
             state.setRemainder(SLOT_OUT_TRNA, 0.0);
         } else state.setRemainder(SLOT_OUT_TRNA, trnaRem);
         if (needGdp) {
-            if (!SequenceContainerUtil.addOne(container, SLOT_OUT_GDP, "gdp")) {
-                if (needTrna) { ItemStack s = container.getItem(SLOT_OUT_TRNA); if (!s.isEmpty()) { s.shrink(1); if (s.isEmpty()) container.setItem(SLOT_OUT_TRNA, ItemStack.EMPTY);} }
-                if (needAa) { SequenceContainerUtil.addOne(container, slot, trnaId); }
-                if (needGtp) { SequenceContainerUtil.addOne(container, SLOT_GTP, "gtp"); }
-                return StepResult.STALLED;
-            }
+            SequenceContainerUtil.addOne(container, SLOT_OUT_GDP, "gdp");
             state.setRemainder(SLOT_OUT_GDP, 0.0);
         } else state.setRemainder(SLOT_OUT_GDP, gdpRem);
         if (needPi) {
-            if (!SequenceContainerUtil.addOne(container, SLOT_OUT_PI, "phosphate_ion")) {
-                if (needGdp) { ItemStack s = container.getItem(SLOT_OUT_GDP); if (!s.isEmpty()) { s.shrink(1); if (s.isEmpty()) container.setItem(SLOT_OUT_GDP, ItemStack.EMPTY);} }
-                if (needTrna) { ItemStack s = container.getItem(SLOT_OUT_TRNA); if (!s.isEmpty()) { s.shrink(1); if (s.isEmpty()) container.setItem(SLOT_OUT_TRNA, ItemStack.EMPTY);} }
-                if (needAa) { SequenceContainerUtil.addOne(container, slot, trnaId); }
-                if (needGtp) { SequenceContainerUtil.addOne(container, SLOT_GTP, "gtp"); }
-                return StepResult.STALLED;
-            }
+            SequenceContainerUtil.addOne(container, SLOT_OUT_PI, "phosphate_ion");
             state.setRemainder(SLOT_OUT_PI, 0.0);
         } else state.setRemainder(SLOT_OUT_PI, piRem);
 
@@ -218,8 +203,12 @@ public class TranslatorOperation implements SequenceOperation {
         if (state.stage() == SeqStepState.Stage.IDLE) return;
         String seq = state.chain().substring(0, Math.min(state.position(), state.chain().length()));
         boolean complete = state.position() >= state.total();
+        // kind 继承 mRNA 模板（转录仪继承 DNA 模板同款惯例，折叠机按 kind 过滤不错位）
+        ItemStack mrna = container.getItem(SLOT_MRNA);
+        SequenceData mrnaData = mrna.get(ModDataComponents.SEQUENCE.get());
+        SequenceData.Kind kind = mrnaData != null ? mrnaData.kind() : SequenceData.Kind.GENE;
         ItemStack out = new ItemStack(ModItems.POLYPEPTIDE.get());
-        out.set(ModDataComponents.SEQUENCE.get(), new SequenceData(SequenceData.SeqType.POLYPEPTIDE, null, SequenceData.Kind.GENE, seq, complete));
+        out.set(ModDataComponents.SEQUENCE.get(), new SequenceData(SequenceData.SeqType.POLYPEPTIDE, null, kind, seq, complete));
         container.setItem(SLOT_OUT_POLYPEPTIDE, out);
     }
 

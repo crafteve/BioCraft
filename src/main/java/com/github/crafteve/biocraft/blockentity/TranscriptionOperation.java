@@ -144,69 +144,37 @@ public class TranscriptionOperation implements SequenceOperation {
         boolean needAtp = isA ? needNtp : atpRem >= 1.0 - 1e-9;
         boolean needAdp = adpRem >= 1.0 - 1e-9;
         boolean needPpi = ppiRem >= 1.0 - 1e-9;
+        // 前置全查：所有消耗/产出条件在动物品前一次性判定——槽位内容已由
+        // isItemValidForSlot 过滤保证 id 正确，hasRoom/hasAny 即充分条件，
+        // 任一不满足直接停摆，绝不出现"动了半步要回滚"（旧实现边动边退、
+        // 退账余量有的路径写回原值有的清零，账目不平白送/欠账分子，已废弃）
         if (needNtp && !hasAny(container, ntpSlot)) return StepResult.STALLED;
         if (!isA && needAtp && !hasAny(container, SLOT_ATP)) return StepResult.STALLED;
         if (needAdp && !hasRoom(container, SLOT_OUT_ADP)) return StepResult.STALLED;
         if (needPpi && !hasRoom(container, SLOT_OUT_PPI)) return StepResult.STALLED;
-        // 消耗 NTP
+        // 前置全查通过，顺序结算（余量满额归零为既定口径）
         if (needNtp) {
-            if (!SequenceContainerUtil.consumeOne(container, ntpSlot, ntp)) return StepResult.STALLED;
-            if (isA) state.setRemainder(SLOT_ATP, 0.0);
-            else state.setRemainder(ntpSlot, 0.0);
+            SequenceContainerUtil.consumeOne(container, ntpSlot, ntp);
+            state.setRemainder(isA ? SLOT_ATP : ntpSlot, 0.0);
         } else {
-            if (isA) state.setRemainder(SLOT_ATP, ntpRem);
-            else state.setRemainder(ntpSlot, ntpRem);
+            state.setRemainder(isA ? SLOT_ATP : ntpSlot, ntpRem);
         }
-        // 消耗 ATP（非 A 时独立）
         if (!isA) {
             if (needAtp) {
-                if (!SequenceContainerUtil.consumeOne(container, SLOT_ATP, "atp")) {
-                    if (needNtp) {
-                        SequenceContainerUtil.addOne(container, ntpSlot, ntp);
-                        state.setRemainder(ntpSlot, ntpRem);
-                    } else {
-                        state.setRemainder(SLOT_ATP, atpRem);
-                    }
-                    return StepResult.STALLED;
-                }
+                SequenceContainerUtil.consumeOne(container, SLOT_ATP, "atp");
                 state.setRemainder(SLOT_ATP, 0.0);
             } else {
                 state.setRemainder(SLOT_ATP, atpRem);
             }
         }
         if (needAdp) {
-            if (!SequenceContainerUtil.addOne(container, SLOT_OUT_ADP, "adp")) {
-                // 回滚 NTP/ATP
-                if (needNtp) {
-                    SequenceContainerUtil.addOne(container, ntpSlot, ntp);
-                    if (isA) state.setRemainder(SLOT_ATP, ntpRem);
-                    else state.setRemainder(ntpSlot, 0.0);
-                }
-                if (!isA && needAtp) {
-                    SequenceContainerUtil.addOne(container, SLOT_ATP, "atp");
-                    state.setRemainder(SLOT_ATP, 0.0);
-                }
-                return StepResult.STALLED;
-            }
+            SequenceContainerUtil.addOne(container, SLOT_OUT_ADP, "adp");
             state.setRemainder(SLOT_OUT_ADP, 0.0);
         } else {
             state.setRemainder(SLOT_OUT_ADP, adpRem);
         }
         if (needPpi) {
-            if (!SequenceContainerUtil.addOne(container, SLOT_OUT_PPI, "ppi")) {
-                if (needAdp) {
-                    ItemStack adp = container.getItem(SLOT_OUT_ADP);
-                    if (!adp.isEmpty()) { adp.shrink(1); if (adp.isEmpty()) container.setItem(SLOT_OUT_ADP, ItemStack.EMPTY); }
-                    state.setRemainder(SLOT_OUT_ADP, 0.0);
-                }
-                if (needNtp) {
-                    SequenceContainerUtil.addOne(container, ntpSlot, ntp);
-                    if (isA) state.setRemainder(SLOT_ATP, ntpRem);
-                    else state.setRemainder(ntpSlot, 0.0);
-                }
-                if (!isA && needAtp) { SequenceContainerUtil.addOne(container, SLOT_ATP, "atp"); state.setRemainder(SLOT_ATP, 0.0); }
-                return StepResult.STALLED;
-            }
+            SequenceContainerUtil.addOne(container, SLOT_OUT_PPI, "ppi");
             state.setRemainder(SLOT_OUT_PPI, 0.0);
         } else {
             state.setRemainder(SLOT_OUT_PPI, ppiRem);

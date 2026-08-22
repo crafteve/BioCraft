@@ -112,18 +112,25 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         if (level == null || level.isClientSide) {
             return;
         }
-        // 转录中取走模板链应重置（fix：拿走模板链按理重置，放回弹出当前 mRNA 重建）
-        if (kind() == SequenceMachineKind.TRANSCRIBER && !lastTemplateSeq.isEmpty()) {
-            ItemStack tmpl = inventory.getItem(TranscriptionOperation.SLOT_TEMPLATE);
+        // 工序中模板指纹追踪（转录仪/翻译机通用）：模板链被拿走或换成别的链时，
+        // 弹出旧产物 + 状态归零——防止"幽灵翻译/幽灵转录"（密码子串存在内存里，
+        // step 不查槽位，不追踪则抽走 mRNA 后机器照翻不误、塞新链也被无视）
+        Integer templateSlot = switch (kind()) {
+            case TRANSCRIBER -> TranscriptionOperation.SLOT_TEMPLATE;
+            case TRANSLATOR -> TranslatorOperation.SLOT_MRNA;
+            default -> null;
+        };
+        if (templateSlot != null && !lastTemplateSeq.isEmpty()) {
+            ItemStack tmpl = inventory.getItem(templateSlot);
             SequenceData tmplData = tmpl.get(ModDataComponents.SEQUENCE.get());
             String curSeq = tmplData != null ? tmplData.seq() : "";
             boolean tmplEmpty = tmpl.isEmpty();
             boolean tmplChanged = !curSeq.equals(lastTemplateSeq);
             if (tmplEmpty || tmplChanged) {
-                ItemStack oldMrna = inventory.getItem(TranscriptionOperation.SLOT_OUT_MRNA);
-                if (!oldMrna.isEmpty() && level != null) {
-                    Containers.dropItemStack(level, worldPosition.getX() + 0.5, worldPosition.getY() + 0.5, worldPosition.getZ() + 0.5, oldMrna);
-                    inventory.setItem(TranscriptionOperation.SLOT_OUT_MRNA, ItemStack.EMPTY);
+                ItemStack oldOut = inventory.getItem(operation.outputSlot());
+                if (!oldOut.isEmpty() && level != null) {
+                    Containers.dropItemStack(level, worldPosition.getX() + 0.5, worldPosition.getY() + 0.5, worldPosition.getZ() + 0.5, oldOut);
+                    inventory.setItem(operation.outputSlot(), ItemStack.EMPTY);
                 }
                 stepState.reset();
                 lastTemplateSeq = "";
@@ -134,29 +141,20 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         }
         switch (stepState.stage()) {
             case IDLE -> {
-                // 转录机改为点击按钮才触发（fix：禁自动转录，fix2：不自动创建空 mRNA）
-                if (kind() == SequenceMachineKind.TRANSCRIBER) return;
+                // 转录机/翻译机改为点击按钮才触发（fix：禁自动转录/翻译，不自动创建空产物）
+                if (kind() == SequenceMachineKind.TRANSCRIBER || kind() == SequenceMachineKind.TRANSLATOR) return;
                 if (operation.canStart(inventory, stepState) && operation.init(inventory, stepState)) {
                     materialize();
                     setChanged();
                 }
             }
             case EXTENDING -> {
-                // 转录机：取走 mRNA 则重置并等待再次点击转录（fix：转录中取走产物重置）
-                if (kind() == SequenceMachineKind.TRANSCRIBER
+                // 转录机/翻译机：工序中取走产物则重置（与转录机同理，防止半成品被取后继续）
+                if ((kind() == SequenceMachineKind.TRANSCRIBER || kind() == SequenceMachineKind.TRANSLATOR)
                         && inventory.getItem(operation.outputSlot()).isEmpty()
                         && stepState.position() > 0) {
                     stepState.reset();
                     lastTemplateSeq = "";
-                    stepCooldown = 0;
-                    setChanged();
-                    return;
-                }
-                // 翻译机：取走多肽则重置（与转录机同理，防止半成品被取后继续）
-                if (kind() == SequenceMachineKind.TRANSLATOR
-                        && inventory.getItem(operation.outputSlot()).isEmpty()
-                        && stepState.position() > 0) {
-                    stepState.reset();
                     stepCooldown = 0;
                     setChanged();
                     return;

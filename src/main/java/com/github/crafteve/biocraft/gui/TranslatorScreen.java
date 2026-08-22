@@ -44,15 +44,27 @@ public class TranslatorScreen extends SequenceMachineScreen {
     private boolean isWorkable() {
         ItemStack mrna = menu.getSlot(TranslatorOperation.SLOT_MRNA).getItem();
         ItemStack gtp = menu.getSlot(TranslatorOperation.SLOT_GTP).getItem();
-        // 简化：容器整包判定，真正缺特定 aa-tRNA 由 BE step STALLED 细化，GUI 绿灯只要任一 aa-tRNA 存在即亮
-        // 为精确，尝试用整容器 isWorkable
-        // 构造临时 SimpleContainer 视图复用逻辑？直接判 mrna/gtp/输出空间
+        // 与服务端 canStart 同口径：mRNA 合法且含起始密码子 AUG、GTP 在槽、输出有空间；
+        // 特定 aa-tRNA 缺料由 BE step STALLED 细化，GUI 绿灯粗判即可
         if (mrna.isEmpty() || gtp.isEmpty()) return false;
         SequenceData d = mrna.get(ModDataComponents.SEQUENCE.get());
         if (d == null || !d.complete() || d.type() != SequenceData.SeqType.MRNA) return false;
+        if (d.seq() == null || !d.seq().contains("AUG")) return false;
         if (!hasRoom(TranslatorOperation.SLOT_OUT_POLYPEPTIDE) || !hasRoom(TranslatorOperation.SLOT_OUT_TRNA) || !hasRoom(TranslatorOperation.SLOT_OUT_GDP) || !hasRoom(TranslatorOperation.SLOT_OUT_PI))
             return false;
         return true;
+    }
+
+    @Override
+    protected void init() {
+        super.init();
+        // 对齐转录仪：右下角"翻译"按钮手动触发开工（禁自动开翻），共用启动工序包
+        this.addRenderableWidget(net.minecraft.client.gui.components.Button.builder(Component.literal("翻译"), b ->
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                                new com.github.crafteve.biocraft.network.ServerboundTranscribePacket(this.menu.getPos())))
+                .bounds(leftPos + SequenceMachineMenu.EDIT_X + SequenceMachineMenu.EDIT_W - 46,
+                        topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 11, 42, 11)
+                .build());
     }
 
     private boolean hasRoom(int slot) {
@@ -83,7 +95,7 @@ public class TranslatorScreen extends SequenceMachineScreen {
         int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
         int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
         String status = switch (stage) {
-            case 0 -> working ? "RUN" : "IDLE";
+            case 0 -> working ? "READY" : "IDLE";
             case 1 -> "TRANS " + pos + "/" + total;
             case 2 -> "DONE";
             default -> "IDLE";
@@ -248,18 +260,33 @@ public class TranslatorScreen extends SequenceMachineScreen {
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
         super.render(g, mx, my, pt);
-        if (menu.getKind() == SequenceMachineKind.TRANSLATOR && isHoveringMrnaError(mx, my)) {
-            ItemStack mrna = menu.getSlot(TranslatorOperation.SLOT_MRNA).getItem();
-            SequenceData d = mrna.get(ModDataComponents.SEQUENCE.get());
-            String err = "";
-            if (d == null || d.type() != SequenceData.SeqType.MRNA) err = "未放mRNA模板";
-            else if (!d.seq().contains("AUG")) err = "未找到起始密码子 AUG";
-            if (!err.isEmpty()) g.renderTooltip(font, java.util.List.of(Component.literal("§c" + err)), java.util.Optional.empty(), mx, my);
+        if (menu.getKind() != SequenceMachineKind.TRANSLATOR) return;
+        // 错误提示对齐转录仪：左下角红叹号（悬停 tooltip 列原因）——
+        // 三态：未放 mRNA / 非 mRNA 物品或序列非法 / 无起始密码子 AUG
+        ItemStack mrna = menu.getSlot(TranslatorOperation.SLOT_MRNA).getItem();
+        SequenceData d = mrna.isEmpty() ? null : mrna.get(ModDataComponents.SEQUENCE.get());
+        String err = "";
+        boolean isMissing = false;
+        if (mrna.isEmpty()) {
+            err = "未放mRNA模板";
+            isMissing = true;
+        } else if (d == null || d.type() != SequenceData.SeqType.MRNA
+                || d.seq() == null || !d.seq().matches("[AUCG]*")) {
+            err = "非法mRNA（请用转录仪产物）";
+        } else if (!d.seq().contains("AUG")) {
+            err = "未找到起始密码子 AUG";
         }
-    }
-
-    private boolean isHoveringMrnaError(double mx, double my) {
-        int x = leftPos + 69 + 3, y = topPos + 31 + 95 - 9;
-        return mx >= x && mx < x + 8 && my >= y && my < y + 8;
+        if (!err.isEmpty()) {
+            int x = leftPos + SequenceMachineMenu.EDIT_X + 3;
+            int y = topPos + SequenceMachineMenu.EDIT_Y + SequenceMachineMenu.EDIT_H - 9;
+            int barColor = isMissing ? 0xFF9E9E9E : 0xFFE53935;
+            int textColor = isMissing ? 0xFF707070 : 0xFFFFFFFF;
+            String prefix = isMissing ? "§7" : "§c";
+            g.fill(x, y, x + 1, y + 8, barColor);
+            g.drawString(font, "!", x + 3, y, textColor, false);
+            if (mx >= x && mx < x + 8 && my >= y && my < y + 8) {
+                g.renderTooltip(font, java.util.List.of(Component.literal(prefix + err)), java.util.Optional.empty(), mx, my);
+            }
+        }
     }
 }
