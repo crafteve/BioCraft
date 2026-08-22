@@ -228,29 +228,49 @@ public class MachineModelProvider implements DataProvider {
     }
 
     /**
-     * 新贴片：六面×双主题 12贴片（酶窗菱形 + 四角灯），凸出0.002防z-fighting
+     * 新贴片：2立方体叠染（酶窗/灯各1元素六面），凸出分层防z-fighting
      * <p>
-     * 每面1酶窗+1灯，共12贴片，UV 同 5,5-11,11 中心对称区，透明外不染
+     * 原理：MC每个quad只有一个tintindex，一面要染两色必须两层。1元素可带6面，
+     * 因此1酶窗立方体（六面同tint0）+ 1灯立方体（六面同tint1）共2元素即可覆盖六面，
+     * 比12单面薄板少10次drawcall，且六面同图天然中心对称。外扩0.002/0.004分层防共面闪烁。
      *
-     * @return 贴片元素列表
+     * @return 贴片元素列表（2元素）
      */
     private JsonArray chamberPatchElements() {
         JsonArray patches = new JsonArray();
-        // 酶窗菱形（tint0）六面
-        patches.add(patch(5, 5, -0.002f, 11, 11, 0, "north", 5, 5, 11, 11, "#theme_window", 0));
-        patches.add(patch(5, 5, 16, 11, 11, 16.002f, "south", 5, 5, 11, 11, "#theme_window", 0));
-        patches.add(patch(16, 5, 5, 16.002f, 11, 11, "east", 5, 5, 11, 11, "#theme_window", 0));
-        patches.add(patch(-0.002f, 5, 5, 0, 11, 11, "west", 5, 5, 11, 11, "#theme_window", 0));
-        patches.add(patch(5, 16, 5, 11, 16.002f, 11, "up", 5, 5, 11, 11, "#theme_window", 0));
-        patches.add(patch(5, -0.002f, 5, 11, 0, 11, "down", 5, 5, 11, 11, "#theme_window", 0));
-        // 四角灯（tint1）六面
-        patches.add(patch(5, 5, -0.002f, 11, 11, 0, "north", 5, 5, 11, 11, "#theme_lamp", 1));
-        patches.add(patch(5, 5, 16, 11, 11, 16.002f, "south", 5, 5, 11, 11, "#theme_lamp", 1));
-        patches.add(patch(16, 5, 5, 16.002f, 11, 11, "east", 5, 5, 11, 11, "#theme_lamp", 1));
-        patches.add(patch(-0.002f, 5, 5, 0, 11, 11, "west", 5, 5, 11, 11, "#theme_lamp", 1));
-        patches.add(patch(5, 16, 5, 11, 16.002f, 11, "up", 5, 5, 11, 11, "#theme_lamp", 1));
-        patches.add(patch(5, -0.002f, 5, 11, 0, 11, "down", 5, 5, 11, 11, "#theme_lamp", 1));
+        // 酶窗立方体（tint0）— 外扩0.002盖在白底上
+        patches.add(cubePatch(-0.002f, "#theme_window", 0));
+        // 灯立方体（tint1）— 再外扩0.002压在窗上，避免窗灯同平面互闪
+        patches.add(cubePatch(-0.004f, "#theme_lamp", 1));
         return patches;
+    }
+
+    /**
+     * 构造单立方体叠染元素（六面同纹理同tint，全幅UV 0-16）
+     *
+     * @param expand 外扩量（负值向外，正值向内；0.002≈1/500格）
+     * @param texture 贴图引用
+     * @param tintIndex tint序号
+     * @return 立方体元素
+     */
+    private JsonObject cubePatch(float expand, String texture, int tintIndex) {
+        JsonObject element = new JsonObject();
+        element.add("from", floatArray(expand, expand, expand));
+        element.add("to", floatArray(16 - expand, 16 - expand, 16 - expand));
+        JsonObject faces = new JsonObject();
+        // 六面同UV 0,0-16,16，纹理中心窗口 5,5-11,11 透明外自动露出底
+        for (String dir : new String[]{"down", "up", "north", "south", "west", "east"}) {
+            JsonObject f = new JsonObject();
+            JsonArray uv = new JsonArray();
+            uv.add(0); uv.add(0); uv.add(16); uv.add(16);
+            f.add("uv", uv);
+            f.addProperty("texture", texture);
+            f.addProperty("tintindex", tintIndex);
+            f.addProperty("cullface", dir);
+            faces.add(dir, f);
+        }
+        element.add("faces", faces);
+        return element;
     }
 
     /**
