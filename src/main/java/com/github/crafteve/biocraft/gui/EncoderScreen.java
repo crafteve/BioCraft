@@ -81,10 +81,16 @@ public class EncoderScreen extends SequenceMachineScreen {
         this.addRenderableWidget(this.encodeButton);
     }
 
+    /**
+     * 编码按钮：先提交程序文本（服务端归零旧链 + 存 pendingProgram），
+     * 再发启动工序包手动开工——两包按发送顺序在服务端排队执行，
+     * 对齐转录仪/翻译机的"点按钮才开工"语义
+     */
     private void submit() {
         String text = this.editor.getText();
         if (text != null && !text.isBlank()) {
             PacketDistributor.sendToServer(new ServerboundSequenceProgramPacket(this.menu.getPos(), text));
+            PacketDistributor.sendToServer(new com.github.crafteve.biocraft.network.ServerboundTranscribePacket(this.menu.getPos()));
         }
     }
 

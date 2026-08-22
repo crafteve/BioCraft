@@ -141,8 +141,11 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         }
         switch (stepState.stage()) {
             case IDLE -> {
-                // 转录机/翻译机改为点击按钮才触发（fix：禁自动转录/翻译，不自动创建空产物）
-                if (kind() == SequenceMachineKind.TRANSCRIBER || kind() == SequenceMachineKind.TRANSLATOR) return;
+                // 编码器/转录机/翻译机均改为点击按钮才触发（fix：禁自动开工，
+                // 不自动创建空产物）——三机共用 ServerboundTranscribePacket 启动
+                if (kind() == SequenceMachineKind.DNA_ENCODER
+                        || kind() == SequenceMachineKind.TRANSCRIBER
+                        || kind() == SequenceMachineKind.TRANSLATOR) return;
                 if (operation.canStart(inventory, stepState) && operation.init(inventory, stepState)) {
                     materialize();
                     setChanged();
