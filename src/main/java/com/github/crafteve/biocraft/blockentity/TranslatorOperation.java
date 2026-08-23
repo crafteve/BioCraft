@@ -31,6 +31,12 @@ public class TranslatorOperation implements SequenceOperation {
     public static final int SLOT_OUT_GDP = 24;
     public static final int SLOT_OUT_PI = 25;
 
+    /**
+     * 翻译节奏：每密码子 3 tick（核糖体逐碱基读移的意象，1 tick 1 碱基），
+     * 由 BE 步进冷却读取；GUI 的逐碱基揭示动画按同值驱动（两端共享常量）
+     */
+    public static final int TICKS_PER_CODON = 3;
+
     // 20 aa-tRNA 专槽顺序（与 CANONICAL_AA3 顺序对齐，GTP 置顶后 20 槽）——对外暴露供 GUI 卡片构建
     public static final String[] TRNA_IDS = {
             "trna_ala", "trna_arg", "trna_asn", "trna_asp", "trna_cys",

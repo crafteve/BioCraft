@@ -165,7 +165,11 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
                 if (--stepCooldown > 0) {
                     return;
                 }
-                stepCooldown = SequenceConstants.STEP_TICKS;
+                // 翻译机节奏 = 每密码子 3 tick（1 tick 1 碱基的逐碱基读移意象），
+                // 其余序列机维持全局 STEP_TICKS 节奏
+                stepCooldown = kind() == SequenceMachineKind.TRANSLATOR
+                        ? TranslatorOperation.TICKS_PER_CODON
+                        : SequenceConstants.STEP_TICKS;
                 SequenceOperation.StepResult result = operation.step(inventory, stepState);
                 if (result == SequenceOperation.StepResult.DONE) {
                     operation.finish(inventory, stepState);
