@@ -27,9 +27,7 @@ public class TranslatorScreen extends SequenceMachineScreen {
 
     private boolean working = false;
 
-    // 动画时序追踪：pos 变化时刻（驱动逐碱基揭示）/ DONE 边沿时刻（驱动完成扫光）
-    private int animLastPos = -1;
-    private int animPosChangeTick = Integer.MIN_VALUE;
+    // 动画时序追踪：DONE 边沿时刻（驱动完成扫光）
     private boolean animWasDone = false;
     private int animDoneTick = Integer.MIN_VALUE;
 
@@ -254,17 +252,14 @@ public class TranslatorScreen extends SequenceMachineScreen {
     }
 
     /**
-     * 动画区（核糖体翻译，转录仪逐碱基配对范式——数据驱动非自由循环）：
+     * 动画区（核糖体翻译，转录仪风格上下双行——数据驱动非自由循环）：
      * <ul>
-     *   <li>节奏：每密码子 3 tick（与 BE 步进同速，共享 TICKS_PER_CODON），
-     *       1 tick 揭示 1 个碱基；第 3 个碱基点亮后服务端提交 pos++，残基在同一列弹出</li>
-     *   <li>对齐：密码子 ci 与其产物残基**同列**，且残基三个字母逐字画在三个
-     *       碱基的正下方（同一 x 坐标序列）——像素级一一对应，消除"亮列无物、
-     *       残基错位"的观感错位</li>
-     *   <li>就绪态：mRNA 全彩铺开 + 起始列白色闪烁光标 + 底部"点击翻译"提示；
-     *   <li>完成动画：DONE 边沿触发白色扫光从左掠过全链（26 tick），随后末残基
-     *       柔和呼吸余晖；运行中最新残基白底反色短闪（提交瞬间）</li>
-     *   <li>滚窗：当前列保持右侧 1/3（转录仪同款），到末端停住；
+     *   <li>节奏：每密码子 3 tick（BE 步进同速，共享 TICKS_PER_CODON）；
+     *       动画无入场过渡——当前列整串直接出现 + 白底呼吸闪，残基直接彩色</li>
+     *   <li>对齐：列宽固定 24px（密码子恒 18px 等宽），残基/占位符居中对齐
+     *       密码子中心；每列一条中线对准密码子正中（当前列黄白脉动、其余暗灰）</li>
+     *   <li>就绪态：起始列闪烁光标 + "点击翻译"提示；完成动画：DONE 边沿白色
+     *       扫光掠过全链（26 tick），随后末残基柔和呼吸余晖；
      *       无有效 mRNA 居中灰字提示</li>
      * </ul>
      */
@@ -298,28 +293,18 @@ public class TranslatorScreen extends SequenceMachineScreen {
         if (!seq.isEmpty() && start >= 0) {
             double breath = Math.sin(guiTick * 0.35) * 0.5 + 0.5;
 
-            // 动画时序：pos 变化沿 → 重置揭示时钟；DONE 边沿 → 记录扫光起点
-            if (pos != animLastPos) {
-                animLastPos = pos;
-                animPosChangeTick = guiTick;
-            }
+            // 动画时序：DONE 边沿 → 记录扫光起点（pos 变化不再驱动入场动画）
             if (done && !animWasDone) {
                 animDoneTick = guiTick;
             }
             animWasDone = done;
-            int sincePos = guiTick - animPosChangeTick;
-            // 本密码子已揭示的碱基数（0..3）：运行中按距上次提交的 tick 数推进，
-            // 非运行态恒满格（就绪/完成都完整展示链）
-            int reveal = running
-                    ? Math.min(Math.max(sincePos, 0), TranslatorOperation.TICKS_PER_CODON)
-                    : TranslatorOperation.TICKS_PER_CODON;
             int sinceDone = guiTick - animDoneTick;
             boolean sweeping = done && sinceDone <= 26;
 
             // 几何：标签内联行首，内容统一从 x+38 起；上行 mRNA、下行肽链。
             // 密码子恒 18px 宽（A/U/C/G 均为 5px 等宽字符 + 1px 字距），
             // 列宽固定 24px——残基/占位符按实测宽度**居中对齐密码子中心**，
-            // 分隔线画在列间隙正中（两密码子中心连线的中点）
+            // 列中线对准密码子正中
             int innerX0 = x + 38;
             int innerX1 = x + w - 8;
             int mrnaY = y + 28;
@@ -344,37 +329,25 @@ public class TranslatorScreen extends SequenceMachineScreen {
             String pSeq = pd != null ? pd.seq() : "";
             int shown = Math.min(pos, pSeq.length());
 
-            // 逐列绘制：上格密码子、下格产物残基（或占位/打印特效）、列间分隔线
+            // 逐列绘制：上格密码子、下格产物残基（或占位/打印特效）、列中线
             for (int ci = from; ci < Math.min(codonCount, from + visibleCols); ci++) {
                 int cx0 = innerX0 + (ci - from) * colW;
                 int codonX = cx0 + (colW - 18) / 2;
                 boolean isCurCol = ci == cur && running;
                 String codon = seq.substring(start + ci * 3, start + ci * 3 + 3);
 
-                // 上格 mRNA：运行中当前列做逐碱基揭示（未揭示位画暗色占位点），
+                // 上格 mRNA：当前列整串直接出现 + 白底呼吸闪（无入场动画），
                 // 其余列全彩常显（mRNA 是输入，本来就完整存在）
-                if (isCurCol && reveal < TranslatorOperation.TICKS_PER_CODON) {
-                    for (int bi = 0; bi < 3; bi++) {
-                        if (bi < reveal) {
-                            drawBase(g, codon.charAt(bi), codonX + bi * 6, mrnaY, true, breath);
-                        } else {
-                            g.drawString(font, "·", codonX + bi * 6, mrnaY, 0xFF44484E, false);
-                        }
-                    }
-                } else {
-                    if (isCurCol) {
-                        int glow = (int) (150 * breath) << 24 | 0x00FFFFFF;
-                        g.fill(codonX - 2, mrnaY - 1, codonX + 20, mrnaY + 9, glow);
-                    }
-                    for (int bi = 0; bi < 3; bi++) {
-                        drawBase(g, codon.charAt(bi), codonX + bi * 6, mrnaY, isCurCol, breath);
-                    }
+                if (isCurCol) {
+                    int glow = (int) (110 + breath * 130) << 24 | 0x00FFFFFF;
+                    g.fill(codonX - 2, mrnaY - 1, codonX + 20, mrnaY + 9, glow);
+                }
+                for (int bi = 0; bi < 3; bi++) {
+                    drawBase(g, codon.charAt(bi), codonX + bi * 6, mrnaY, false, breath);
                 }
 
-                // 下格肽链（居中对齐密码子中心；打印三段时序）：
-                //   打印中（当前列）= 白底呼吸闪烁占位（无文字）
-                //   刚提交 ≤5 tick   = 白底反色残基（闪白弹出）
-                //   更早 / 完成态     = aa 主题色彩色残基
+                // 下格肽链（居中对齐密码子中心）：打印中 = 白底呼吸闪占位；
+                // 已翻译 = 直接彩色残基（无入场动画）；未翻译 = 暗色占位
                 int resW = ci < pSeq.length() ? font.width(aa1To3(pSeq.charAt(ci))) : font.width("···");
                 int resX = cx0 + (colW - resW) / 2;
                 boolean printing = isCurCol;
@@ -384,13 +357,9 @@ public class TranslatorScreen extends SequenceMachineScreen {
                 } else if (ci < shown) {
                     char aa1 = pSeq.charAt(ci);
                     String aa3 = aa1To3(aa1);
-                    boolean justPrinted = running && ci == shown - 1 && sincePos <= 5;
                     boolean settleGlow = done && ci == shown - 1 && !sweeping;
                     int color = cardTextColor(aaColor(aa1));
-                    if (justPrinted) {
-                        g.fill(resX - 2, pepY - 1, resX + resW + 2, pepY + 9, 0xFFFFFFFF);
-                        color = 0xFF000000;
-                    } else if (settleGlow) {
+                    if (settleGlow) {
                         int halo = (int) (26 + breath * 22) << 24 | 0x00FFFFFF;
                         g.fill(resX - 2, pepY - 1, resX + resW + 2, pepY + 9, halo);
                     }
@@ -399,23 +368,16 @@ public class TranslatorScreen extends SequenceMachineScreen {
                     g.drawString(font, "···", resX, pepY, 0xFF4A4E54, false);
                 }
 
-                // 列间分隔线：画在列间隙正中（两密码子中心连线的中点）
-                if (ci > from) {
-                    g.fill(cx0 - 1, mrnaY + 11, cx0, pepY - 3, 0xFF333338);
-                }
+                // 列中线：对准密码子正中（贯穿两行之间），当前列黄白脉动、其余暗灰
+                int midX = cx0 + colW / 2;
+                int lineC = isCurCol ? (int) (170 + breath * 70) << 24 | 0xFFFFF176 : 0xFF333338;
+                g.fill(midX, mrnaY + 11, midX + 1, pepY - 3, lineC);
             }
 
-            // 当前列活动连接线：高度随逐碱基揭示进度增长（读移意象），
-            // 就绪态改为起始列闪烁光标（提示点击翻译即从此处开始）
+            // 就绪态：起始列闪烁光标（提示点击翻译即从此处开始）
             int gapTop = mrnaY + 11;
             int gapBot = pepY - 3;
-            if (running) {
-                int actX = innerX0 + (cur - from) * colW + colW / 2;
-                double f = Math.max(0.2, reveal / (double) TranslatorOperation.TICKS_PER_CODON);
-                int len = (int) ((gapBot - gapTop) * f);
-                int lineC = (int) (170 + breath * 70) << 24 | 0xFFFFF176;
-                g.fill(actX, gapTop, actX + 1, gapTop + len, lineC);
-            } else if (!done) {
+            if (!running && !done) {
                 if ((guiTick / 8) % 2 == 0) {
                     int blinkX = innerX0 + colW / 2;
                     g.fill(blinkX, gapTop, blinkX + 1, gapBot, 0x90FFFFFF);
