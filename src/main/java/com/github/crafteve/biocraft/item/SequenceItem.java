@@ -2,6 +2,7 @@ package com.github.crafteve.biocraft.item;
 
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
+import com.github.crafteve.biocraft.seq.CodonTable;
 import com.github.crafteve.biocraft.seq.SeqCodec;
 import com.github.crafteve.biocraft.seq.SequenceData;
 import net.minecraft.client.gui.screens.Screen;
@@ -69,12 +70,7 @@ public class SequenceItem extends Item implements AbbreviationProvider {
         switch (data.type()) {
             case DNA -> appendDnaTooltip(data, tooltip, stack, isTemplate);
             case MRNA -> appendMrnaTooltip(data, tooltip);
-            case POLYPEPTIDE -> {
-                String state = data.complete() ? "§a完整" : "§c未完成（折叠机拒绝）";
-                tooltip.add(Component.literal("§7[肽链] §8(" + seq.length() + " aa) " + state));
-                tooltip.add(Component.literal("§7" + truncate(seq, 10)));
-                tooltip.add(Component.literal("§8按住 Shift 彩色序列"));
-            }
+            case POLYPEPTIDE -> appendPolypeptideTooltip(data, tooltip);
         }
     }
 
@@ -156,6 +152,111 @@ public class SequenceItem extends Item implements AbbreviationProvider {
         String head = seq.length() <= 10 ? seq : seq.substring(0, 10) + "…";
         tooltip.add(Component.literal("§7" + dirLeft + head + dirRight));
         tooltip.add(Component.literal("§8按住 Shift 彩色序列 / Ctrl 程序"));
+    }
+
+    /**
+     * 多肽 tooltip 三态（与 DNA/mRNA 同构）：
+     * <ul>
+     *   <li>默认：第一行 [肽链] (N aa) 完整/未完成；第二行 H₂N-Tyr-Gly-…-COOH
+     *       三字母残基预览（截断）；第三行 Shift/Ctrl 提示</li>
+     *   <li>Shift：单行完整三字母序列——白色 H₂N- 前缀 / -COOH 末端 / "-" 分隔符，
+     *       残基按对应 aa-tRNA 物品主题色着色（生化惯例：肽链 N 端 → C 端）</li>
+     *   <li>Ctrl：程序反推——规范密码子设计保证 aa1 ↔ 规范密码子双射
+     *       （CodonTable.CANONICAL_AA1/CANONICAL_DNA 同下标），逐残基还原
+     *       密码子串后走 SeqCodec 解码 + ProgramHighlight 高亮；
+     *       非程序链（天然基因/乱码）解码失败即提示</li>
+     * </ul>
+     */
+    private static void appendPolypeptideTooltip(SequenceData data, List<Component> tooltip) {
+        String seq = data.seq();
+        if (Screen.hasShiftDown()) {
+            Style white = Style.EMPTY.withColor(TextColor.fromRgb(0xFFFFFF));
+            MutableComponent line = Component.empty();
+            line.append(Component.literal("H₂N-").withStyle(white));
+            for (int i = 0; i < seq.length(); i++) {
+                if (i > 0) {
+                    line.append(Component.literal("-").withStyle(white));
+                }
+                char aa1 = seq.charAt(i);
+                line.append(Component.literal(aa1To3(aa1))
+                        .withStyle(Style.EMPTY.withColor(TextColor.fromRgb(aaTint(aa1)))));
+            }
+            line.append(Component.literal("-COOH").withStyle(white));
+            tooltip.add(line);
+            return;
+        }
+        if (Screen.hasControlDown()) {
+            StringBuilder codons = new StringBuilder(seq.length() * 3);
+            for (int i = 0; i < seq.length(); i++) {
+                String codon = aa1ToCanonicalCodon(seq.charAt(i));
+                if (codon == null) {
+                    tooltip.add(Component.literal("§7含未知氨基酸，无法反推程序"));
+                    return;
+                }
+                codons.append(codon);
+            }
+            SeqCodec.DecodeResult r = SeqCodec.decodeText(codons.toString());
+            if (r.ok()) {
+                tooltip.addAll(ProgramHighlight.highlight(r.text()));
+            } else {
+                tooltip.add(Component.literal("§7非程序肽链，无程序可显示"));
+            }
+            return;
+        }
+        String state = data.complete() ? "§a完整" : "§c未完成（折叠机拒绝）";
+        tooltip.add(Component.literal("§7[肽链] §8(" + seq.length() + " aa) " + state));
+        tooltip.add(Component.literal("§7" + peptidePreview(seq, 5)));
+        tooltip.add(Component.literal("§8按住 Shift 氨基酸序列 / Ctrl 程序"));
+    }
+
+    /** 多肽默认预览：前 maxResidues 个残基的三字母写法（H₂N-Tyr-Gly-…-COOH） */
+    private static String peptidePreview(String seq, int maxResidues) {
+        StringBuilder sb = new StringBuilder("H₂N-");
+        int n = Math.min(seq.length(), maxResidues);
+        for (int i = 0; i < n; i++) {
+            if (i > 0) sb.append('-');
+            sb.append(aa1To3(seq.charAt(i)));
+        }
+        if (seq.length() > maxResidues) {
+            sb.append("-…");
+        }
+        return sb.append("-COOH").toString();
+    }
+
+    /**
+     * aa1 → 规范 DNA 密码子（程序反推用）：CANONICAL_AA1 与 CANONICAL_DNA
+     * 同下标一一对应；未知字符返回 null（调用方提示不可反推）
+     */
+    private static String aa1ToCanonicalCodon(char aa1) {
+        for (int i = 0; i < CodonTable.CANONICAL_AA1.length; i++) {
+            if (CodonTable.CANONICAL_AA1[i] == aa1) {
+                return CodonTable.CANONICAL_DNA[i];
+            }
+        }
+        return null;
+    }
+
+    /** aa1 → 3 字母缩写（查规范表；未知字符原样返回单字母） */
+    private static String aa1To3(char aa1) {
+        for (int i = 0; i < CodonTable.CANONICAL_AA1.length; i++) {
+            if (CodonTable.CANONICAL_AA1[i] == aa1) {
+                return CodonTable.CANONICAL_AA3[i];
+            }
+        }
+        return String.valueOf(aa1);
+    }
+
+    /**
+     * aa1 → 残基主题色：取对应 aa-tRNA 物品的 substances.json 数据表色
+     * （trna_<aa3 小写> 注册名约定，与翻译机 GUI 卡片同源同色）
+     */
+    private static int aaTint(char aa1) {
+        String aa3 = aa1To3(aa1);
+        var deferred = ModItems.byId("trna_" + aa3.toLowerCase());
+        if (deferred != null && deferred.get() instanceof MoleculeItem molecule) {
+            return molecule.getTintColor();
+        }
+        return 0xCCCCCC;
     }
 
     /**

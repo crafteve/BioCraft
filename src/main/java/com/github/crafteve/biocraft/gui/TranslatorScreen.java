@@ -194,23 +194,29 @@ public class TranslatorScreen extends SequenceMachineScreen {
         int baseY = pngY + 11;
         boolean translating = total > 0 && pos < total;
         if (!seq.isEmpty()) {
-            int window = (cardW - 34) / 7;
-            int from = Math.max(0, seq.length() - window);
-            for (int i = from; i < seq.length() && baseX < cardX + cardW - 10; i++) {
+            // 三字母残基滚动（与 tooltip 同款写法）：每残基 18px（3 字母）+ 6px 分隔符，
+            // 末端窗口滚动，当前残基白底反色高亮；分隔符用中灰（卡片浅底上纯白不可见）
+            int residueW = 24;
+            int window = Math.max(1, (cardW - 34) / residueW);
+            int count = seq.length();
+            int from = Math.max(0, count - window);
+            for (int i = from; i < count && baseX + residueW <= cardX + cardW - 6; i++) {
                 char aa1 = seq.charAt(i);
-                // 1字母→3字母→分子色
                 String aa3 = aa1To3(aa1);
-                int tint = aaColor(aa1);
-                int color = tint;
-                if (translating && i == seq.length() - 1) {
-                    g.fill(baseX - 1, baseY - 1, baseX + 7, baseY + 9, 0xFFFFFFFF);
+                boolean current = translating && i == count - 1;
+                int color;
+                if (current) {
+                    g.fill(baseX - 1, baseY - 1, baseX + 19, baseY + 9, 0xFFFFFFFF);
                     color = 0xFF000000;
                 } else {
-                    color = cardTextColor(tint);
+                    color = cardTextColor(aaColor(aa1));
                 }
-                // 显示单字母着色（窄卡）或三字母首字母
-                g.drawString(font, String.valueOf(aa1), baseX, baseY, color, false);
-                baseX += 7;
+                g.drawString(font, aa3, baseX, baseY, color, false);
+                baseX += 18;
+                if (i < count - 1) {
+                    g.drawString(font, "-", baseX, baseY, 0xFF666666, false);
+                    baseX += 6;
+                }
             }
         }
         if (translating && baseX < cardX + cardW - 4) g.fill(baseX, baseY + 4, baseX + 3, baseY + 7, 0xFF00E5FF);
