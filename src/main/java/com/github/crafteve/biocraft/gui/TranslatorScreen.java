@@ -248,19 +248,16 @@ public class TranslatorScreen extends SequenceMachineScreen {
     }
 
     /**
-     * 动画区（核糖体翻译，数据驱动非自由循环）：
+     * 动画区（核糖体翻译，转录仪风格极简双行——数据驱动非自由循环）：
      * <ul>
      *   <li>基底：暗色面板 + loader 同款淡网格 + 左上标题 + 右上状态灯</li>
-     *   <li>下方 mRNA 轨道：当前密码子附近的窗口滚动（转录仪同款自动滚窗），
-     *       碱基按 A红/U黄/C蓝/G绿 着色，密码子间浅色分隔线</li>
-     *   <li>核糖体：青色支架（顶梁 + 双柱）扣住当前密码子，透明度呼吸脉动，
-     *       底角两枚 GTP 主题点交替闪烁（延伸因子供能意象）</li>
-     *   <li>上方肽链：已翻译残基按 aa 主题色 2×2 圆点向左延伸，最新残基放大 +
-     *       白高光，末端对齐核糖体左柱（N 端远、C 端近核糖体的真实方向）</li>
-     *   <li>副产物：GDP/Pi 主题色小点从核糖体右下周期坠落，空载 tRNA 灰蓝点
-     *       从左下周期坠落（错相），静止文字标注一律不用（旧版丑的主因是文字跟图跑）</li>
-     *   <li>完成态：全链展示 + 末残基白色光环脉动；待机：轨道压暗 + 支架停在起始处；
-     *       无 mRNA：居中灰字提示</li>
+     *   <li>上行肽链：三字母残基（Tyr-Gly-…）按 aa 主题色着色，末端窗口滚动，
+     *       最新残基白底反色高亮；下行 mRNA：密码子窗口滚动（A红/U黄/C蓝/G绿），
+     *       当前密码子呼吸提亮 + 密码子分隔线</li>
+     *   <li>核糖体：青色支架（顶梁 + 双柱）扣住当前密码子并上探连接肽链行，
+     *       透明度呼吸脉动——唯一的"机械"元素，无任何粒子</li>
+     *   <li>两行标签内联在各自行首固定位置（不随内容滚动），零跟随文字；
+     *       待机整链压暗、无 mRNA 居中灰字提示</li>
      * </ul>
      */
     private void drawTranslationAnimation(GuiGraphics g) {
@@ -292,30 +289,54 @@ public class TranslatorScreen extends SequenceMachineScreen {
         int start = seq.indexOf("AUG");
         if (!seq.isEmpty() && start >= 0) {
             double breath = Math.sin(guiTick * 0.35) * 0.5 + 0.5;
-            int gtpTint = moleculeTint("gtp", 0xFF27AE60);
-            int gdpTint = moleculeTint("gdp", 0xFFE67E22);
-            int piTint = moleculeTint("pi", 0xFFF39C12);
 
-            // 几何：轨道贴底部，肽链行在其上；密码子单元 = 3 碱基×6px + 2px 间隔
+            // 几何：标签内联行首，内容统一从 x+38 起；上行肽链 y32、下行轨道 y62
+            int innerX0 = x + 38;
+            int innerX1 = x + w - 8;
+            int pepY = y + 32;
+            int trackY = y + 62;
+            // 核糖体支架纵跨两行之间：顶梁贴肽链行底，双柱下探夹住当前密码子
+            int rbTop = pepY + 11;
+
+            // 上行肽链：三字母残基末端窗口（每残基 18px 文字 + 6px 分隔符），
+            // 最新残基白底反色（多肽卡同款）；待机压暗
+            g.drawString(font, "肽链", x + 6, pepY, 0xFF81C784, false);
+            ItemStack pep = menu.getSlot(TranslatorOperation.SLOT_OUT_POLYPEPTIDE).getItem();
+            SequenceData pd = pep.get(ModDataComponents.SEQUENCE.get());
+            String pSeq = pd != null ? pd.seq() : "";
+            int residueW = 25;
+            int maxResidues = Math.max(1, (innerX1 - innerX0 + 6) / residueW);
+            int shown = Math.min(pos, pSeq.length());
+            int pepFrom = Math.max(0, shown - maxResidues);
+            for (int i = pepFrom; i < shown; i++) {
+                int px = innerX0 + (i - pepFrom) * residueW;
+                if (px + 18 > innerX1) break;
+                char aa1 = pSeq.charAt(i);
+                boolean newest = i == shown - 1;
+                int color = cardTextColor(aaColor(aa1));
+                if (newest && (running || done)) {
+                    g.fill(px - 1, pepY - 1, px + 19, pepY + 9, 0xFFFFFFFF);
+                    color = 0xFF000000;
+                } else if (!running && !done) {
+                    color = blend(color, 0xFF000000, 0.45);
+                }
+                g.drawString(font, aa1To3(aa1), px, pepY, color, false);
+                if (i < shown - 1) {
+                    g.drawString(font, "-", px + 19, pepY, 0xFF666666, false);
+                }
+            }
+
+            // 下行 mRNA：密码子窗口（碱基三连着色 + 密码子分隔竖线），
+            // 当前密码子呼吸提亮，待机整行压暗
+            g.drawString(font, "mRNA", x + 6, trackY, 0xFFF1C40F, false);
             int baseStep = 6;
             int codonW = 20;
-            int trackY = y + h - 24;
-            int chainY = trackY - 26;
-            int innerX0 = x + 8;
-            int innerX1 = x + w - 8;
-            int visibleCodons = Math.max(3, (innerX1 - innerX0) / codonW);
-            int codonCount = Math.min(total, (seq.length() - start) / 3);
-            // 滚窗：当前密码子保持在左侧 1/3 处，到末端后停住（转录仪同款语义）
-            int cur = running ? Math.min(pos, codonCount - 1) : done ? codonCount - 1 : 0;
-            int anchor = Math.max(0, Math.min(cur - visibleCodons / 3, codonCount - visibleCodons));
-            int from = Math.max(0, anchor);
-
-            // 静态标签（固定位置不随动画移动）：肽链行左端 / 轨道行左端
-            g.drawString(font, "肽链", x + 6, chainY - 10, 0xFF81C784, false);
-            g.drawString(font, "mRNA", x + 6, trackY + 11, 0xFFF1C40F, false);
-
-            // mRNA 轨道底条 + 密码子窗口（碱基三连着色 + 密码子间隔竖线）
             g.fill(innerX0, trackY - 2, innerX1, trackY + 10, 0xFF2A2A2E);
+            int codonCount = Math.min(total, Math.max(0, seq.length() - start) / 3);
+            int cur = running ? Math.min(pos, Math.max(0, codonCount - 1))
+                    : done ? Math.max(0, codonCount - 1) : 0;
+            int visibleCodons = Math.max(2, (innerX1 - innerX0) / codonW);
+            int from = Math.max(0, Math.min(cur - visibleCodons / 3, codonCount - visibleCodons));
             for (int ci = from; ci < Math.min(codonCount, from + visibleCodons); ci++) {
                 int cx0 = innerX0 + (ci - from) * codonW;
                 String codon = seq.substring(start + ci * 3, start + ci * 3 + 3);
@@ -328,10 +349,10 @@ public class TranslatorScreen extends SequenceMachineScreen {
                         default -> 0xFF5A5A5A;
                     };
                     boolean isCur = ci == cur && (running || done);
-                    int c = isCur ? blend(bColor, 0xFFFFFFFF, 0.45 + breath * 0.3) : blend(bColor, 0xFF000000, running || done ? 0.0 : 0.45);
+                    int c = isCur ? blend(bColor, 0xFFFFFFFF, 0.45 + breath * 0.3)
+                            : blend(bColor, 0xFF000000, running || done ? 0.0 : 0.45);
                     g.drawString(font, String.valueOf(codon.charAt(bi)), cx0 + bi * baseStep, trackY, c, false);
                 }
-                // 密码子分隔竖线（框内浅灰）
                 if (ci > from) {
                     g.fill(cx0 - 2, trackY - 1, cx0 - 1, trackY + 9, 0xFF333338);
                 }
@@ -341,69 +362,11 @@ public class TranslatorScreen extends SequenceMachineScreen {
             // 青色呼吸脉动（聚合酶 P 图标同色系，机器家族视觉统一）
             int rbX0 = innerX0 + (cur - from) * codonW - 2;
             int rbX1 = rbX0 + codonW + 1;
-            int rbTop = trackY - 6;
             int ribAlpha = running ? (int) (140 + breath * 90) : 120;
             int ribColor = ribAlpha << 24 | 0x4FC3F7;
             g.fill(rbX0, rbTop, rbX1, rbTop + 1, ribColor);
             g.fill(rbX0, rbTop, rbX0 + 1, trackY + 10, ribColor);
             g.fill(rbX1 - 1, rbTop, rbX1, trackY + 10, ribColor);
-
-            // GTP 双闪：核糖体底角两枚点交替亮灭（延伸耗能意象，仅运行中）
-            if (running) {
-                int flashPhase = (guiTick / 4) % 2;
-                int fa = flashPhase == 0 ? 0xE0 : 0x50;
-                int fb = flashPhase == 0 ? 0x50 : 0xE0;
-                g.fill(rbX0 - 3, trackY + 11, rbX0 - 1, trackY + 13, fa << 24 | (gtpTint & 0xFFFFFF));
-                g.fill(rbX1 + 1, trackY + 11, rbX1 + 3, trackY + 13, fb << 24 | (gtpTint & 0xFFFFFF));
-            }
-
-            // 肽链：残基圆点从核糖体左柱向左延伸（C 端贴核糖体，N 端最远），
-            // 视口放不下时整链右移裁掉最老残基（滚动窗口）；最新残基 3×3 + 白高光
-            int dotStep = 5;
-            int maxDots = Math.max(2, (rbX0 - innerX0 - 4) / dotStep);
-            int chainFrom = Math.max(0, pos - maxDots);
-            ItemStack pep = menu.getSlot(TranslatorOperation.SLOT_OUT_POLYPEPTIDE).getItem();
-            SequenceData pd = pep.get(ModDataComponents.SEQUENCE.get());
-            String pSeq = pd != null ? pd.seq() : "";
-            for (int i = chainFrom; i < pos && i < pSeq.length(); i++) {
-                int px = rbX0 - 4 - (pos - 1 - i) * dotStep;
-                if (px < innerX0) break;
-                int c = cardTextColor(aaColor(pSeq.charAt(i)));
-                boolean newest = i == pos - 1;
-                if (newest) {
-                    g.fill(px - 1, chainY - 1, px + 2, chainY + 2, c);
-                    g.fill(px - 1, chainY - 1, px + 1, chainY, 0xFFFFFFFF);
-                } else {
-                    g.fill(px, chainY, px + 2, chainY + 2, c);
-                }
-            }
-            // 完成态光环：末残基白圈脉动（loader 完成光环同款意象）
-            if (done) {
-                int hx = rbX0 - 5;
-                int halo = (int) (breath * 2);
-                g.fill(hx - 3 - halo, chainY - 3 - halo, hx + 4 + halo, chainY - 2 - halo, 0x33FFFFFF);
-                g.fill(hx - 3 - halo, chainY + 3 + halo, hx + 4 + halo, chainY + 4 + halo, 0x33FFFFFF);
-                g.fill(hx - 4 - halo, chainY - 2 - halo, hx - 3 - halo, chainY + 3 + halo, 0x33FFFFFF);
-                g.fill(hx + 3 + halo, chainY - 2 - halo, hx + 4 + halo, chainY + 3 + halo, 0x33FFFFFF);
-            }
-
-            // 副产物周期坠落（仅运行中）：右下 GDP/Pi 两点、左下空载 tRNA 一点，
-            // 24 tick 相位错开，坠程 12px 渐隐——纯点无文字（防旧版图文重叠复发）
-            if (running) {
-                int phase = guiTick % 24;
-                if (phase < 12) {
-                    int fy = trackY + 14 + phase;
-                    int fa = Math.max(0, 0xB0 - phase * 12);
-                    g.fill(rbX1 + 4, fy, rbX1 + 6, fy + 2, fa << 24 | (gdpTint & 0xFFFFFF));
-                    g.fill(rbX1 + 9, fy + 3, rbX1 + 11, fy + 5, fa << 24 | (piTint & 0xFFFFFF));
-                }
-                int phaseB = (guiTick + 12) % 24;
-                if (phaseB < 12) {
-                    int fy = trackY + 14 + phaseB;
-                    int fa = Math.max(0, 0xA0 - phaseB * 11);
-                    g.fill(rbX0 - 7, fy, rbX0 - 5, fy + 2, fa << 24 | 0xB0C4DE);
-                }
-            }
         } else {
             // 无有效 mRNA：居中提示（灰字，不闪烁）
             String tip = seq.isEmpty() ? "放入 mRNA 并点击翻译" : "mRNA 无起始密码子 AUG";
@@ -419,15 +382,6 @@ public class TranslatorScreen extends SequenceMachineScreen {
         int gg = (int) (((c0 >> 8) & 0xFF) * (1 - t) + ((c1 >> 8) & 0xFF) * t);
         int b = (int) ((c0 & 0xFF) * (1 - t) + (c1 & 0xFF) * t);
         return (Math.min(255, a) << 24) | (r << 16) | (gg << 8) | b;
-    }
-
-    /** 取分子物品主题色（substances.json color，带 alpha），不存在时回退默认 */
-    private static int moleculeTint(String id, int fallback) {
-        var deferred = ModItems.byId(id);
-        if (deferred != null && deferred.get() instanceof MoleculeItem mi) {
-            return mi.getTintColor() | 0xFF000000;
-        }
-        return fallback;
     }
 
     @Override
