@@ -316,20 +316,18 @@ public class TranslatorScreen extends SequenceMachineScreen {
             int sinceDone = guiTick - animDoneTick;
             boolean sweeping = done && sinceDone <= 26;
 
-            // 几何：标签内联行首，内容统一从 x+38 起；上行 mRNA、下行肽链，
-            // 密码子列宽 20px（3 碱基×6px 文字 + 分隔间隙），两行同列对齐
+            // 几何：标签内联行首，内容统一从 x+38 起；上行 mRNA、下行肽链
             int innerX0 = x + 38;
             int innerX1 = x + w - 8;
             int mrnaY = y + 28;
             int pepY = mrnaY + 27;
-            int baseStep = 6;
-            int colW = 20;
 
             // 滚窗：当前列保持右侧 1/3，到末端停住（转录仪同款语义）
+            // 列宽估算用保守下限 24（实际列宽逐列实测，见下方 colX 布局）
             int codonCount = Math.min(total, Math.max(0, seq.length() - start) / 3);
             int cur = running ? Math.min(pos, Math.max(0, codonCount - 1))
                     : done ? Math.max(0, codonCount - 1) : 0;
-            int visibleCols = Math.max(2, (innerX1 - innerX0) / colW);
+            int visibleCols = Math.max(2, (innerX1 - innerX0) / 24);
             int from = Math.max(0, Math.min(cur - visibleCols * 2 / 3, codonCount - visibleCols));
 
             // 行底条（转录仪同款深灰衬条）+ 行首内联标签
@@ -343,77 +341,103 @@ public class TranslatorScreen extends SequenceMachineScreen {
             String pSeq = pd != null ? pd.seq() : "";
             int shown = Math.min(pos, pSeq.length());
 
-            // 逐列绘制：上格密码子、下格产物残基（或未翻译占位）、列间连接线
-            for (int ci = from; ci < Math.min(codonCount, from + visibleCols); ci++) {
-                int cx0 = innerX0 + (ci - from) * colW;
+            // 列布局：MC 字体非等宽（M/W 宽、·/i 窄），固定 6px 步进会让宽字母
+            // 溢出列边界——灰线/占位点/残基全部跟着漂移（实测截图根因）。
+            // 改为逐列实测内容宽（密码子整串宽 与 残基/占位串宽 取大）+ 边距，
+            // 边界累计——分隔线画在真实列边界上，必然对齐
+            int visCount = Math.max(0, Math.min(visibleCols, codonCount - from));
+            int[] colX = new int[visCount + 1];
+            colX[0] = innerX0;
+            for (int k = 0; k < visCount; k++) {
+                int ci = from + k;
+                String codon = seq.substring(start + ci * 3, start + ci * 3 + 3);
+                String resText = ci < pSeq.length() ? aa1To3(pSeq.charAt(ci)) : "···";
+                int contentW = Math.max(font.width(codon), font.width(resText));
+                colX[k + 1] = colX[k] + Math.max(contentW + 10, 28);
+            }
+
+            // 逐列绘制：上格密码子、下格产物残基（或占位/打印特效）、列间分隔线
+            for (int k = 0; k < visCount; k++) {
+                int ci = from + k;
+                int cx0 = colX[k];
+                int colW = colX[k + 1] - colX[k];
                 boolean isCurCol = ci == cur && running;
                 String codon = seq.substring(start + ci * 3, start + ci * 3 + 3);
 
-                // 上格 mRNA：运行中当前列做逐碱基揭示（未揭示位画暗色占位点），
-                // 其余列全彩常显（mRNA 是输入，本来就完整存在——转录仪模板行同款）
+                // 上格 mRNA：运行中当前列做逐碱基揭示（碱基按实测宽度累计排布，
+                // 未揭示位画暗色占位点），其余列全彩常显（mRNA 是输入，本来就完整）
                 if (isCurCol && reveal < TranslatorOperation.TICKS_PER_CODON) {
+                    int bx = cx0;
                     for (int bi = 0; bi < 3; bi++) {
+                        char b = codon.charAt(bi);
+                        int bw = font.width(String.valueOf(b));
                         if (bi < reveal) {
-                            drawBase(g, codon.charAt(bi), cx0 + bi * baseStep, mrnaY, true, breath);
+                            drawBase(g, b, bx, mrnaY, true, breath);
                         } else {
-                            g.drawString(font, "·", cx0 + bi * baseStep, mrnaY, 0xFF44484E, false);
+                            g.drawString(font, "·", bx, mrnaY, 0xFF44484E, false);
                         }
+                        bx += bw;
                     }
                 } else {
-                    boolean curGlow = isCurCol || (!running && !done && ci == 0);
-                    if (curGlow && running) {
+                    if (isCurCol) {
                         int glow = (int) (150 * breath) << 24 | 0x00FFFFFF;
-                        g.fill(cx0 - 1, mrnaY - 1, cx0 + 19, mrnaY + 9, glow);
+                        g.fill(cx0 - 1, mrnaY - 1, cx0 + colW - 2, mrnaY + 9, glow);
                     }
+                    int bx = cx0;
                     for (int bi = 0; bi < 3; bi++) {
-                        drawBase(g, codon.charAt(bi), cx0 + bi * baseStep, mrnaY,
-                                isCurCol && running, breath);
+                        char b = codon.charAt(bi);
+                        drawBase(g, b, bx, mrnaY, isCurCol, breath);
+                        bx += font.width(String.valueOf(b));
                     }
                 }
 
-                // 下格肽链：残基三字母逐字画在三碱基正下方（同一 x 序列，像素级对齐）；
-                // 最新提交的残基白底反色短闪（提交后 5 tick 内）；未翻译列暗色占位
-                if (ci < shown) {
+                // 下格肽链（打印三段时序，全部左对齐列起点）：
+                //   打印中（当前列）= 白框闪烁占位（空心框，呼吸明灭）
+                //   刚提交 ≤5 tick   = 黑白残基（灰度，"墨水未干"感）
+                //   更早 / 完成态     = aa 主题色彩色残基
+                boolean printing = isCurCol;
+                if (printing) {
+                    int fa = (int) (100 + breath * 130);
+                    int fc = fa << 24 | 0xFFFFFF;
+                    g.fill(cx0 - 1, pepY - 1, cx0 + colW - 2, pepY, fc);
+                    g.fill(cx0 - 1, pepY + 8, cx0 + colW - 2, pepY + 9, fc);
+                    g.fill(cx0 - 1, pepY, cx0, pepY + 8, fc);
+                    g.fill(cx0 + colW - 3, pepY, cx0 + colW - 2, pepY + 8, fc);
+                } else if (ci < shown) {
                     char aa1 = pSeq.charAt(ci);
                     String aa3 = aa1To3(aa1);
-                    boolean newestFlash = running && ci == shown - 1 && sincePos < 5;
+                    boolean justPrinted = running && ci == shown - 1 && sincePos <= 5;
                     boolean settleGlow = done && ci == shown - 1 && !sweeping;
-                    int color = cardTextColor(aaColor(aa1));
-                    if (newestFlash) {
-                        g.fill(cx0 - 1, pepY - 1, cx0 + 19, pepY + 9, 0xFFFFFFFF);
-                        color = 0xFF000000;
-                    } else if (settleGlow) {
+                    int color = justPrinted ? 0xFF9A9A9A : cardTextColor(aaColor(aa1));
+                    if (settleGlow) {
                         int halo = (int) (26 + breath * 22) << 24 | 0x00FFFFFF;
-                        g.fill(cx0 - 1, pepY - 1, cx0 + 19, pepY + 9, halo);
+                        g.fill(cx0 - 1, pepY - 1, cx0 + colW - 2, pepY + 9, halo);
                     }
-                    for (int bi = 0; bi < 3 && bi < aa3.length(); bi++) {
-                        g.drawString(font, String.valueOf(aa3.charAt(bi)),
-                                cx0 + bi * baseStep, pepY, color, false);
-                    }
+                    g.drawString(font, aa3, cx0, pepY, color, false);
                 } else {
-                    int dotC = ci == cur && running ? 0xFF6A6F76 : 0xFF4A4E54;
-                    g.drawString(font, "···", cx0, pepY, dotC, false);
+                    g.drawString(font, "···", cx0, pepY, 0xFF4A4E54, false);
                 }
 
-                // 列间分隔线（贯穿两行之间的暗灰细线，转录仪配对区同款结构）
-                if (ci > from) {
+                // 列间分隔线：画在实测列边界上（贯穿两行之间的暗灰细线）
+                if (k > 0) {
                     g.fill(cx0 - 2, mrnaY + 11, cx0 - 1, pepY - 3, 0xFF333338);
                 }
             }
 
             // 当前列活动连接线：高度随逐碱基揭示进度增长（读移意象），
             // 就绪态改为起始列闪烁光标（提示点击翻译即从此处开始）
-            int actX = innerX0 + (cur - from) * colW + colW / 2;
             int gapTop = mrnaY + 11;
             int gapBot = pepY - 3;
-            if (running) {
+            if (running && visCount > 0) {
+                int k = cur - from;
+                int actX = colX[k] + (colX[k + 1] - colX[k]) / 2;
                 double f = Math.max(0.2, reveal / (double) TranslatorOperation.TICKS_PER_CODON);
                 int len = (int) ((gapBot - gapTop) * f);
                 int lineC = (int) (170 + breath * 70) << 24 | 0xFFFFF176;
                 g.fill(actX, gapTop, actX + 1, gapTop + len, lineC);
-            } else if (!done) {
+            } else if (!done && visCount > 0) {
                 if ((guiTick / 8) % 2 == 0) {
-                    int blinkX = innerX0 + colW / 2;
+                    int blinkX = colX[0] + (colX[1] - colX[0]) / 2;
                     g.fill(blinkX, gapTop, blinkX + 1, gapBot, 0x90FFFFFF);
                 }
                 String tip = "点击「翻译」开始";
