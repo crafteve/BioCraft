@@ -27,9 +27,10 @@ public class TranslatorScreen extends SequenceMachineScreen {
 
     private boolean working = false;
 
-    // 动画时序追踪：DONE 边沿时刻（驱动完成扫光）
+    // 动画时序追踪：DONE 边沿时刻（驱动完成扫光）+ 滚窗浮点列号（平滑缓动）
     private boolean animWasDone = false;
     private int animDoneTick = Integer.MIN_VALUE;
+    private double animWinPos;
 
     public TranslatorScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -280,10 +281,12 @@ public class TranslatorScreen extends SequenceMachineScreen {
         boolean running = stage == 1 && total > 0;
         boolean done = stage == 2 && total > 0;
 
-        // 顶栏：标题 + 状态灯（工作/完成绿，等待与停摆红——loader 同口径）
+        // 顶栏：标题 + 右上角催化剂符号（转录仪 P 图标同款范式）——核糖体 R
         g.drawString(font, "翻译", x + 6, y + 6, 0xFFE0E0E0, false);
-        int lampColor = running || done ? 0xFF2ECC71 : 0xFFE74C3C;
-        g.fill(x + w - 22, y + 7, x + w - 14, y + 15, lampColor);
+        int px = x + w - 18, py = y + 6;
+        g.fill(px, py, px + 10, py + 10, 0xFF4FC3F7);
+        g.fill(px + 1, py + 1, px + 9, py + 9, 0xFF0288D1);
+        g.drawString(font, "R", px + 3, py + 1, 0xFFFFFFFF, false);
 
         // mRNA 序列来源：0 槽物品（客户端槽位同步可靠）
         ItemStack mrna = menu.getSlot(TranslatorOperation.SLOT_MRNA).getItem();
@@ -329,9 +332,20 @@ public class TranslatorScreen extends SequenceMachineScreen {
             String pSeq = pd != null ? pd.seq() : "";
             int shown = Math.min(pos, pSeq.length());
 
+            // 滚窗平滑缓动：窗口左缘是浮点列号，每帧向目标 from 收敛——
+            // 翻译机 3 tick 一密码子，整列跳变会"卡卡的"（转录仪每 tick 天然连贯），
+            // 像素级缓动补齐视觉连贯性；列绘制区用 scissor 裁剪滑入滑出
+            animWinPos += (from - animWinPos) * 0.35;
+            if (Math.abs(from - animWinPos) < 0.02) {
+                animWinPos = from;
+            }
+            int i0 = Math.max(0, (int) Math.floor(animWinPos));
+            int i1 = Math.min(codonCount - 1, i0 + visibleCols + 1);
+
             // 逐列绘制：上格密码子、下格产物残基（或占位/打印特效）、列中线
-            for (int ci = from; ci < Math.min(codonCount, from + visibleCols); ci++) {
-                int cx0 = innerX0 + (ci - from) * colW;
+            g.enableScissor(innerX0, mrnaY - 4, innerX1, pepY + 10);
+            for (int ci = i0; ci <= i1; ci++) {
+                int cx0 = (int) Math.round(innerX0 + (ci - animWinPos) * colW);
                 int codonX = cx0 + (colW - 18) / 2;
                 boolean isCurCol = ci == cur && running;
                 String codon = seq.substring(start + ci * 3, start + ci * 3 + 3);
@@ -373,6 +387,7 @@ public class TranslatorScreen extends SequenceMachineScreen {
                 int lineC = isCurCol ? (int) (170 + breath * 70) << 24 | 0xFFFFF176 : 0xFF333338;
                 g.fill(midX, mrnaY + 11, midX + 1, pepY - 3, lineC);
             }
+            g.disableScissor();
 
             // 就绪态：起始列闪烁光标（提示点击翻译即从此处开始）
             int gapTop = mrnaY + 11;

@@ -187,10 +187,12 @@ public class LoaderScreen extends SequenceMachineScreen {
         // 0..1 呼吸曲线（口袋缩放/光环脉动）
         double breath = (Math.sin(tick * 0.35) + 1) * 0.5;
 
-        // 顶标题 + 状态灯（工作绿 / 停摆红，仅灯无文字）
+        // 顶标题 + 右上角催化剂符号（转录仪 P 图标同款范式，取代红绿灯）——ARS 合成酶 A
         g.drawString(font, "装载", x + 6, y + 6, 0xFFE0E0E0, false);
-        int lampColor = animActive ? 0xFF2ECC71 : 0xFFE74C3C;
-        g.fill(x + w - 22, y + 7, x + w - 14, y + 15, lampColor);
+        int px = x + w - 18, py = y + 6;
+        g.fill(px, py, px + 10, py + 10, 0xFF66BB6A);
+        g.fill(px + 1, py + 1, px + 9, py + 9, 0xFF2E7D32);
+        g.drawString(font, "A", px + 3, py + 1, 0xFFFFFFFF, false);
 
         // 独立 30 tick 循环（绿灯出现时从 0 开始；红灯归零停止）
         int t = 0;

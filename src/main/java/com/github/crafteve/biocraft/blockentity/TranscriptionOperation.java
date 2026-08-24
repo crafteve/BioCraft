@@ -93,7 +93,18 @@ public class TranscriptionOperation implements SequenceOperation {
             return false;
         }
         int from = start + SeqOps.PROMOTER_TEMPLATE.length();
-        int term = template.indexOf(SeqOps.TERMINATOR_TEMPLATE, from);
+        // 终止子帧对齐搜索：AAAAA 只认编码框边界（距启动子末端为 3 的倍数）的命中——
+        // 编码流末位恰为 T 时，模板上其互补 A 与终止子 AAAAA 连成提前 1 位的 A 连串，
+        // 无帧约束会把 mRNA 截短 1 碱基，Ctrl 解码报"内容长度不足"（探针实测复现）
+        int term = -1;
+        int search = from;
+        while ((search = template.indexOf(SeqOps.TERMINATOR_TEMPLATE, search)) >= 0) {
+            if ((search - from) % 3 == 0) {
+                term = search;
+                break;
+            }
+            search++;
+        }
         int to = term >= 0 ? term : template.length();
         String templateSegment = template.substring(from, to); // 3'→5' 模板段
         // mRNA 5'→3' = complement(模板 3'→5') → T→U
