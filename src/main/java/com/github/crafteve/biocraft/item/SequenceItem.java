@@ -4,6 +4,7 @@ import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.seq.CodonTable;
 import com.github.crafteve.biocraft.seq.SeqCodec;
+import com.github.crafteve.biocraft.seq.SeqOps;
 import com.github.crafteve.biocraft.seq.SequenceData;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -89,7 +90,7 @@ public class SequenceItem extends Item implements AbbreviationProvider {
             if (core.startsWith(prom) && core.endsWith(term) && core.length() > prom.length() + term.length()) {
                 core = core.substring(prom.length(), core.length() - term.length());
             }
-            SeqCodec.DecodeResult r = SeqCodec.decodeText(core);
+            SeqCodec.DecodeResult r = tryDecodeProgram(core);
             if (r.ok()) {
                 tooltip.addAll(ProgramHighlight.highlight(r.text()));
             } else {
@@ -127,7 +128,7 @@ public class SequenceItem extends Item implements AbbreviationProvider {
             if (core.startsWith(prom) && core.endsWith(term) && core.length() > prom.length() + term.length()) {
                 core = core.substring(prom.length(), core.length() - term.length());
             }
-            SeqCodec.DecodeResult r = SeqCodec.decodeText(core);
+            SeqCodec.DecodeResult r = tryDecodeProgram(core);
             if (r.ok()) {
                 tooltip.addAll(ProgramHighlight.highlight(r.text()));
             } else {
@@ -195,7 +196,8 @@ public class SequenceItem extends Item implements AbbreviationProvider {
                 }
                 codons.append(codon);
             }
-            SeqCodec.DecodeResult r = SeqCodec.decodeText(codons.toString());
+            // 首残基为起始密码子 Met 时多肽流以 ATG 开头，tryDecodeProgram 自动兼容
+            SeqCodec.DecodeResult r = tryDecodeProgram(codons.toString());
             if (r.ok()) {
                 tooltip.addAll(ProgramHighlight.highlight(r.text()));
             } else {
@@ -221,6 +223,23 @@ public class SequenceItem extends Item implements AbbreviationProvider {
             sb.append("-…");
         }
         return sb.append("-COOH").toString();
+    }
+
+    /**
+     * 程序流解码（起始密码子兼容）：先按原样解码；失败且开头为 ATG 时剥掉
+     * 起始密码子再试——2026-08-25 起程序 DNA 在正文前固定携带 ATG
+     * （SeqOps.START_CODON_CODING，翻译出的多肽首残基为 Met），
+     * DNA/mRNA/多肽三条 Ctrl 反推路径共用
+     */
+    private static SeqCodec.DecodeResult tryDecodeProgram(String core) {
+        SeqCodec.DecodeResult r = SeqCodec.decodeText(core);
+        if (!r.ok() && core.startsWith(SeqOps.START_CODON_CODING)) {
+            SeqCodec.DecodeResult r2 = SeqCodec.decodeText(core.substring(3));
+            if (r2.ok()) {
+                return r2;
+            }
+        }
+        return r;
     }
 
     /**

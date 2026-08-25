@@ -47,6 +47,12 @@ public final class SeqOps {
     public static final String PROMOTER_TEMPLATE = "ATATTA";
     /** 转录终止子（编码链 5'→3'，模板链 3'→5' 为 AAAAA） */
     public static final String TERMINATOR_CODING = "TTTTT";
+    /**
+     * 起始密码子（编码链 5'→3'，mRNA 为 AUG）：程序 DNA 在正文前固定携带——
+     * 翻译机按 AUG 扫描开工，无它则程序流首现 AUG 位置随字节运气漂移，
+     * 导致翻译从流中间开始、多肽反推缺魔数头（2026-08-25 方案丙）
+     */
+    public static final String START_CODON_CODING = "ATG";
     /** 终止子在模板链 3'→5' 上的互补序列 */
     public static final String TERMINATOR_TEMPLATE = "AAAAA";
 

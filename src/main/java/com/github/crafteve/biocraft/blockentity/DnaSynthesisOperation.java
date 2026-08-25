@@ -63,8 +63,13 @@ public class DnaSynthesisOperation implements SequenceOperation {
         }
         try {
             String encoded = SeqCodec.encodeText(program);
-            // 启动子/终止子：编码链 5' TATAAT + 真正程序 + TTTTT 3'，模板链 3' ATATTA...AAAAA 5' 供转录识别
-            String withPromoter = com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_CODING + encoded
+            // 链结构：启动子 TATAAT + 起始密码子 ATG + 真正程序 + 终止子 TTTTT——
+            // 起始密码子保证 mRNA 以 AUG 开头（翻译机 AUG 扫描 0 位命中，
+            // 整链翻译；缺它则首现 AUG 位置随字节运气漂移，多肽缺魔数头，
+            // Ctrl 反推必失败，实测 AUG@17/@45 两例）
+            // 模板链 3' ATATTA...AAAAA 5' 供转录识别
+            String withPromoter = com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_CODING
+                    + com.github.crafteve.biocraft.seq.SeqOps.START_CODON_CODING + encoded
                     + com.github.crafteve.biocraft.seq.SeqOps.TERMINATOR_CODING;
             if (withPromoter.length() > com.github.crafteve.biocraft.seq.SequenceConstants.MAX_DNA_BP) {
                 throw new IllegalArgumentException("编码后含启动子/终止子超出长度上限");
