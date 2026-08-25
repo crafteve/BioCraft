@@ -373,6 +373,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             return;
         }
         boolean hasText = !L.panelTitle().isEmpty();
+        // 网格：有标题行时从 y+12 起（让出标题行），无标题行（v1 族）近顶铺满
         int gridTop = hasText ? y + 12 : y + 6;
         for (int gx = x + 12; gx < x + w; gx += 14) {
             graphics.fill(gx, gridTop, gx + 1, y + h - 6, 0x08FFFFFF);
@@ -380,14 +381,15 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         for (int gy = y + (hasText ? 18 : 12); gy < y + h; gy += 14) {
             graphics.fill(x + 6, gy, x + w - 6, gy + 1, 0x08FFFFFF);
         }
-        if (!hasText) {
-            return;
-        }
-        graphics.drawString(font, L.panelTitle(), x + 6, y + 6, 0xFFE0E0E0, false);
+        // 状态文字（待机/进度/完成）与标题解耦：v1 族无标题无图标，但右上角
+        // 状态文字保留（此前误绑在标题条件上被连带删除）
         String status = panelStatus();
         int iconX = x + w - 18;
         if (!status.isEmpty()) {
             graphics.drawString(font, status, iconX - 6 - font.width(status), y + 7, 0xFF9E9E9E, false);
+        }
+        if (hasText) {
+            graphics.drawString(font, L.panelTitle(), x + 6, y + 6, 0xFFE0E0E0, false);
         }
         if (L.iconChar() != ' ') {
             graphics.fill(iconX, y + 6, iconX + 10, y + 16, L.iconOuter());
