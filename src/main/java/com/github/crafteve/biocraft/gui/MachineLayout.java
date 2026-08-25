@@ -24,8 +24,11 @@ public enum MachineLayout {
     ENCODER(false, true, "", ' ', 0, 0, "", 69, 31, 178, 95, true, "EXT"),
     TRANSCRIBER(false, false, "转录", 'P', 0xFF4FC3F7, 0xFF0288D1, "", 69, 31, 178, 95, true, "TRANS"),
     TRANSLATOR(false, false, "翻译", 'R', 0xFF4FC3F7, 0xFF0288D1, "", 69, 31, 178, 95, true, "TRANS"),
-    LOADER(true, false, "装载", 'A', 0xFF66BB6A, 0xFF2E7D32, "LOAD", 68, 38, 122, 126, true, "RUN"),
-    HELICASE(true, false, "解旋", 'U', 0xFFBA68C8, 0xFF7B1FA2, "UNWIND", 68, 38, 122, 126, true, "UNWIND");
+    // v1 族：无面板顶部文字标识（panelTitle 空 + 无图标），动画内容填满整个面板——
+    // 中央 LOAD/UNWIND 标签取消（centerLabel 空），动画区上边界向上延长 9px
+    // （标签行高）填满中心区域
+    LOADER(true, false, "", ' ', 0, 0, "", 68, 29, 122, 135, true, "RUN"),
+    HELICASE(true, false, "", ' ', 0, 0, "", 68, 29, 122, 135, true, "UNWIND");
 
     private final boolean guiV1;
     private final boolean plainPanel;

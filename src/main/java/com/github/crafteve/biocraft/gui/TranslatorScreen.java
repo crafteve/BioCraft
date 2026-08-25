@@ -124,11 +124,36 @@ public class TranslatorScreen extends SequenceMachineScreen {
                     : done ? Math.max(0, codonCount - 1) : 0;
             int visibleCols = Math.max(2, (innerX1 - innerX0) / colW);
             int from = Math.max(0, Math.min(cur - visibleCols * 2 / 3, codonCount - visibleCols));
+            boolean ready = !running && !done;
 
             // 行底条（转录仪同款深灰衬条）+ 行首内联标签
             g.fill(innerX0, mrnaY - 2, innerX1, mrnaY + 10, 0xFF2A2A2E);
-            g.fill(innerX0, pepY - 2, innerX1, pepY + 9, 0xFF2A2A2E);
             g.drawString(font, "mRNA", x + 6, mrnaY, 0xFFF1C40F, false);
+
+            // 就绪模式（插入 mRNA 未点翻译）：只显示 mRNA 链，类似转录仪待机界面——
+            // 从起始密码子起铺开整链窗口，AUG 呼吸辉光 + 信息行 + 底部提示，
+            // 不画肽链行（翻译开始后肽链行才出现）
+            if (ready) {
+                int win = Math.min(codonCount, visibleCols);
+                for (int ci = 0; ci < win; ci++) {
+                    int cx0 = innerX0 + ci * colW;
+                    int codonX = cx0 + (colW - 18) / 2;
+                    if (ci == 0) {
+                        int glow = (int) (70 + breath * 90) << 24 | 0x00FFFFFF;
+                        g.fill(codonX - 2, mrnaY - 1, codonX + 20, mrnaY + 9, glow);
+                    }
+                    String codon = seq.substring(start + ci * 3, start + ci * 3 + 3);
+                    for (int bi = 0; bi < 3; bi++) {
+                        drawBase(g, codon.charAt(bi), codonX + bi * 6, mrnaY);
+                    }
+                }
+                g.drawString(font, "AUG@" + start, x + 6, mrnaY - 11, 0xFF7ED6DF, false);
+                String tip = "点击「翻译」开始";
+                g.drawString(font, tip, x + (w - font.width(tip)) / 2, y + h - 12, 0xFF6A6A72, false);
+                return;
+            }
+
+            g.fill(innerX0, pepY - 2, innerX1, pepY + 9, 0xFF2A2A2E);
             g.drawString(font, "肽链", x + 6, pepY, 0xFF81C784, false);
 
             ItemStack pep = menu.getSlot(TranslatorOperation.SLOT_OUT_POLYPEPTIDE).getItem();
@@ -145,7 +170,7 @@ public class TranslatorScreen extends SequenceMachineScreen {
             int i0 = Math.max(0, (int) Math.floor(animWinPos));
             int i1 = Math.min(codonCount - 1, i0 + visibleCols + 1);
 
-            // 逐列绘制：上格密码子、下格产物残基（或占位/打印特效）、列中线
+            // 逐列绘制：上格密码子、下格产物残基（或占位/打印特效）、配对短线
             g.enableScissor(innerX0, mrnaY - 4, innerX1, pepY + 10);
             for (int ci = i0; ci <= i1; ci++) {
                 int cx0 = (int) Math.round(innerX0 + (ci - animWinPos) * colW);
@@ -185,22 +210,15 @@ public class TranslatorScreen extends SequenceMachineScreen {
                     g.drawString(font, "···", resX, pepY, 0xFF4A4E54, false);
                 }
 
-                // 列中线：对准密码子正中（贯穿两行之间），当前列黄白脉动、其余暗灰
-                int midX = cx0 + colW / 2;
+                // 配对短线（转录仪同款语言）：每个碱基下方一条贯穿两行之间的竖线，
+                // 当前密码子的三根黄白脉动、其余暗灰——密码子↔残基逐位对应意象
                 int lineC = isCurCol ? (int) (170 + breath * 70) << 24 | 0xFFFFF176 : 0xFF333338;
-                g.fill(midX, mrnaY + 11, midX + 1, pepY - 3, lineC);
+                for (int bi = 0; bi < 3; bi++) {
+                    int lineX = codonX + bi * 6 + 3;
+                    g.fill(lineX, mrnaY + 11, lineX + 1, pepY - 3, lineC);
+                }
             }
             g.disableScissor();
-
-            // 就绪态：起始列闪烁光标（提示点击翻译即从此处开始）
-            if (!running && !done) {
-                if ((guiTick / 8) % 2 == 0) {
-                    int blinkX = innerX0 + colW / 2;
-                    g.fill(blinkX, mrnaY + 11, blinkX + 1, pepY - 3, 0x90FFFFFF);
-                }
-                String tip = "点击「翻译」开始";
-                g.drawString(font, tip, x + (w - font.width(tip)) / 2, y + h - 12, 0xFF6A6A72, false);
-            }
 
             // 完成扫光：白线自左向右掠过两行全区（带渐隐尾迹），扫完落定
             if (sweeping) {

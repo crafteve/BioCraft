@@ -72,11 +72,8 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     protected static final int STYLE_DNA = 1;
     protected static final int STYLE_PEPTIDE = 2;
 
-    /** 输入卡片（纵向滚动）：槽位 + 固定展示的物品 + 绿底高亮（如翻译机 GTP 置顶卡） */
-    protected record InputCard(int containerSlot, String itemId, boolean highlight) {
-        InputCard(int containerSlot, String itemId) {
-            this(containerSlot, itemId, false);
-        }
+    /** 输入卡片（纵向滚动）：槽位 + 固定展示的物品 */
+    protected record InputCard(int containerSlot, String itemId) {
     }
 
     /** 输出卡片：槽位 + 固定展示的物品 + 卡片宽 + 内容样式（STYLE_*） */
@@ -140,8 +137,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         }
         if (kind == SequenceMachineKind.TRANSLATOR) {
             List<InputCard> cards = new ArrayList<>();
-            // GTP 置顶卡绿底高亮（供能主原料的视觉强调）
-            cards.add(new InputCard(1, "gtp", true));
+            cards.add(new InputCard(1, "gtp"));
             String[] trnas = {"trna_ala", "trna_arg", "trna_asn", "trna_asp", "trna_cys", "trna_gln", "trna_glu", "trna_gly", "trna_his", "trna_ile", "trna_leu", "trna_lys", "trna_met", "trna_phe", "trna_pro", "trna_ser", "trna_thr", "trna_trp", "trna_tyr", "trna_val"};
             for (int i = 0; i < trnas.length; i++) {
                 cards.add(new InputCard(2 + i, trnas[i]));
@@ -337,10 +333,12 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
                 this.leftPos + imageWidth - 8 - this.font.width(status),
                 this.topPos + 13, CONC_TEXT_COLOR, false);
         if (L.hasProgressBar()) {
-            int fill = total > 0 ? (int) ((imageWidth - 16) * position / (double) total) : 0;
-            graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + imageWidth - 16, topPos + 25, BAR_TRACK);
+            // 顶栏槽位机型进度条左边界右移一个槽位宽（18px），避免与 9,8 槽位重叠
+            int barLeft = leftPos + (topSlot ? 26 : 8);
+            int fill = total > 0 ? (int) ((imageWidth - 16 - (topSlot ? 18 : 0)) * position / (double) total) : 0;
+            graphics.fill(barLeft, topPos + 22, leftPos + 8 + imageWidth - 16, topPos + 25, BAR_TRACK);
             if (fill > 0) {
-                graphics.fill(leftPos + 8, topPos + 22, leftPos + 8 + fill, topPos + 25, 0xFF4CAF50);
+                graphics.fill(barLeft, topPos + 22, barLeft + fill, topPos + 25, 0xFF4CAF50);
             }
         }
     }
@@ -360,9 +358,9 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     }
 
     /**
-     * 动画区面板骨架：深色底 + 顶部 1px 亮线 + 淡网格（四边 6px 边距，全机统一）
-     * + 左上标题 + 右上状态文字（待机/pos-total/完成，图标左侧）+ 催化剂图标。
-     * plainPanel（编码器编辑器）只铺底色与顶线
+     * 动画区面板骨架：深色底 + 顶部 1px 亮线 + 淡网格（全机统一）。
+     * plainPanel（编码器编辑器）只铺底色与顶线；panelTitle 为空（v1 族）
+     * 画网格但不画顶部文字标识（标题/状态/图标）——动画内容填满整个面板
      */
     private void drawAnimFrame(MachineLayout L, GuiGraphics graphics) {
         int x = leftPos + L.ax();
@@ -374,11 +372,16 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         if (L.plainPanel()) {
             return;
         }
+        boolean hasText = !L.panelTitle().isEmpty();
+        int gridTop = hasText ? y + 12 : y + 6;
         for (int gx = x + 12; gx < x + w; gx += 14) {
-            graphics.fill(gx, y + 12, gx + 1, y + h - 6, 0x08FFFFFF);
+            graphics.fill(gx, gridTop, gx + 1, y + h - 6, 0x08FFFFFF);
         }
-        for (int gy = y + 18; gy < y + h; gy += 14) {
+        for (int gy = y + (hasText ? 18 : 12); gy < y + h; gy += 14) {
             graphics.fill(x + 6, gy, x + w - 6, gy + 1, 0x08FFFFFF);
+        }
+        if (!hasText) {
+            return;
         }
         graphics.drawString(font, L.panelTitle(), x + 6, y + 6, 0xFFE0E0E0, false);
         String status = panelStatus();
@@ -421,11 +424,6 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             Slot slot = menu.getSlot(card.containerSlot());
             drawStockCard(graphics, areaX, cardY, SequenceMachineMenu.CARD_W,
                     SequenceMachineMenu.CARD_H, card.itemId(), slot, true);
-            // 绿底高亮（供能主原料强调，如翻译机 GTP 置顶卡）
-            if (card.highlight() && !slot.getItem().isEmpty()) {
-                graphics.fill(areaX, cardY, areaX + SequenceMachineMenu.CARD_W,
-                        cardY + SequenceMachineMenu.CARD_H, 0x1027AE60);
-            }
         }
         graphics.disableScissor();
     }

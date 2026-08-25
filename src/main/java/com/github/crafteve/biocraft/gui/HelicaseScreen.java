@@ -129,7 +129,7 @@ public class HelicaseScreen extends SequenceMachineScreen {
         boolean isDone = stage == 2;
 
         int cx = x + w / 2;
-        int cy = y + h / 2 + 10;
+        int cy = y + h / 2;
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         double wave = Math.sin(tick * 0.22) * 2.5;
 

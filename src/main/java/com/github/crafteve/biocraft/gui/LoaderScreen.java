@@ -86,8 +86,9 @@ public class LoaderScreen extends SequenceMachineScreen {
         }
 
         // 中央装载口袋：大圆点阵描边（始终 AA 色，无 AA 时灰），呼吸缩放
+        // （面板顶部文字标识已取消，动画填满全区，圆心取面板几何中心）
         int cx = x + w / 2;
-        int cy = y + h / 2 + 2;
+        int cy = y + h / 2;
         int R = 15 + (int) Math.round(breath * 2);
         boolean hasAa = !aaStack.isEmpty();
         int pocket = hasAa ? aaTint : 0xFF7E8EA0;
