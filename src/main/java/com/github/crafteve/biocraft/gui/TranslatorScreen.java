@@ -23,10 +23,13 @@ public class TranslatorScreen extends SequenceMachineScreen {
 
     private boolean working = false;
 
-    // 动画时序追踪：DONE 边沿时刻（驱动完成扫光）+ 滚窗浮点列号（平滑缓动）
+    // 动画时序追踪：DONE 边沿时刻（驱动完成扫光）+ 滚窗/阅读头浮点列号
+    // （-1 = 未初始化，首帧直接吸附——消灭开 GUI 的入场滚动动画）
     private boolean animWasDone = false;
     private int animDoneTick = Integer.MIN_VALUE;
-    private double animWinPos;
+    private double animWinPos = -1;
+    private double readHead = -1;
+    private int lastHeadTick = Integer.MIN_VALUE;
 
     public TranslatorScreen(SequenceMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -73,13 +76,15 @@ public class TranslatorScreen extends SequenceMachineScreen {
     /**
      * 动画内容（转录仪风格上下双行——数据驱动非自由循环）：
      * <ul>
-     *   <li>节奏：每密码子 3 tick（BE 步进同速）；动画无入场过渡——当前列整串
-     *       直接出现 + 背景呼吸闪白，残基直接彩色</li>
-     *   <li>对齐：列宽固定 24px（密码子恒 18px 等宽），残基/占位符按实测宽度
-     *       居中对齐密码子中心；每列一条中线对准密码子正中（当前列黄白脉动、
-     *       其余暗灰）；滚窗左缘浮点列号逐帧缓动（像素级平滑滑动）</li>
-     *   <li>就绪态：起始列闪烁光标 + "点击翻译"提示；完成动画：DONE 边沿白色
-     *       扫光掠过全链（26 tick），随后末残基柔和呼吸余晖；
+     *   <li>几何与转录仪对齐：上行 mRNA y+42、下行肽链 y+62、配对短线 y+54
+     *       （4px 短线，每列一根，当前阅读列黄白脉动）</li>
+     *   <li>阅读头：浮点列号每 tick 滑 1/3 密码子（与 3tick 节奏同步），mRNA
+     *       辉光与肽行打印框跟头连续滑动——消灭 3tick 瞬移的卡顿抖动；
+     *       辉光为转录仪同款"白 @ pulse alpha"灰底高亮，垫在字符下、
+     *       打印框盖在占位上，两行同公式同节奏</li>
+     *   <li>滚窗：首帧/大跨度跳变直接吸附（消灭开 GUI 入场滚动），小步缓动</li>
+     *   <li>就绪模式（插入 mRNA 未点翻译）：mRNA 链 + 空肽链占位行 + AUG@信息行
+     *       + 底部提示；完成动画：白色扫光 + 末残基呼吸余晖；
      *       无有效 mRNA 居中灰字提示</li>
      * </ul>
      */
@@ -99,6 +104,8 @@ public class TranslatorScreen extends SequenceMachineScreen {
         int start = seq.indexOf("AUG");
         if (!seq.isEmpty() && start >= 0) {
             double breath = Math.sin(guiTick * 0.35) * 0.5 + 0.5;
+            // 转录仪同款辉光脉动（当前字符灰底高亮的呼吸节奏，两机观感一致）
+            double pulse = Math.sin(guiTick * 0.4) * 0.3 + 0.7;
 
             // 动画时序：DONE 边沿 → 记录扫光起点
             if (done && !animWasDone) {
@@ -108,95 +115,94 @@ public class TranslatorScreen extends SequenceMachineScreen {
             int sinceDone = guiTick - animDoneTick;
             boolean sweeping = done && sinceDone <= 26;
 
-            // 几何：标签内联行首，内容统一从 x+38 起；上行 mRNA、下行肽链。
-            // 密码子恒 18px 宽（A/U/C/G 均为 5px 等宽字符 + 1px 字距），
-            // 列宽固定 24px——残基/占位符按实测宽度**居中对齐密码子中心**，
-            // 列中线对准密码子正中
+            // 几何与转录仪对齐：上行 y+42、下行 y+62、配对短线 y+54（4px 短线，
+            // 转录仪模板行/mRNA 行/配对线同款定位）。密码子恒 18px 宽（A/U/C/G
+            // 等宽），列宽固定 24px，残基/占位符居中对齐密码子中心
             int innerX0 = x + 38;
             int innerX1 = x + w - 8;
-            int mrnaY = y + 28;
-            int pepY = mrnaY + 27;
+            int mrnaY = y + 42;
+            int pepY = mrnaY + 20;
+            int pairY = mrnaY + 12;
             int colW = 24;
 
-            // 滚窗：当前列保持右侧 1/3，到末端停住（转录仪同款语义）
-            int codonCount = Math.min(total, Math.max(0, seq.length() - start) / 3);
+            // 密码子总数由序列直接推导——IDLE 时 total=0，用 total 推会得 0 列
+            // （这正是"就绪模式只显示标签不显示碱基"的根因）
+            int codonCount = Math.max(0, seq.length() - start) / 3;
             int cur = running ? Math.min(pos, Math.max(0, codonCount - 1))
                     : done ? Math.max(0, codonCount - 1) : 0;
             int visibleCols = Math.max(2, (innerX1 - innerX0) / colW);
             int from = Math.max(0, Math.min(cur - visibleCols * 2 / 3, codonCount - visibleCols));
             boolean ready = !running && !done;
 
-            // 行底条（转录仪同款深灰衬条）+ 行首内联标签
-            g.fill(innerX0, mrnaY - 2, innerX1, mrnaY + 10, 0xFF2A2A2E);
-            g.drawString(font, "mRNA", x + 6, mrnaY, 0xFFF1C40F, false);
-
-            // 就绪模式（插入 mRNA 未点翻译）：只显示 mRNA 链，类似转录仪待机界面——
-            // 从起始密码子起铺开整链窗口，AUG 呼吸辉光 + 信息行 + 底部提示，
-            // 不画肽链行（翻译开始后肽链行才出现）
-            if (ready) {
-                int win = Math.min(codonCount, visibleCols);
-                for (int ci = 0; ci < win; ci++) {
-                    int cx0 = innerX0 + ci * colW;
-                    int codonX = cx0 + (colW - 18) / 2;
-                    if (ci == 0) {
-                        int glow = (int) (70 + breath * 90) << 24 | 0x00FFFFFF;
-                        g.fill(codonX - 2, mrnaY - 1, codonX + 20, mrnaY + 9, glow);
-                    }
-                    String codon = seq.substring(start + ci * 3, start + ci * 3 + 3);
-                    for (int bi = 0; bi < 3; bi++) {
-                        drawBase(g, codon.charAt(bi), codonX + bi * 6, mrnaY);
-                    }
+            // 滚窗：首帧（animWinPos<0）或大跨度跳变（开 GUI/重开翻译）直接吸附——
+            // 此前初值 0 + 按渲染帧缓动，造成每次开 GUI 的"入场滚动"（锁 tick 也
+            // 照跑，因为缓动跟渲染帧走）；小步滚动保留缓动
+            if (animWinPos < 0 || Math.abs(from - animWinPos) > 3.0) {
+                animWinPos = from;
+            } else {
+                animWinPos += (from - animWinPos) * 0.35;
+                if (Math.abs(from - animWinPos) < 0.02) {
+                    animWinPos = from;
                 }
-                g.drawString(font, "AUG@" + start, x + 6, mrnaY - 11, 0xFF7ED6DF, false);
-                String tip = "点击「翻译」开始";
-                g.drawString(font, tip, x + (w - font.width(tip)) / 2, y + h - 12, 0xFF6A6A72, false);
-                return;
             }
 
+            // 阅读头：每 tick 滑动 1/3 密码子（与 3tick/密码子节奏同步），上限为
+            // 已提交 pos——辉光与打印框跟着头连续滑动，消灭"每 3tick 瞬移一列"
+            // 的卡顿抖动（转录仪每 tick 一步天然连贯，翻译机靠滑动头补齐）
+            int elapsed = lastHeadTick == Integer.MIN_VALUE ? 0 : Math.max(0, guiTick - lastHeadTick);
+            lastHeadTick = guiTick;
+            if (readHead < 0 || pos < readHead) {
+                readHead = pos;
+            }
+            if (running) {
+                readHead = Math.min(pos, readHead + elapsed / (double) TranslatorOperation.TICKS_PER_CODON);
+            } else if (done) {
+                readHead = Math.max(0, codonCount - 1);
+            } else {
+                readHead = 0;
+            }
+            int headCol = Math.max(0, Math.min((int) Math.round(readHead), codonCount - 1));
+
+            // 行底条 + 行首内联标签（两行常驻——就绪模式肽链行为空占位）
+            g.fill(innerX0, mrnaY - 2, innerX1, mrnaY + 10, 0xFF2A2A2E);
             g.fill(innerX0, pepY - 2, innerX1, pepY + 9, 0xFF2A2A2E);
+            g.drawString(font, "mRNA", x + 6, mrnaY, 0xFFF1C40F, false);
             g.drawString(font, "肽链", x + 6, pepY, 0xFF81C784, false);
+            // 起始密码子信息行（转录仪"启动子@n"同位）
+            g.drawString(font, "AUG@" + start, x + 6, mrnaY - 11, 0xFF7ED6DF, false);
 
             ItemStack pep = menu.getSlot(TranslatorOperation.SLOT_OUT_POLYPEPTIDE).getItem();
             SequenceData pd = pep.get(ModDataComponents.SEQUENCE.get());
             String pSeq = pd != null ? pd.seq() : "";
             int shown = Math.min(pos, pSeq.length());
 
-            // 滚窗平滑缓动：窗口左缘是浮点列号，每帧向目标 from 收敛——
-            // 3 tick 一密码子的整列跳变是"卡顿感"根因，像素级缓动补齐连贯性
-            animWinPos += (from - animWinPos) * 0.35;
-            if (Math.abs(from - animWinPos) < 0.02) {
-                animWinPos = from;
-            }
             int i0 = Math.max(0, (int) Math.floor(animWinPos));
             int i1 = Math.min(codonCount - 1, i0 + visibleCols + 1);
 
-            // 逐列绘制：上格密码子、下格产物残基（或占位/打印特效）、配对短线
+            // 阅读头辉光先画（垫在碱基下面——转录仪同款：当前字符灰底高亮，
+            // 字符画在辉光之上）；头按浮点位置连续滑动，就绪停 AUG、完成停末位
+            if (running || ready) {
+                double hx = innerX0 + (readHead - animWinPos) * colW + colW / 2.0;
+                int hxi = (int) Math.round(hx);
+                int fa = (int) (180 * pulse);
+                g.fill(hxi - 10, mrnaY - 1, hxi + 10, mrnaY + 9, fa << 24 | 0xFFFFFF);
+            }
+
+            // 逐列绘制：上格密码子、下格产物残基（或占位）、每列一根 4px 配对短竖线
             g.enableScissor(innerX0, mrnaY - 4, innerX1, pepY + 10);
             for (int ci = i0; ci <= i1; ci++) {
                 int cx0 = (int) Math.round(innerX0 + (ci - animWinPos) * colW);
                 int codonX = cx0 + (colW - 18) / 2;
-                boolean isCurCol = ci == cur && running;
                 String codon = seq.substring(start + ci * 3, start + ci * 3 + 3);
-
-                // 上格 mRNA：当前列整串直接出现 + 白底呼吸闪（无入场动画），
-                // 其余列全彩常显（mRNA 是输入，本来就完整存在）
-                if (isCurCol) {
-                    int glow = (int) (110 + breath * 130) << 24 | 0x00FFFFFF;
-                    g.fill(codonX - 2, mrnaY - 1, codonX + 20, mrnaY + 9, glow);
-                }
                 for (int bi = 0; bi < 3; bi++) {
                     drawBase(g, codon.charAt(bi), codonX + bi * 6, mrnaY);
                 }
 
-                // 下格肽链（居中对齐密码子中心）：打印中 = 白底呼吸闪占位；
-                // 已翻译 = 直接彩色残基（无入场动画）；未翻译 = 暗色占位
+                // 下格肽链（居中对齐密码子中心）：已翻译 = 彩色残基（完成末残基
+                // 呼吸余晖）；未翻译 = 暗色占位
                 int resW = ci < pSeq.length() ? font.width(aa1To3(pSeq.charAt(ci))) : font.width("···");
                 int resX = cx0 + (colW - resW) / 2;
-                boolean printing = isCurCol;
-                if (printing) {
-                    int fa = (int) (60 + breath * 150);
-                    g.fill(resX - 2, pepY - 1, resX + resW + 2, pepY + 9, fa << 24 | 0xFFFFFF);
-                } else if (ci < shown) {
+                if (ci < shown) {
                     char aa1 = pSeq.charAt(ci);
                     String aa3 = aa1To3(aa1);
                     boolean settleGlow = done && ci == shown - 1 && !sweeping;
@@ -210,13 +216,20 @@ public class TranslatorScreen extends SequenceMachineScreen {
                     g.drawString(font, "···", resX, pepY, 0xFF4A4E54, false);
                 }
 
-                // 配对短线（转录仪同款语言）：每个碱基下方一条贯穿两行之间的竖线，
-                // 当前密码子的三根黄白脉动、其余暗灰——密码子↔残基逐位对应意象
-                int lineC = isCurCol ? (int) (170 + breath * 70) << 24 | 0xFFFFF176 : 0xFF333338;
-                for (int bi = 0; bi < 3; bi++) {
-                    int lineX = codonX + bi * 6 + 3;
-                    g.fill(lineX, mrnaY + 11, lineX + 1, pepY - 3, lineC);
-                }
+                // 配对短竖线（转录仪同款：4px 短线），当前阅读列黄白、其余暗灰
+                int lineC = ci == headCol && running
+                        ? (int) (170 + breath * 70) << 24 | 0xFFFFF176 : 0xFF333338;
+                int lineX = codonX + 9;
+                g.fill(lineX, pairY, lineX + 1, pairY + 4, lineC);
+            }
+
+            // 肽行打印框（画在占位点之上——转录仪当前字符白字灰底的肽行对应物）：
+            // 与 mRNA 辉光同公式同节奏，随阅读头连续滑动
+            if (running) {
+                double hx = innerX0 + (readHead - animWinPos) * colW + colW / 2.0;
+                int hxi = (int) Math.round(hx);
+                int fa = (int) (180 * pulse);
+                g.fill(hxi - 9, pepY - 1, hxi + 9, pepY + 9, fa << 24 | 0xFFFFFF);
             }
             g.disableScissor();
 
