@@ -100,6 +100,9 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         tickScrolls();
     }
 
+    /** 当前帧的 partialTick（0~1 帧内小数，动画钩子做帧内插值用） */
+    protected float animPartialTick;
+
     /** 当前机器的布局描述（框架差异的单一事实源） */
     protected MachineLayout layout() {
         return MachineLayout.of(menu.getKind());
@@ -290,6 +293,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
 
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
+        this.animPartialTick = partialTick;
         MachineLayout L = layout();
         graphics.blit(L.bg(), leftPos, topPos, 0, 0, imageWidth, imageHeight, imageWidth, imageHeight);
         drawStatusBar(L, graphics);
