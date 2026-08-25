@@ -189,10 +189,10 @@ public class LoaderScreen extends SequenceMachineScreen {
 
         // 顶标题 + 右上角催化剂符号（转录仪 P 图标同款范式，取代红绿灯）——ARS 合成酶 A
         g.drawString(font, "装载", x + 6, y + 6, 0xFFE0E0E0, false);
-        int px = x + w - 18, py = y + 6;
-        g.fill(px, py, px + 10, py + 10, 0xFF66BB6A);
-        g.fill(px + 1, py + 1, px + 9, py + 9, 0xFF2E7D32);
-        g.drawString(font, "A", px + 3, py + 1, 0xFFFFFFFF, false);
+        int ix = x + w - 18, iy = y + 6;
+        g.fill(ix, iy, ix + 10, iy + 10, 0xFF66BB6A);
+        g.fill(ix + 1, iy + 1, ix + 9, iy + 9, 0xFF2E7D32);
+        g.drawString(font, "A", ix + 3, iy + 1, 0xFFFFFFFF, false);
 
         // 独立 30 tick 循环（绿灯出现时从 0 开始；红灯归零停止）
         int t = 0;
