@@ -77,6 +77,7 @@
 - 已完成 DNA 解旋酶（helicase，2026-08-20）：无催化剂方块形态（`SequenceMachineKind.HELICASE` 容器 3 槽：1 DNA 输入 + 2 ssDNA 输出）、`HelicaseOperation` 逐碱基对动态解旋（每 tick 1 bp，编码链 S 前缀 5'→3' 与模板链 rc 前缀 3'→5'，kind 继承，双产物 NBT 不同需两产物卡，链源 position/total 进度+输入完成时消耗）、`HelicaseScreen` guiv1 酶工厂布局（左侧 DNA + 右侧 模板链/编码链 垂直双卡 + 中央 122×126 大动画区逐碱基对 A–T/C–G + 分叉闪光）、`SequenceMachineBlockEntity` 双产物 DONE 判定（两输出皆空才回 IDLE）、`ModBlocks`/`BioCraftClient`/`MachineModelProvider`/`ModCreativeTabs`/`SubstanceLanguageProvider` 全链路注册（占位 cube 模型）
 - 已完成 转录仪重做与 6 项修复（2026-08-21）：RNA 聚合酶催化 DNA 模板 3'→5'（ATATTA 启动子/TTTTT 终止子）→ mRNA 5'→3' T→U，容器 8 槽（0 模板 1-4 NTP 5 mRNA 6 ADP 7 PPi，槽位 9,8 仿酶工厂 slot0）；六项打磨：①DNA tooltip 单行修复（perLine=length 仿 ssDNA）②模板槽 9,8 标题 28,13 避挡③滚动区 scissor 通用化（helicase 垂直分支）④动画区双链+聚合酶 P 波浪脉冲+箭头下移⑤U 黄色⑥计量 0.1 NTP+0.1 ATP 仿编码器（10 碱基 1 组产 ADP/PPi）
 - 已完成 翻译机与转录仪对齐修复（2026-08-23）：翻译机改按钮触发（ServerboundTranscribePacket 泛化为转录仪/翻译机共用启动工序包，IDLE 分支禁自动开翻）；mRNA 指纹追踪泛化（templateSlot 按 kind 取槽，工序中拿走/换链弹产物 + 归零，防"幽灵翻译"）；Menu.mayPickup 补半成品锁（转录仪 mRNA/翻译机多肽 complete 才可 GUI 取——BE canTakeItemInternal 只拦漏斗/管道，GUI 走 Slot.remove 绕过是漏点）；两机 step 重写为"前置全查通过才动物品"（消灭边动边退的余量账目不平）；多肽 materialize kind 继承 mRNA；TranslatorScreen 错误提示对齐转录仪左下角红叹号三态。**续：三机开工方式统一**——ServerboundTranscribePacket 再泛化纳入 DNA_ENCODER（BE IDLE 分支三机全禁自动开工；编码器"编码"按钮 = ServerboundSequenceProgramPacket 提交文本 + 启动包两包按序排队，服务端顺序执行）
+- 已完成 序列机 GUI 统一框架（2026-08-23）：新增 `MachineLayout` 布局描述枚举（背景贴图 gui_v1/gui_encoder、输出卡方向右竖滚/底横滚、中央标签 LOAD/UNWIND、动画区矩形 122×126/178×95、进度条开关、面板标题、催化剂图标字母与配色全部数据化，of(kind) 映射）；`SequenceMachineScreen` 基类 renderBg 按布局一次画完全部框架（状态栏/标签/输入竖滚卡/输出卡/动画区面板骨架+统一网格+右上角状态文字与图标），动画内容走 `renderMachineAnimation` 钩子；五台序列机屏幕瘦身为"只写动画+专属按钮"（编码器 plainPanel 面板即编辑器；转录/翻译/装载/解旋各一个动画方法）；细节统一——网格 0x08FFFFFF 四边 6px 边距（转录仪补网格/解旋酶改留边距）、右上角"状态文字在图标左侧"（解旋酶补紫 U、装载 A/翻译 R 补状态词）、装载机补进度条、状态词 IDLE/动词 进度/DONE、解旋酶空卡改 nt 计数、卡片缩写优先取槽内实际物品（动态产物着色跟随）；输出卡三样式（STYLE_STOCK/DNA/PEPTIDE）+ 输入卡绿底高亮进基类
 - 待开发 酶容器贴图 Phase 3 ③④（可选，用户暂未选）：气泡粒子（运行中观察窗冒泡）、GUI 小模型图标
 - 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
 - 待开发 中心法则第二波（信息链贯通，见《docs/中心法则信息层设计_2026-08-18.md》）：复制酶（1 dsDNA → 解旋酶已落地 → 2 ssDNA → 各复制 → 2 dsDNA 倍增闭环，dNTP 消耗）→ tRNA 体系（trna_gene/trna/aa-tRNA/ARS 酶物品）→ 装载机（ARS 0 槽催化，aa + trna + ATP → aa-tRNA + AMP + PPi）+ 翻译仪（aa-tRNA 托盘 + 密码子↔反密码子教学 GUI）+ 折叠机（解码程序 → 语义注册表 → 酶物品或 misfolded_protein）——程序 → DNA → mRNA → 多肽 → 酶物品全链贯通
@@ -243,9 +244,13 @@ com.github.crafteve.biocraft
 │   ├── MachineMenu.java          # 酶反应腔菜单：0 槽酶槽 + 滚动卡片物种槽 + DATA_ENZYME/IO 模式同步 + 打开数据包解析 + RestrictedSlot 继承 BiocraftSlot（mayPlace/mayPickup 双门控 IO 模式）
 │   ├── MachineScreen.java        # 酶反应腔屏幕：gui_v1.png 手绘基底 + 滚动卡片 + v-t 折线图 + 平衡区 + 速率区 + IO 模式按钮（三态循环/悬停遮罩动画/tooltip）+ 无酶态（[unknown] 占位缩写框 + 三栏标签照常）
 │   ├── SequenceMachineMenu.java  # 序列机通用菜单：槽位布局按 kind（服务端 data 实时读 BE，客户端 SimpleContainerData 收广播）+ MachineSlot 继承 BiocraftSlot + quickMoveStack
-│   ├── SequenceMachineScreen.java # 序列机通用屏幕：机器槽 + 进度条 + 阶段文本（纯色面板 MVP，正式基底待 texturegen）
-│   ├── EncoderScreen.java        # DNA 编码器屏幕：文本编辑器 + 模板按钮 + 客户端编码预览（seq/ 纯核心即时算 bp）
-│   ├── HelicaseScreen.java       # 解旋酶屏幕：guiv1 布局（左 DNA + 右 模板链/编码链 垂直双卡 + 中央 122×126 大动画区逐碱基对 A–T/C–G + 分叉闪光）
+│   ├── MachineLayout.java        # 序列机屏幕布局描述枚举（2026-08-23 统一框架）：背景贴图/输出卡方向/中央标签/动画区矩形/进度条/面板标题/催化剂图标全部数据化，of(kind) 映射——新增序列机 = 加一行布局 + 子类实现动画方法
+│   ├── SequenceMachineScreen.java # 序列机通用屏幕基类：renderBg 按 MachineLayout 一次画完框架（贴图/状态栏/标签/输入竖滚卡/输出横滚或右竖排/动画区面板骨架+网格+右上角状态与图标），动画内容走 renderMachineAnimation 钩子；卡片三样式（库存/序列/多肽）+ 输入卡绿底高亮 + 滚动/命中/quickCraft 全在此
+│   ├── EncoderScreen.java        # DNA 编码器屏幕：文本编辑器 + 模板/编码按钮 + 客户端编码预览（plainPanel 布局，面板即编辑器）
+│   ├── TranscriberScreen.java    # 转录仪屏幕：动画钩子（模板↔mRNA 逐碱基配对行）+ 转录按钮 + 左下角红叹号错误提示
+│   ├── TranslatorScreen.java     # 翻译机屏幕：动画钩子（mRNA 密码子列/肽链三字母同列居中对齐 + 滚窗浮点缓动 + 就绪光标/完成扫光）+ 翻译按钮 + 红叹号
+│   ├── LoaderScreen.java         # 装载机屏幕：动画钩子（tRNA 装载口袋 24 点呼吸环 + 原料滑入 + 副产物坠落）+ 工作状态检测
+│   ├── HelicaseScreen.java       # 解旋酶屏幕：专属 DNA 卡（nt 数 + 四色碱基窗口，输入前缀同步/输出模板链编码链）+ 动画钩子（双螺旋/分叉/平行）
 │   └── CodeEditorWidget.java     # 编码器文本编辑器控件（多行/光标/自动缩进/语法高亮，ProgramHighlight 共用分词）
 ├── network/                      # 网络载荷（NeoForge payload 机制）
 │   ├── ModNetwork.java           # 载荷注册中心（RegisterPayloadHandlersEvent 装配 playToServer 通道：IO 模式 + 序列程序提交 + 编辑器草稿持久化）

@@ -1,29 +1,25 @@
 package com.github.crafteve.biocraft.gui;
 
-import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
 import com.github.crafteve.biocraft.blockentity.TranslatorOperation;
 import com.github.crafteve.biocraft.init.ModDataComponents;
-import com.github.crafteve.biocraft.init.ModItems;
-import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.seq.SequenceData;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 翻译机屏幕：mRNA(9,8) + 左21卡（GTP置顶+20 aa-tRNA）+ 右上178×95核糖体动画 + 底4卡（多肽/tRNA/GDP/Pi）
- * <p>
- * 布局复 dnaEncoder 的 gui_encoder.png 256×256，同 Transcriber 的 EDIT 动画区，
- * 输入竖直滚动借 Loader 输出竖直卡，输出横向4卡借 dnaEncoder 底栏
- * </p>
+ * 翻译机屏幕（encoder 族布局）：框架（背景/状态栏/标签/卡片/动画区面板骨架）
+ * 全部由基类按 MachineLayout 绘制，本类只实现：
+ * <ul>
+ *   <li>动画内容：上行 mRNA 密码子列 / 下行肽链三字母残基同列居中对齐，
+ *       列中线对准密码子正中，当前列黄白脉动 + 白底闪；就绪闪烁光标 +
+ *       "点击翻译"提示；完成白色扫光 + 末残基呼吸余晖</li>
+ *   <li>右下角"翻译"按钮（手动开工）与左下角红叹号错误提示</li>
+ * </ul>
  */
 public class TranslatorScreen extends SequenceMachineScreen {
-
-    private static final ResourceLocation GUI_V1 = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/gui_encoder.png");
 
     private boolean working = false;
 
@@ -41,16 +37,13 @@ public class TranslatorScreen extends SequenceMachineScreen {
     public void containerTick() {
         super.containerTick();
         if (menu.getKind() != SequenceMachineKind.TRANSLATOR) return;
-        // 二态工作判定：与 TranslatorOperation.isWorkable 同口径（模板+ GTP + 输出空间），不依赖 stage
+        // 二态工作判定：与服务端 canStart 同口径（mRNA 合法含 AUG + GTP 在槽 + 输出有空间）
         working = isWorkable();
-        // 基类 tickScrolls 已处理左21卡纵向与底4卡横向的坐标，无需再覆写
     }
 
     private boolean isWorkable() {
         ItemStack mrna = menu.getSlot(TranslatorOperation.SLOT_MRNA).getItem();
         ItemStack gtp = menu.getSlot(TranslatorOperation.SLOT_GTP).getItem();
-        // 与服务端 canStart 同口径：mRNA 合法且含起始密码子 AUG、GTP 在槽、输出有空间；
-        // 特定 aa-tRNA 缺料由 BE step STALLED 细化，GUI 绿灯粗判即可
         if (mrna.isEmpty() || gtp.isEmpty()) return false;
         SequenceData d = mrna.get(ModDataComponents.SEQUENCE.get());
         if (d == null || !d.complete() || d.type() != SequenceData.SeqType.MRNA) return false;
@@ -60,10 +53,15 @@ public class TranslatorScreen extends SequenceMachineScreen {
         return true;
     }
 
+    private boolean hasRoom(int slot) {
+        ItemStack s = menu.getSlot(slot).getItem();
+        return s.isEmpty() || s.getCount() < s.getMaxStackSize();
+    }
+
     @Override
     protected void init() {
         super.init();
-        // 对齐转录仪：右下角"翻译"按钮手动触发开工（禁自动开翻），共用启动工序包
+        // 右下角"翻译"按钮：手动触发开工（禁自动开翻），共用启动工序包
         this.addRenderableWidget(net.minecraft.client.gui.components.Button.builder(Component.literal("翻译"), b ->
                         net.neoforged.neoforge.network.PacketDistributor.sendToServer(
                                 new com.github.crafteve.biocraft.network.ServerboundTranscribePacket(this.menu.getPos())))
@@ -72,221 +70,27 @@ public class TranslatorScreen extends SequenceMachineScreen {
                 .build());
     }
 
-    private boolean hasRoom(int slot) {
-        ItemStack s = menu.getSlot(slot).getItem();
-        return s.isEmpty() || s.getCount() < s.getMaxStackSize();
-    }
-
-    @Override
-    protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
-        if (menu.getKind() != SequenceMachineKind.TRANSLATOR) {
-            super.renderBg(graphics, partialTick, mouseX, mouseY);
-            return;
-        }
-        graphics.blit(GUI_V1, leftPos, topPos, 0, 0, imageWidth, imageHeight, imageWidth, imageHeight);
-        drawTranslatorStatusBar(graphics);
-        graphics.drawString(font, "INPUT", leftPos + 9, topPos + 30, NAME_COLOR, false);
-        graphics.drawString(font, "OUTPUT", leftPos + SequenceMachineMenu.OUTPUT_LABEL_X, topPos + SequenceMachineMenu.OUTPUT_LABEL_Y, NAME_COLOR, false);
-        drawTranslatorInputCards(graphics);
-        drawTranslatorOutputCards(graphics);
-        drawTranslationAnimation(graphics);
-        // 模板槽底纹（仿转录仪 9,8 slot.png）
-        graphics.blit(SLOT_TEX, leftPos + 9 - 1, topPos + 8 - 1, 0, 0, 18, 18, 18, 18);
-    }
-
-    private void drawTranslatorStatusBar(GuiGraphics g) {
-        g.drawString(font, title, leftPos + 28, topPos + 13, NAME_COLOR, false);
-        int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
-        int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
-        int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
-        String status = switch (stage) {
-            case 0 -> working ? "READY" : "IDLE";
-            case 1 -> "TRANS " + pos + "/" + total;
-            case 2 -> "DONE";
-            default -> "IDLE";
-        };
-        // 工作态细化提示
-        if (stage == 0 && !working) {
-            ItemStack mrna = menu.getSlot(TranslatorOperation.SLOT_MRNA).getItem();
-            if (mrna.isEmpty()) status = "WAIT mRNA";
-            else if (!hasRoom(TranslatorOperation.SLOT_OUT_POLYPEPTIDE)) status = "FULL";
-            else status = "IDLE";
-        }
-        g.drawString(font, status, leftPos + imageWidth - 8 - font.width(status), topPos + 13, CONC_TEXT_COLOR, false);
-        int fill = total > 0 ? (int) ((imageWidth - 16) * pos / (double) total) : 0;
-        g.fill(leftPos + 8, topPos + 22, leftPos + 8 + imageWidth - 16, topPos + 25, BAR_TRACK);
-        if (fill > 0) g.fill(leftPos + 8, topPos + 22, leftPos + 8 + fill, topPos + 25, 0xFF7ED6DF);
-        g.blit(SLOT_TEX, leftPos + 9 - 1, topPos + 8 - 1, 0, 0, 18, 18, 18, 18);
-    }
-
-    private void drawTranslatorInputCards(GuiGraphics g) {
-        // 复用父类纵向滚动，但需确保 GTP 置顶视觉——第一卡 GTP 用绿调高亮
-        int areaX = leftPos + SequenceMachineMenu.INPUT_SCROLL_X;
-        int areaY = topPos + SequenceMachineMenu.INPUT_SCROLL_Y;
-        g.enableScissor(areaX, areaY, areaX + SequenceMachineMenu.INPUT_SCROLL_W, areaY + SequenceMachineMenu.INPUT_SCROLL_H);
-        int vOff = (int) Math.round(inputScrollOffset);
-        for (int i = 0; i < inputCards.size(); i++) {
-            var card = inputCards.get(i);
-            int cardY = areaY + i * SequenceMachineMenu.CARD_STEP - vOff;
-            Slot slot = menu.getSlot(card.containerSlot());
-            // GTP 置顶卡特殊：颜色取 gtp 分子色，若空则灰
-            drawTranslatorInputCard(g, areaX, cardY, SequenceMachineMenu.CARD_W, SequenceMachineMenu.CARD_H, card.itemId(), slot, card.containerSlot() == TranslatorOperation.SLOT_GTP);
-        }
-        g.disableScissor();
-    }
-
-    private void drawTranslatorInputCard(GuiGraphics g, int cardX, int cardY, int cardW, int cardH, String itemId, Slot slot, boolean isGtp) {
-        g.fill(cardX, cardY, cardX + cardW, cardY + cardH, CARD_COLOR);
-        int pngX = cardX + SequenceMachineMenu.SLOT_PNG_X;
-        int pngY = cardY + SequenceMachineMenu.SLOT_PNG_Y;
-        g.blit(SLOT_TEX, pngX, pngY, 0, 0, 18, 18, 18, 18);
-        ItemStack stack = slot.getItem();
-        String abbr; int tint;
-        var di = ModItems.byId(itemId);
-        if (di != null && di.get() instanceof MoleculeItem mi) { abbr = mi.getAbbreviation(); tint = mi.getTintColor(); }
-        else if (isGtp) { abbr = "GTP"; tint = 0x27AE60; }
-        else if ("trna".equals(itemId)) { abbr = "tRNA"; tint = 0xB0C4DE; }
-        else { abbr = itemId; tint = 0xCCCCCC; }
-        // GTP 置顶卡：若为空，abbl 灰；若有货，绿高亮
-        int color = stack.isEmpty() ? CONC_TEXT_COLOR : cardTextColor(tint);
-        if (isGtp && !stack.isEmpty()) g.fill(cardX, cardY, cardX + cardW, cardY + cardH, 0x1027AE60);
-        g.drawString(font, abbr, pngX + 18 + 4, pngY, color, false);
-        double rem = menu.getRemainder(slot.index);
-        double total = Math.max(0, stack.getCount() - rem);
-        // 输入卡：消耗型，total = count - rem
-        int barY = cardY + SequenceMachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
-        int fill = (int) Math.min((cardW - 2) * total / 64.0, cardW - 2);
-        g.fill(cardX + 1, barY, cardX + 1 + cardW - 2, barY + 3, BAR_TRACK);
-        if (fill > 0) g.fill(cardX + 1, barY, cardX + 1 + fill, barY + 3, color);
-        String countText = total >= 100 ? String.format("%.1f", total) : String.format("%.2f", total);
-        g.drawString(font, "x" + countText, pngX + 18 + 4, pngY + 18 + 1 - 8, CONC_TEXT_COLOR, false);
-    }
-
-    private void drawTranslatorOutputCards(GuiGraphics g) {
-        int areaX = leftPos + SequenceMachineMenu.OUT_X;
-        int areaY = topPos + SequenceMachineMenu.OUT_Y;
-        g.enableScissor(areaX, areaY, areaX + SequenceMachineMenu.OUT_W, areaY + SequenceMachineMenu.OUT_H);
-        int hOff = (int) Math.round(outputScrollOffset);
-        int cardX = areaX;
-        for (int i = 0; i < outputCards.size(); i++) {
-            var card = outputCards.get(i);
-            int thisX = cardX - hOff;
-            Slot slot = menu.getSlot(card.containerSlot());
-            if (card.containerSlot() == TranslatorOperation.SLOT_OUT_POLYPEPTIDE) {
-                drawPolypeptideCard(g, thisX, areaY, card.cardWidth(), SequenceMachineMenu.OUT_CARD_H, slot);
-            } else {
-                drawStockCard(g, thisX, areaY, card.cardWidth(), SequenceMachineMenu.OUT_CARD_H, card.itemId(), slot, false);
-            }
-            cardX += card.cardWidth() + SequenceMachineMenu.CARD_GAP;
-        }
-        g.disableScissor();
-    }
-
-    private void drawPolypeptideCard(GuiGraphics g, int cardX, int cardY, int cardW, int cardH, Slot slot) {
-        g.fill(cardX, cardY, cardX + cardW, cardY + cardH, CARD_COLOR);
-        int pngX = cardX + SequenceMachineMenu.SLOT_PNG_X;
-        int pngY = cardY + SequenceMachineMenu.SLOT_PNG_Y;
-        g.blit(SLOT_TEX, pngX, pngY, 0, 0, 18, 18, 18, 18);
-        int textX = pngX + 18 + 4;
-        int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
-        int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
-        g.drawString(font, "PEP", textX, pngY, NAME_COLOR, false);
-        g.drawString(font, pos + "/" + total, textX + 30, pngY, CONC_TEXT_COLOR, false);
-        ItemStack stack = slot.getItem();
-        SequenceData data = stack.get(ModDataComponents.SEQUENCE.get());
-        String seq = data != null ? data.seq() : "";
-        int baseX = textX;
-        int baseY = pngY + 11;
-        boolean translating = total > 0 && pos < total;
-        if (!seq.isEmpty()) {
-            // 三字母残基滚动（与 tooltip 同款写法）：每残基 18px（3 字母）+ 6px 分隔符，
-            // 末端窗口滚动，当前残基白底反色高亮；分隔符用中灰（卡片浅底上纯白不可见）
-            int residueW = 24;
-            int window = Math.max(1, (cardW - 34) / residueW);
-            int count = seq.length();
-            int from = Math.max(0, count - window);
-            for (int i = from; i < count && baseX + residueW <= cardX + cardW - 6; i++) {
-                char aa1 = seq.charAt(i);
-                String aa3 = aa1To3(aa1);
-                boolean current = translating && i == count - 1;
-                int color;
-                if (current) {
-                    g.fill(baseX - 1, baseY - 1, baseX + 19, baseY + 9, 0xFFFFFFFF);
-                    color = 0xFF000000;
-                } else {
-                    color = cardTextColor(aaColor(aa1));
-                }
-                g.drawString(font, aa3, baseX, baseY, color, false);
-                baseX += 18;
-                if (i < count - 1) {
-                    g.drawString(font, "-", baseX, baseY, 0xFF666666, false);
-                    baseX += 6;
-                }
-            }
-        }
-        if (translating && baseX < cardX + cardW - 4) g.fill(baseX, baseY + 4, baseX + 3, baseY + 7, 0xFF00E5FF);
-        int barY = cardY + SequenceMachineMenu.SLOT_PNG_Y + 18 + 1;
-        int fill = total > 0 ? (int) Math.min((cardW - 2) * pos / (double) total, cardW - 2) : 0;
-        g.fill(cardX + 1, barY, cardX + 1 + cardW - 2, barY + 2, BAR_TRACK);
-        if (fill > 0) g.fill(cardX + 1, barY, cardX + 1 + fill, barY + 2, 0xFF4CAF50);
-    }
-
-    private String aa1To3(char aa1) {
-        return switch (aa1) {
-            case 'A' -> "Ala"; case 'R' -> "Arg"; case 'N' -> "Asn"; case 'D' -> "Asp"; case 'C' -> "Cys";
-            case 'Q' -> "Gln"; case 'E' -> "Glu"; case 'G' -> "Gly"; case 'H' -> "His"; case 'I' -> "Ile";
-            case 'L' -> "Leu"; case 'K' -> "Lys"; case 'M' -> "Met"; case 'F' -> "Phe"; case 'P' -> "Pro";
-            case 'S' -> "Ser"; case 'T' -> "Thr"; case 'W' -> "Trp"; case 'Y' -> "Tyr"; case 'V' -> "Val";
-            default -> String.valueOf(aa1);
-        };
-    }
-
-    private int aaColor(char aa1) {
-        // 复用 Loader aa 颜色 via TranslatorOperation 的 trna 映射
-        int slot = TranslatorOperation.slotForAa1(aa1);
-        if (slot < 0) return 0xCCCCCC;
-        String trna = TranslatorOperation.trnaForSlot(slot);
-        if (trna == null) return 0xCCCCCC;
-        var di = ModItems.byId(trna);
-        if (di != null && di.get() instanceof MoleculeItem mi) return mi.getTintColor();
-        return 0xCCCCCC;
-    }
-
     /**
-     * 动画区（核糖体翻译，转录仪风格上下双行——数据驱动非自由循环）：
+     * 动画内容（转录仪风格上下双行——数据驱动非自由循环）：
      * <ul>
-     *   <li>节奏：每密码子 3 tick（BE 步进同速，共享 TICKS_PER_CODON）；
-     *       动画无入场过渡——当前列整串直接出现 + 白底呼吸闪，残基直接彩色</li>
-     *   <li>对齐：列宽固定 24px（密码子恒 18px 等宽），残基/占位符居中对齐
-     *       密码子中心；每列一条中线对准密码子正中（当前列黄白脉动、其余暗灰）</li>
+     *   <li>节奏：每密码子 3 tick（BE 步进同速）；动画无入场过渡——当前列整串
+     *       直接出现 + 背景呼吸闪白，残基直接彩色</li>
+     *   <li>对齐：列宽固定 24px（密码子恒 18px 等宽），残基/占位符按实测宽度
+     *       居中对齐密码子中心；每列一条中线对准密码子正中（当前列黄白脉动、
+     *       其余暗灰）；滚窗左缘浮点列号逐帧缓动（像素级平滑滑动）</li>
      *   <li>就绪态：起始列闪烁光标 + "点击翻译"提示；完成动画：DONE 边沿白色
      *       扫光掠过全链（26 tick），随后末残基柔和呼吸余晖；
      *       无有效 mRNA 居中灰字提示</li>
      * </ul>
      */
-    private void drawTranslationAnimation(GuiGraphics g) {
-        int x = leftPos + SequenceMachineMenu.EDIT_X;
-        int y = topPos + SequenceMachineMenu.EDIT_Y;
-        int w = SequenceMachineMenu.EDIT_W;
-        int h = SequenceMachineMenu.EDIT_H;
-        g.fill(x, y, x + w, y + h, EDIT_PANEL_COLOR);
-        g.fill(x, y, x + w, y + 1, 0xFF3A3A3A);
-        for (int gx = x + 12; gx < x + w; gx += 14) g.fill(gx, y + 12, gx + 1, y + h - 6, 0x08FFFFFF);
-        for (int gy = y + 18; gy < y + h; gy += 14) g.fill(x + 6, gy, x + w - 6, gy + 1, 0x08FFFFFF);
-
+    @Override
+    protected void renderMachineAnimation(GuiGraphics g, int x, int y, int w, int h) {
         int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
         int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
         int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
         int guiTick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         boolean running = stage == 1 && total > 0;
         boolean done = stage == 2 && total > 0;
-
-        // 顶栏：标题 + 右上角催化剂符号（转录仪 P 图标同款范式）——核糖体 R
-        g.drawString(font, "翻译", x + 6, y + 6, 0xFFE0E0E0, false);
-        int px = x + w - 18, py = y + 6;
-        g.fill(px, py, px + 10, py + 10, 0xFF4FC3F7);
-        g.fill(px + 1, py + 1, px + 9, py + 9, 0xFF0288D1);
-        g.drawString(font, "R", px + 3, py + 1, 0xFFFFFFFF, false);
 
         // mRNA 序列来源：0 槽物品（客户端槽位同步可靠）
         ItemStack mrna = menu.getSlot(TranslatorOperation.SLOT_MRNA).getItem();
@@ -296,7 +100,7 @@ public class TranslatorScreen extends SequenceMachineScreen {
         if (!seq.isEmpty() && start >= 0) {
             double breath = Math.sin(guiTick * 0.35) * 0.5 + 0.5;
 
-            // 动画时序：DONE 边沿 → 记录扫光起点（pos 变化不再驱动入场动画）
+            // 动画时序：DONE 边沿 → 记录扫光起点
             if (done && !animWasDone) {
                 animDoneTick = guiTick;
             }
@@ -333,8 +137,7 @@ public class TranslatorScreen extends SequenceMachineScreen {
             int shown = Math.min(pos, pSeq.length());
 
             // 滚窗平滑缓动：窗口左缘是浮点列号，每帧向目标 from 收敛——
-            // 翻译机 3 tick 一密码子，整列跳变会"卡卡的"（转录仪每 tick 天然连贯），
-            // 像素级缓动补齐视觉连贯性；列绘制区用 scissor 裁剪滑入滑出
+            // 3 tick 一密码子的整列跳变是"卡顿感"根因，像素级缓动补齐连贯性
             animWinPos += (from - animWinPos) * 0.35;
             if (Math.abs(from - animWinPos) < 0.02) {
                 animWinPos = from;
@@ -357,7 +160,7 @@ public class TranslatorScreen extends SequenceMachineScreen {
                     g.fill(codonX - 2, mrnaY - 1, codonX + 20, mrnaY + 9, glow);
                 }
                 for (int bi = 0; bi < 3; bi++) {
-                    drawBase(g, codon.charAt(bi), codonX + bi * 6, mrnaY, false, breath);
+                    drawBase(g, codon.charAt(bi), codonX + bi * 6, mrnaY);
                 }
 
                 // 下格肽链（居中对齐密码子中心）：打印中 = 白底呼吸闪占位；
@@ -390,12 +193,10 @@ public class TranslatorScreen extends SequenceMachineScreen {
             g.disableScissor();
 
             // 就绪态：起始列闪烁光标（提示点击翻译即从此处开始）
-            int gapTop = mrnaY + 11;
-            int gapBot = pepY - 3;
             if (!running && !done) {
                 if ((guiTick / 8) % 2 == 0) {
                     int blinkX = innerX0 + colW / 2;
-                    g.fill(blinkX, gapTop, blinkX + 1, gapBot, 0x90FFFFFF);
+                    g.fill(blinkX, mrnaY + 11, blinkX + 1, pepY - 3, 0x90FFFFFF);
                 }
                 String tip = "点击「翻译」开始";
                 g.drawString(font, tip, x + (w - font.width(tip)) / 2, y + h - 12, 0xFF6A6A72, false);
@@ -418,41 +219,23 @@ public class TranslatorScreen extends SequenceMachineScreen {
         }
     }
 
-    /** 单碱基绘制：主题色着色；lit=true 时叠加呼吸提亮（运行中当前列辉光用） */
-    private void drawBase(GuiGraphics g, char base, int px, int py, boolean lit, double breath) {
-        int bColor = switch (base) {
+    /** 单碱基绘制（固定主题色，当前列提亮由背景辉光承担） */
+    private void drawBase(GuiGraphics g, char base, int px, int py) {
+        int c = switch (base) {
             case 'A' -> BASE_A;
             case 'U' -> BASE_T;
             case 'C' -> BASE_C;
             case 'G' -> BASE_G;
             default -> 0xFF5A5A5A;
         };
-        int c = lit ? blend(bColor, 0xFFFFFFFF, 0.35 + breath * 0.25) : bColor;
         g.drawString(font, String.valueOf(base), px, py, c, false);
-    }
-
-    /** 两色线性插值（t=0 取 c0，t=1 取 c1；ARGB 各通道独立插值） */
-    private static int blend(int c0, int c1, double t) {
-        t = Math.max(0, Math.min(1, t));
-        int a = (int) (((c0 >>> 24) & 0xFF) * (1 - t) + ((c1 >>> 24) & 0xFF) * t);
-        int r = (int) (((c0 >> 16) & 0xFF) * (1 - t) + ((c1 >> 16) & 0xFF) * t);
-        int gg = (int) (((c0 >> 8) & 0xFF) * (1 - t) + ((c1 >> 8) & 0xFF) * t);
-        int b = (int) ((c0 & 0xFF) * (1 - t) + (c1 & 0xFF) * t);
-        return (Math.min(255, a) << 24) | (r << 16) | (gg << 8) | b;
-    }
-
-    @Override
-    protected void renderLabels(GuiGraphics g, int mx, int my) {
-        if (menu.getKind() == SequenceMachineKind.TRANSLATOR) return;
-        super.renderLabels(g, mx, my);
     }
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
         super.render(g, mx, my, pt);
         if (menu.getKind() != SequenceMachineKind.TRANSLATOR) return;
-        // 错误提示对齐转录仪：左下角红叹号（悬停 tooltip 列原因）——
-        // 三态：未放 mRNA / 非 mRNA 物品或序列非法 / 无起始密码子 AUG
+        // 左下角红叹号错误提示（悬停 tooltip 列原因）：三态
         ItemStack mrna = menu.getSlot(TranslatorOperation.SLOT_MRNA).getItem();
         SequenceData d = mrna.isEmpty() ? null : mrna.get(ModDataComponents.SEQUENCE.get());
         String err = "";

@@ -1,9 +1,7 @@
 package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.blockentity.LoaderOperation;
-import com.github.crafteve.biocraft.blockentity.SequenceContainerUtil;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
-import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -12,12 +10,15 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 装载机屏幕：左 INPUT 3 槽（tRNA/AA/ATP）中动画区 122x126 显示当前装载 AA
+ * 装载机屏幕（v1 族布局）：框架（背景/状态栏/标签/左右卡片/动画区面板骨架）
+ * 全部由基类按 MachineLayout 绘制，本类只实现：
+ * <ul>
+ *   <li>动画内容：中央 tRNA 装载口袋（24 点呼吸圆环）+ 原料滑入 + 接触闪光
+ *       + AMP/PPi 副产物坠落 + 完成光环（独立 30 tick 循环）</li>
+ *   <li>工作状态检测（输入齐+输出有空间+配方可执行 = 绿灯播动画）</li>
+ * </ul>
  */
 public class LoaderScreen extends SequenceMachineScreen {
-
-    private static final net.minecraft.resources.ResourceLocation GUI_V1 =
-            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.github.crafteve.biocraft.BioCraft.MODID, "textures/gui/gui_v1.png");
 
     // 动画起点（进入合成时重置，独立 30 tick 循环不绑机器速度）
     private long animStart = -1;
@@ -36,20 +37,9 @@ public class LoaderScreen extends SequenceMachineScreen {
     public void containerTick() {
         super.containerTick();
         if (menu.getKind() != SequenceMachineKind.LOADER) return;
-        // 工作状态检测（每 tick）：输入槽有货 + 输出槽有空间 + 配方可执行 = 绿灯
-        // 绿灯开始动画播放，红灯停止（不依赖 stage 数据，槽位变化即响应）
+        // 工作状态检测（每 tick）：输入槽有货 + 输出槽有空间 + 配方可执行
+        // 槽位坐标同步由基类 tickScrolls 按 v1 布局处理，此处不再覆写
         working = checkWorkable();
-        // guiv1 布局：左 3 INPUT 右 3 OUTPUT，覆盖父类 70,140 横向定位
-        for (int i = 0; i < inputCards.size(); i++) {
-            var slot = menu.getSlot(inputCards.get(i).containerSlot());
-            slot.x = 7 + SequenceMachineMenu.SLOT_X;
-            slot.y = 41 + i * SequenceMachineMenu.CARD_STEP + SequenceMachineMenu.SLOT_Y;
-        }
-        for (int i = 0; i < outputCards.size(); i++) {
-            var slot = menu.getSlot(outputCards.get(i).containerSlot());
-            slot.x = 193 + SequenceMachineMenu.SLOT_X;
-            slot.y = 41 + i * SequenceMachineMenu.CARD_STEP + SequenceMachineMenu.SLOT_Y;
-        }
     }
 
     /**
@@ -66,109 +56,8 @@ public class LoaderScreen extends SequenceMachineScreen {
     }
 
     @Override
-    protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
-        if (menu.getKind() != SequenceMachineKind.LOADER) {
-            super.renderBg(graphics, partialTick, mouseX, mouseY);
-            return;
-        }
-        graphics.blit(GUI_V1, leftPos, topPos, 0, 0, imageWidth, imageHeight, imageWidth, imageHeight);
-        drawLoaderStatusBar(graphics);
-        graphics.drawString(font, "INPUT", leftPos + 9, topPos + 30, NAME_COLOR, false);
-        graphics.drawString(font, "OUTPUT", leftPos + 195, topPos + 30, NAME_COLOR, false);
-        graphics.drawString(font, "LOAD", leftPos + 109, topPos + 30, NAME_COLOR, false);
-        drawLoaderInputCards(graphics);
-        drawLoaderOutputCards(graphics);
-        drawLoaderAnimation(graphics);
-    }
-
-    private void drawLoaderStatusBar(GuiGraphics graphics) {
-        graphics.drawString(font, title, leftPos + 8, topPos + 13, NAME_COLOR, false);
-        // 二态工作检测：每 tick 按输入/输出判定，结果与动画灯 animActive=working 同口径，不再用 stage 三态
-        String status = working ? "RUNNING" : "IDLE";
-        graphics.drawString(font, status, leftPos + imageWidth - 8 - font.width(status), topPos + 13, CONC_TEXT_COLOR, false);
-    }
-
-    private void drawLoaderInputCards(GuiGraphics g) {
-        int areaX = leftPos + 7; int areaY = topPos + 41;
-        g.enableScissor(areaX, areaY, areaX + 56, areaY + 112);
-        for (int i = 0; i < inputCards.size(); i++) {
-            var card = inputCards.get(i); var slot = menu.getSlot(card.containerSlot());
-            int cardY = areaY + i * SequenceMachineMenu.CARD_STEP;
-            drawLoaderCard(g, areaX, cardY, 56, 28, card.itemId(), slot, true);
-        }
-        g.disableScissor();
-    }
-
-    private void drawLoaderOutputCards(GuiGraphics g) {
-        int areaX = leftPos + 193; int areaY = topPos + 41;
-        g.enableScissor(areaX, areaY, areaX + 56, areaY + 112);
-        for (int i = 0; i < outputCards.size(); i++) {
-            var card = outputCards.get(i); var slot = menu.getSlot(card.containerSlot());
-            int cardY = areaY + i * SequenceMachineMenu.CARD_STEP;
-            drawLoaderCard(g, areaX, cardY, 56, 28, card.itemId(), slot, false);
-        }
-        g.disableScissor();
-    }
-
-    private void drawLoaderCard(GuiGraphics g, int cardX, int cardY, int cardW, int cardH, String itemId, Slot slot, boolean isInput) {
-        g.fill(cardX, cardY, cardX + cardW, cardY + cardH, CARD_COLOR);
-        int pngX = cardX + SequenceMachineMenu.SLOT_PNG_X; int pngY = cardY + SequenceMachineMenu.SLOT_PNG_Y;
-        g.blit(SLOT_TEX, pngX, pngY, 0, 0, 18, 18, 18, 18);
-        ItemStack stack = slot.getItem();
-        String abbr;
-        int tint;
-        if (slot.index == LoaderOperation.SLOT_TRNA) {
-            abbr = "tRNA"; tint = 0xB0C4DE;
-        } else if (slot.index == LoaderOperation.SLOT_OUT_AATRNA) {
-            if (!stack.isEmpty() && stack.getItem() instanceof com.github.crafteve.biocraft.item.MoleculeItem mi) {
-                abbr = "tRNA"; tint = mi.getTintColor();
-            } else {
-                abbr = "tRNA"; tint = 0xCCCCCC;
-            }
-        } else if (!stack.isEmpty()) {
-            if (stack.getItem() instanceof com.github.crafteve.biocraft.item.MoleculeItem mi) {
-                abbr = mi.getAbbreviation(); tint = mi.getTintColor();
-            } else {
-                abbr = stack.getHoverName().getString(); tint = 0xCCCCCC;
-            }
-        } else {
-            if (slot.index == LoaderOperation.SLOT_AA) { abbr = "aa"; tint = 0xCCCCCC; }
-            else {
-                var di = com.github.crafteve.biocraft.init.ModItems.byId(itemId);
-                if (di != null) { var mi = di.get(); abbr = mi.getAbbreviation(); tint = mi.getTintColor(); }
-                else if ("trna".equals(itemId)) { abbr = "tRNA"; tint = 0xB0C4DE; }
-                else { abbr = itemId; tint = 0xCCCCCC; }
-            }
-        }
-        int color = stack.isEmpty() ? CONC_TEXT_COLOR : cardTextColor(tint);
-        g.drawString(font, abbr, pngX + 18 + 4, pngY, color, false);
-        double rem = menu.getRemainder(slot.index);
-        double total = isInput ? Math.max(0, stack.getCount() - rem) : stack.getCount() + rem;
-        int barY = cardY + SequenceMachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
-        int fill = (int) Math.min((cardW - 2) * total / 64.0, cardW - 2);
-        g.fill(cardX + 1, barY, cardX + 1 + cardW - 2, barY + 3, BAR_TRACK);
-        if (fill > 0) g.fill(cardX + 1, barY, cardX + 1 + fill, barY + 3, color);
-        String countText = total >= 100 ? String.format("%.1f", total) : String.format("%.2f", total);
-        g.drawString(font, "x" + countText, pngX + 18 + 4, pngY + 18 + 1 - 8, CONC_TEXT_COLOR, false);
-    }
-
-    // guiv1 动画区常量（复用 helicase）
-    private static final int ANIM_X = 68;
-    private static final int ANIM_Y = 38;
-    private static final int ANIM_W = 122;
-    private static final int ANIM_H = 126;
-
-    private void drawLoaderAnimation(GuiGraphics g) {
-        int x = leftPos + ANIM_X;
-        int y = topPos + ANIM_Y;
-        int w = ANIM_W;
-        int h = ANIM_H;
-        g.fill(x, y, x + w, y + h, EDIT_PANEL_COLOR);
-        g.fill(x, y, x + w, y + 1, 0xFF3A3A3A);
-        for (int gx = x + 12; gx < x + w; gx += 14) g.fill(gx, y + 12, gx + 1, y + h - 6, 0x08FFFFFF);
-        for (int gy = y + 18; gy < y + h; gy += 14) g.fill(x + 6, gy, x + w - 6, gy + 1, 0x08FFFFFF);
-
-        // 动画活跃 = 工作状态（绿灯）：输入有货 + 输出有空间 + 配方可执行即播，否则停
+    protected void renderMachineAnimation(GuiGraphics g, int x, int y, int w, int h) {
+        // 动画活跃 = 工作状态（输入有货 + 输出有空间即播，否则停）
         boolean animActive = working;
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         Slot aaSlot = menu.getSlot(LoaderOperation.SLOT_AA);
@@ -186,13 +75,6 @@ public class LoaderScreen extends SequenceMachineScreen {
         int ppiTint = moleculeTint("ppi", 0xFFD35400);
         // 0..1 呼吸曲线（口袋缩放/光环脉动）
         double breath = (Math.sin(tick * 0.35) + 1) * 0.5;
-
-        // 顶标题 + 右上角催化剂符号（转录仪 P 图标同款范式，取代红绿灯）——ARS 合成酶 A
-        g.drawString(font, "装载", x + 6, y + 6, 0xFFE0E0E0, false);
-        int ix = x + w - 18, iy = y + 6;
-        g.fill(ix, iy, ix + 10, iy + 10, 0xFF66BB6A);
-        g.fill(ix + 1, iy + 1, ix + 9, iy + 9, 0xFF2E7D32);
-        g.drawString(font, "A", ix + 3, iy + 1, 0xFFFFFFFF, false);
 
         // 独立 30 tick 循环（绿灯出现时从 0 开始；红灯归零停止）
         int t = 0;
@@ -289,11 +171,5 @@ public class LoaderScreen extends SequenceMachineScreen {
             return mi.getTintColor() | 0xFF000000;
         }
         return fallback;
-    }
-
-    @Override
-    protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        if (menu.getKind() == SequenceMachineKind.LOADER) return;
-        super.renderLabels(graphics, mouseX, mouseY);
     }
 }
