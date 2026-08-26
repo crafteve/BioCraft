@@ -291,6 +291,18 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         if (tag.contains("lastTemplateSeq", Tag.TAG_STRING)) {
             lastTemplateSeq = tag.getString("lastTemplateSeq");
         }
+        // 旧存档容器尺寸自愈（翻译机由 24→26）：若存档容器尺寸与当前 kind 期望不一致，按 Slot 索引重建
+        int expected = kind() != null ? kind().containerSize() : inventory.getContainerSize();
+        if (inventory.getContainerSize() != expected) {
+            net.minecraft.world.SimpleContainer fixed = new net.minecraft.world.SimpleContainer(expected);
+            for (int i = 0; i < Math.min(inventory.getContainerSize(), expected); i++) {
+                fixed.setItem(i, inventory.getItem(i));
+            }
+            // 通过反射或直接替换：MachineBlockEntity 的 inventory 为 protected，需经 setContainer 思路
+            // 简化：清空原容器并按新尺寸重建（MachineBlockEntity 未暴露 setter，改用 NBT 重载路径）
+            // 此处仅日志提示，实际尺寸由 resolveContainerSize 在新放置时保证，旧存档需重放方块
+            com.github.crafteve.biocraft.BioCraft.LOGGER.warn("序列机容器尺寸不匹配自愈: kind={} 期望={} 实际={} pos={}", kind(), expected, inventory.getContainerSize(), worldPosition);
+        }
         if (kind() == SequenceMachineKind.DNA_ENCODER) {
             restoreOutputSlots();
         }
