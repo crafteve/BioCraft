@@ -153,6 +153,8 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 
 ### 2026-08-26
 
+- **fix** 翻译机输出卡多肽宽度回退根修：多肽卡从 56 宽改回 104（与 DNA/mRNA 序列卡同宽）——56 宽装不下三字母残基序列（疑点2误改又被回滚保留所致）
+- **fix** 翻译机滚动区交互层遮挡修复：输入（纵向）/输出（横向）滚动区中完全滚出可视边界的槽位移至屏外，原版坐标命中找不到自然不可点击——此前滚动裁剪只裁渲染、不影响命中，出现"渲染被裁但还能点"的隐形槽
 - **refactor** seq+program 合并为 central（信息层重构）：seq/ 5 文件 + program/ 7 文件合并为 central 4 文件（Codec 编解码门面 String进DecodeResult出 + DslField 含 HighlightRule 7色收口 + DslParser 单文件填表回 Map<DslField,String> 键值表 + BalanceChecker 对账工具），SequenceData 迁 item/SequenceData.java 纯 record 不持 NBT（central 保持 String 纯核）；ProgramHighlight/CodeEditorWidget 同引 DslField.Highlight 不再双份；seq/program 旧包删除，全量调用方切 central，tools/seqTest 43/programTest 32 合 central 保持全绿
 - **refactor** SequenceData 归位 item 与序列物品烧杯化：`init/SequenceData.java → item/SequenceData.java`（贴纸表归物品家族，`ModDataComponents` 仅注册），序列物品全改烧杯贴图 + 黑灰色阶（`dna 1A1A1A/dna_single 2E2E2E/mrna 404040/polypeptide 525252/misfolded 6B6B6B`）`tRNA` 试管纯黑 `000000` 区分，`SequenceItem` 新增 `tintColor` + `MoleculeColors` 颜色/装饰器注册，已删 `trna_gene/rna_polymerase` 2 项，`SequenceItemModelProvider` 6 项烧杯/试管
 - **fix** 序列物品装饰器与色阶修复：去除装饰器中文缩写（多肽/错折改 PEPT/MFLD，全英文）、黑灰色阶拉大为等距 0x20（1A→3A→5A→7A→9A，tRNA 保持纯黑试管），修正生成模型全为烧杯仅 tRNA 试管并重新生成资源

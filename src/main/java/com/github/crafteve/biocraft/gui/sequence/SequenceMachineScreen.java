@@ -186,7 +186,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         }
         if (kind == SequenceMachineKind.TRANSLATOR) {
             List<OutputCard> cards = new ArrayList<>();
-            cards.add(new OutputCard(22, "polypeptide", 56, STYLE_PEPTIDE));
+            cards.add(new OutputCard(22, "polypeptide", 104, STYLE_PEPTIDE));
             cards.add(new OutputCard(23, "trna", 56, STYLE_STOCK));
             cards.add(new OutputCard(24, "gdp", 56, STYLE_STOCK));
             cards.add(new OutputCard(25, "phosphate_ion", 56, STYLE_STOCK));
@@ -218,11 +218,21 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
                 this.inputScrollOffset = this.inputScrollTarget;
             }
             int vOffset = (int) Math.round(inputScrollOffset);
+            // 输入纵向滚动：完全滚出可视边界的槽位移至屏外 (-1000,-1000)，
+            // 原版 findSlot 按槽位坐标命中（Scissor 只裁渲染、不影响命中），
+            // 不挪走则"渲染被裁但还能点"；半露的槽保留原位（部分可见应可交互）
             for (int i = 0; i < inputCards.size(); i++) {
                 Slot slot = menu.getSlot(inputCards.get(i).containerSlot());
-                slot.x = SequenceMachineMenu.INPUT_SCROLL_X + SequenceMachineMenu.SLOT_X;
-                slot.y = SequenceMachineMenu.INPUT_SCROLL_Y + i * SequenceMachineMenu.CARD_STEP
-                        - vOffset + SequenceMachineMenu.SLOT_Y;
+                int cardY = SequenceMachineMenu.INPUT_SCROLL_Y + i * SequenceMachineMenu.CARD_STEP
+                        - vOffset;
+                if (cardY + SequenceMachineMenu.CARD_H < SequenceMachineMenu.INPUT_SCROLL_Y
+                        || cardY > SequenceMachineMenu.INPUT_SCROLL_Y + SequenceMachineMenu.INPUT_SCROLL_H) {
+                    slot.x = -1000;
+                    slot.y = -1000;
+                } else {
+                    slot.x = SequenceMachineMenu.INPUT_SCROLL_X + SequenceMachineMenu.SLOT_X;
+                    slot.y = cardY + SequenceMachineMenu.SLOT_Y;
+                }
             }
         }
         // 输出：STAGE族右竖排（固定坐标，≤3 卡无需滚动），CONSOLE族底横滚
@@ -241,11 +251,19 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             }
             int hOffset = (int) Math.round(outputScrollOffset);
             int cardX = SequenceMachineMenu.OUT_X;
+            // 输出横向滚动：与输入同机制，完全滚出可视区（OUT_W 宽）的槽移屏外挡交互
             for (int i = 0; i < outputCards.size(); i++) {
                 OutputCard card = outputCards.get(i);
                 Slot slot = menu.getSlot(card.containerSlot());
-                slot.x = cardX - hOffset + SequenceMachineMenu.SLOT_X;
-                slot.y = SequenceMachineMenu.OUT_Y + SequenceMachineMenu.SLOT_Y;
+                int thisCardX = cardX - hOffset;
+                if (thisCardX + card.cardWidth() < SequenceMachineMenu.OUT_X
+                        || thisCardX > SequenceMachineMenu.OUT_X + SequenceMachineMenu.OUT_W) {
+                    slot.x = -1000;
+                    slot.y = -1000;
+                } else {
+                    slot.x = thisCardX + SequenceMachineMenu.SLOT_X;
+                    slot.y = SequenceMachineMenu.OUT_Y + SequenceMachineMenu.SLOT_Y;
+                }
                 cardX += card.cardWidth() + SequenceMachineMenu.CARD_GAP;
             }
         }
