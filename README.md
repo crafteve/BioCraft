@@ -159,6 +159,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 - **refactor** 机器命名与分包对齐（内部重构，玩家无感知）：`AbstractMachineBlock→BioCraftMachineBlock`、`MachineBlock→EnzymeMachineBlock`（与 `SequenceMachineBlock` 对仗）；`blockentity` 按 `base/enzyme/sequence/operation` 分层，`IoMode` 内聚为 `EnzymeMachineBlockEntity` 内部枚举；`gui` 按 `base/enzyme/sequence/operation` 分层，`MachineLayout→SequenceLayout` 并更名 `STAGE`（舞台居中，双侧竖卡）/`CONSOLE`（控制台，上舞台下条形），贴图 `gui_v1→gui_stage`/`gui_encoder→gui_console`，`MachineMenu/Screen→EnzymeMachineMenu/Screen`；补齐全 `src` 残留 `v1/ENCODER` 族注释为 `STAGE/CONSOLE`
 - **feat** 蛋白质折叠机：新增序列机家族成员，输入多肽（需完整）→ 解码程序 → 校验设计单 → 输出对应酶蛋白或错误折叠蛋白；无催化剂、无动画首版，仅输入输出；贴图沿用 `folder.png`，方块/物品/菜单/布局/屏幕/模型/语言/标签页全链路落地
 - **fix** 折叠机三项修复：补 input/output 卡片（多肽/酶或错折）、进度条开启并 3tick/残基逐残基分析、进度结束才原子消耗输入并产出输出
+- **fix** 折叠机卡片与槽位：输入输出改为序列滚动显示（短肽链/程序）而非 x 数量；输入输出各限 1 个，输入后不可取出、输出不可放入（管道与 GUI 双控），中途取出改为重置
 
 ### 2026-08-25
 

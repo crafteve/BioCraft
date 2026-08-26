@@ -537,6 +537,28 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         }
         int color = stack.isEmpty() ? CONC_TEXT_COLOR : cardTextColor(tint);
         graphics.drawString(font, abbr, pngX + 18 + 4, pngY, color, false);
+        // 折叠机：输入/输出卡按序列卡显示 position/total（短肽链/程序滚动），不显示 x 数量
+        if (menu.getKind() == SequenceMachineKind.FOLDER) {
+            int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
+            int tot = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
+            int barY2;
+            int barH2;
+            if (cardH >= 25) {
+                barY2 = cardY + SequenceMachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
+                barH2 = 3;
+            } else {
+                barY2 = cardY + SequenceMachineMenu.SLOT_PNG_Y + 18 + 1;
+                barH2 = 2;
+            }
+            int fill2 = tot > 0 ? (int) Math.min((cardW - 2) * pos / (double) tot, cardW - 2) : 0;
+            graphics.fill(cardX + 1, barY2, cardX + 1 + cardW - 2, barY2 + barH2, BAR_TRACK);
+            if (fill2 > 0) {
+                graphics.fill(cardX + 1, barY2, cardX + 1 + fill2, barY2 + barH2, color);
+            }
+            String countText2 = pos + "/" + tot;
+            graphics.drawString(font, countText2, pngX + 18 + 4, pngY + 18 + 1 - 8, CONC_TEXT_COLOR, false);
+            return;
+        }
         double rem = menu.getRemainder(slot.index);
         double totalCount = isInput ? Math.max(0, stack.getCount() - rem) : stack.getCount() + rem;
         // 进度条：宽 cardW-2，位置按卡片高度分档——

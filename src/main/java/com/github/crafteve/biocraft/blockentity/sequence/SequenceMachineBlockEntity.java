@@ -124,6 +124,7 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         Integer templateSlot = switch (kind()) {
             case TRANSCRIBER -> TranscriptionOperation.SLOT_TEMPLATE;
             case TRANSLATOR -> TranslatorOperation.SLOT_MRNA;
+            case FOLDER -> com.github.crafteve.biocraft.blockentity.sequence.operation.FolderOperation.SLOT_IN_POLYPEPTIDE;
             default -> null;
         };
         if (templateSlot != null && !lastTemplateSeq.isEmpty()) {
@@ -391,7 +392,7 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
 
     @Override
     protected int slotStackLimit() {
-        if (kind() == SequenceMachineKind.HELICASE) {
+        if (kind() == SequenceMachineKind.HELICASE || kind() == SequenceMachineKind.FOLDER) {
             return 1;
         }
         return 64;
