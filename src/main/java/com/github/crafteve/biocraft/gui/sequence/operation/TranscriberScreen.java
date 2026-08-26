@@ -2,8 +2,8 @@ package com.github.crafteve.biocraft.gui.sequence.operation;
 
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranscriptionOperation;
 import com.github.crafteve.biocraft.init.ModDataComponents;
-import com.github.crafteve.biocraft.seq.SequenceData;
-import com.github.crafteve.biocraft.seq.SeqOps;
+import com.github.crafteve.biocraft.central.SequenceData;
+import com.github.crafteve.biocraft.central.Codec;
 import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
 import com.github.crafteve.biocraft.gui.sequence.SequenceLayout;
 import com.github.crafteve.biocraft.gui.sequence.SequenceMachineScreen;
@@ -63,7 +63,7 @@ public class TranscriberScreen extends SequenceMachineScreen {
             graphics.drawString(font, "编码链不可转录，请放入模板链(3'→5')", x + 6, y + 22, 0xFFE53935, false);
             return;
         }
-        String prom = SeqOps.PROMOTER_TEMPLATE;
+        String prom = Codec.PROMOTER_TEMPLATE;
         int idx = seq.indexOf(prom);
         if (idx < 0) {
             graphics.drawString(font, "未找到启动子 " + prom + "（旧链请重制）", x + 6, y + 22, 0xFFE53935, false);
@@ -170,8 +170,8 @@ public class TranscriberScreen extends SequenceMachineScreen {
             isMissing = true;
         } else if (isTemplate != null && isTemplate) {
             err = "编码链不可转录，请放入模板链(3'→5')";
-        } else if (!data.seq().contains(SeqOps.PROMOTER_TEMPLATE)) {
-            err = "未找到启动子 " + SeqOps.PROMOTER_TEMPLATE + "（旧链请重制）";
+        } else if (!data.seq().contains(Codec.PROMOTER_TEMPLATE)) {
+            err = "未找到启动子 " + Codec.PROMOTER_TEMPLATE + "（旧链请重制）";
         }
         if (!err.isEmpty()) {
             int x = leftPos + SequenceMachineMenu.EDIT_X + 3;

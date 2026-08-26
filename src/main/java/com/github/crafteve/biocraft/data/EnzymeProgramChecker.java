@@ -2,14 +2,11 @@ package com.github.crafteve.biocraft.data;
 
 import com.github.crafteve.biocraft.init.EnzymeFactoryRegistry;
 import com.github.crafteve.biocraft.item.MoleculeDataCalculator;
-import com.github.crafteve.biocraft.program.ChemBalanceChecker;
-import com.github.crafteve.biocraft.program.ChemBalanceChecker.ReactionTerm;
-import com.github.crafteve.biocraft.program.EnzymeProgramParser;
-import com.github.crafteve.biocraft.program.EnzymeProgramParser.ParseResult;
-import com.github.crafteve.biocraft.program.ProgramError;
-import com.github.crafteve.biocraft.program.ProgramErrorCode;
-import com.github.crafteve.biocraft.program.ProgramField;
-import com.github.crafteve.biocraft.program.SpeciesComposition;
+import com.github.crafteve.biocraft.central.BalanceChecker;
+import com.github.crafteve.biocraft.central.BalanceChecker.ReactionTerm;
+import com.github.crafteve.biocraft.central.DslParser;
+import com.github.crafteve.biocraft.central.DslParser.ParseResult;
+import com.github.crafteve.biocraft.central.DslField;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -28,7 +25,7 @@ import java.util.Map;
  *   <li><b>id 解析</b>：基酶必须是已注册酶（enzymes.json）</li>
  *   <li><b>物种存在性</b>：input/output 物种必须是 substances.json 已注册分子/离子</li>
  *   <li><b>化学守恒</b>（方案甲）：完整反应式 = 模板酶反应式 + input/output 新增项
- *       （各 ≤2，系数 1），CDK 算原子组成 → ChemBalanceChecker 判定平衡</li>
+ *       （各 ≤2，系数 1），CDK 算原子组成 → BalanceChecker 判定平衡</li>
  * </ul>
  * 供编码器编辑器预览与未来折叠机/翻译机共用
  */
@@ -46,72 +43,72 @@ public final class EnzymeProgramChecker {
      * @param parsed 解析器输出（含语法错误）
      * @return 全部错误（语法错误透传 + 装配层错误）
      */
-    public static List<ProgramError> check(ParseResult parsed) {
-        List<ProgramError> errors = new ArrayList<>(parsed.errors());
-        if (errors.stream().anyMatch(e -> e.code() == ProgramErrorCode.MISSING_ID)) {
+    public static List<DslParser.ProgramError> check(ParseResult parsed) {
+        List<DslParser.ProgramError> errors = new ArrayList<>(parsed.errors());
+        if (errors.stream().anyMatch(e -> e.code() == DslParser.ProgramErrorCode.MISSING_ID)) {
             return errors; // 缺 id：致命，不继续装配层校验
         }
         // id 解析：基酶必须存在
-        String idValue = parsed.program().value(ProgramField.ID);
+        String idValue = parsed.program().value(DslField.ID);
         EnzymeFactoryData template = idValue == null ? null : findEnzyme(idValue);
         if (template == null) {
             if (idValue != null) {
-                errors.add(new ProgramError(ProgramErrorCode.ID_NOT_FOUND,
-                        parsed.program().lineNumbers().getOrDefault(ProgramField.ID, 0), idValue));
+                errors.add(new DslParser.ProgramError(DslParser.ProgramErrorCode.ID_NOT_FOUND,
+                        parsed.program().lineNumbers().getOrDefault(DslField.ID, 0), idValue));
             }
             return errors;
         }
         // 物种存在性（input/output 所有项）
         for (String species : parsed.program().inputList()) {
             if (!speciesSmiles().containsKey(species)) {
-                errors.add(new ProgramError(ProgramErrorCode.UNKNOWN_SPECIES, 0, species));
+                errors.add(new DslParser.ProgramError(DslParser.ProgramErrorCode.UNKNOWN_SPECIES, 0, species));
             }
         }
         for (String species : parsed.program().outputList()) {
             if (!speciesSmiles().containsKey(species)) {
-                errors.add(new ProgramError(ProgramErrorCode.UNKNOWN_SPECIES, 0, species));
+                errors.add(new DslParser.ProgramError(DslParser.ProgramErrorCode.UNKNOWN_SPECIES, 0, species));
             }
         }
         // 化学守恒（方案甲：完整反应式 = 模板 + 新增项，系数 1）
         List<ReactionTerm> reactants = new ArrayList<>();
         List<ReactionTerm> products = new ArrayList<>();
         for (EnzymeFactoryData.SpeciesSpec spec : template.reactants()) {
-            SpeciesComposition comp = compositionOf(spec.item());
+            BalanceChecker.SpeciesComposition comp = compositionOf(spec.item());
             if (!comp.isEmpty()) {
                 reactants.add(new ReactionTerm(comp, spec.count()));
             }
         }
         for (EnzymeFactoryData.SpeciesSpec spec : template.products()) {
-            SpeciesComposition comp = compositionOf(spec.item());
+            BalanceChecker.SpeciesComposition comp = compositionOf(spec.item());
             if (!comp.isEmpty()) {
                 products.add(new ReactionTerm(comp, spec.count()));
             }
         }
         for (String species : parsed.program().inputList()) {
-            SpeciesComposition comp = compositionOf(species);
+            BalanceChecker.SpeciesComposition comp = compositionOf(species);
             if (!comp.isEmpty()) {
                 reactants.add(new ReactionTerm(comp, 1));
             }
         }
         for (String species : parsed.program().outputList()) {
-            SpeciesComposition comp = compositionOf(species);
+            BalanceChecker.SpeciesComposition comp = compositionOf(species);
             if (!comp.isEmpty()) {
                 products.add(new ReactionTerm(comp, 1));
             }
         }
-        if (!ChemBalanceChecker.isBalanced(reactants, products)) {
-            errors.add(new ProgramError(ProgramErrorCode.CHEM_UNBALANCED, 0, ""));
+        if (!BalanceChecker.isBalanced(reactants, products)) {
+            errors.add(new DslParser.ProgramError(DslParser.ProgramErrorCode.CHEM_UNBALANCED, 0, ""));
         }
         return errors;
     }
 
     /** 物种原子组成（SMILES → CDK 计数）；未知/解析失败返回空组成 */
-    private static SpeciesComposition compositionOf(String speciesId) {
+    private static BalanceChecker.SpeciesComposition compositionOf(String speciesId) {
         String smiles = speciesSmiles().get(speciesId);
         if (smiles == null) {
-            return SpeciesComposition.empty();
+            return BalanceChecker.SpeciesComposition.empty();
         }
-        return new SpeciesComposition(MoleculeDataCalculator.atomCounts(smiles));
+        return new BalanceChecker.SpeciesComposition(MoleculeDataCalculator.atomCounts(smiles));
     }
 
     /**

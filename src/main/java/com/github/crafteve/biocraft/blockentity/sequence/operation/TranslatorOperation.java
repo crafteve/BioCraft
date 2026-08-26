@@ -6,8 +6,8 @@ import com.github.crafteve.biocraft.blockentity.sequence.SequenceContainerUtil;
 
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
-import com.github.crafteve.biocraft.seq.CodonTable;
-import com.github.crafteve.biocraft.seq.SequenceData;
+import com.github.crafteve.biocraft.central.Codec;
+import com.github.crafteve.biocraft.central.SequenceData;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 
@@ -69,8 +69,8 @@ public class TranslatorOperation implements SequenceOperation {
             TRNA_TO_SLOT.put(TRNA_IDS[i], SLOT_AATRNA_START + i);
         }
         // CANONICAL_AA1 顺序与 TRNA_IDS 顺序一致，直接映射
-        for (int i = 0; i < CodonTable.CANONICAL_AA1.length; i++) {
-            AA1_TO_TRNA.put(CodonTable.CANONICAL_AA1[i], TRNA_IDS[i]);
+        for (int i = 0; i < Codec.CANONICAL_AA1.length; i++) {
+            AA1_TO_TRNA.put(Codec.CANONICAL_AA1[i], TRNA_IDS[i]);
         }
     }
 
@@ -104,7 +104,7 @@ public class TranslatorOperation implements SequenceOperation {
         int start = seq.indexOf("AUG");
         if (start < 0) return false;
         int stop = -1;
-        for (String s : CodonTable.STOP_CODONS) {
+        for (String s : Codec.STOP_CODONS) {
             int idx = seq.indexOf(s, start + 3);
             if (idx >= 0 && idx % 3 == start % 3) {
                 if (stop < 0 || idx < stop) stop = idx;
@@ -118,9 +118,9 @@ public class TranslatorOperation implements SequenceOperation {
         StringBuilder aa = new StringBuilder(codonCount);
         for (int i = 0; i < codonCount; i++) {
             String cod = seq.substring(start + i * 3, start + i * 3 + 3);
-            if (CodonTable.isStop(cod)) break;
+            if (Codec.isStop(cod)) break;
             codons.append(cod);
-            aa.append(CodonTable.codonToAa(cod));
+            aa.append(Codec.codonToAa(cod));
         }
         if (aa.length() == 0) return false;
         state.beginExtending(aa.toString());

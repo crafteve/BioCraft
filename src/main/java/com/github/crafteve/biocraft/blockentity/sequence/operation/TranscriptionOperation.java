@@ -6,8 +6,8 @@ import com.github.crafteve.biocraft.blockentity.sequence.SequenceContainerUtil;
 
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
-import com.github.crafteve.biocraft.seq.SeqOps;
-import com.github.crafteve.biocraft.seq.SequenceData;
+import com.github.crafteve.biocraft.central.Codec;
+import com.github.crafteve.biocraft.central.SequenceData;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 
@@ -59,7 +59,7 @@ public class TranscriptionOperation implements SequenceOperation {
         SequenceData data = tmpl.get(ModDataComponents.SEQUENCE.get());
         Boolean isTemplate = tmpl.get(ModDataComponents.IS_TEMPLATE.get());
         if (tmpl.isEmpty() || data == null || !data.complete() || data.type() != SequenceData.SeqType.DNA
-                || data.strand() != SequenceData.Strand.SS || !SeqOps.isValidDna(data.seq())
+                || data.strand() != SequenceData.Strand.SS || !Codec.isValidDna(data.seq())
                 || isTemplate == null) {
             return false;
         }
@@ -70,8 +70,8 @@ public class TranscriptionOperation implements SequenceOperation {
         if (!container.getItem(SLOT_OUT_MRNA).isEmpty() || !hasRoom(container, SLOT_OUT_ADP) || !hasRoom(container, SLOT_OUT_PPI)) {
             return false;
         }
-        if (!data.seq().contains(SeqOps.PROMOTER_TEMPLATE)) {
-            lastError = "未找到启动子 " + SeqOps.PROMOTER_TEMPLATE + "（模板链 3'→5'，旧链请用新编码器重制）";
+        if (!data.seq().contains(Codec.PROMOTER_TEMPLATE)) {
+            lastError = "未找到启动子 " + Codec.PROMOTER_TEMPLATE + "（模板链 3'→5'，旧链请用新编码器重制）";
             return false;
         }
         lastError = "";
@@ -87,22 +87,22 @@ public class TranscriptionOperation implements SequenceOperation {
             lastError = "编码链不可转录，请放入模板链(3'→5')";
             return false;
         }
-        if (data == null || !SeqOps.isValidDna(data.seq())) {
+        if (data == null || !Codec.isValidDna(data.seq())) {
             return false;
         }
         String template = data.seq();
-        int start = template.indexOf(SeqOps.PROMOTER_TEMPLATE);
+        int start = template.indexOf(Codec.PROMOTER_TEMPLATE);
         if (start < 0) {
-            lastError = "未找到启动子 " + SeqOps.PROMOTER_TEMPLATE + "（模板链 3'→5'，旧链请用新编码器重制）";
+            lastError = "未找到启动子 " + Codec.PROMOTER_TEMPLATE + "（模板链 3'→5'，旧链请用新编码器重制）";
             return false;
         }
-        int from = start + SeqOps.PROMOTER_TEMPLATE.length();
+        int from = start + Codec.PROMOTER_TEMPLATE.length();
         // 终止子帧对齐搜索：AAAAA 只认编码框边界（距启动子末端为 3 的倍数）的命中——
         // 编码流末位恰为 T 时，模板上其互补 A 与终止子 AAAAA 连成提前 1 位的 A 连串，
         // 无帧约束会把 mRNA 截短 1 碱基，Ctrl 解码报"内容长度不足"（探针实测复现）
         int term = -1;
         int search = from;
-        while ((search = template.indexOf(SeqOps.TERMINATOR_TEMPLATE, search)) >= 0) {
+        while ((search = template.indexOf(Codec.TERMINATOR_TEMPLATE, search)) >= 0) {
             if ((search - from) % 3 == 0) {
                 term = search;
                 break;
@@ -112,7 +112,7 @@ public class TranscriptionOperation implements SequenceOperation {
         int to = term >= 0 ? term : template.length();
         String templateSegment = template.substring(from, to); // 3'→5' 模板段
         // mRNA 5'→3' = complement(模板 3'→5') → T→U
-        String mrna = SeqOps.toMrna(SeqOps.complementDna(templateSegment));
+        String mrna = Codec.toMrna(Codec.complementDna(templateSegment));
         if (mrna.isEmpty()) {
             lastError = "启动子后无可转录序列";
             return false;
@@ -236,7 +236,7 @@ public class TranscriptionOperation implements SequenceOperation {
                 SequenceData data = stack.get(ModDataComponents.SEQUENCE.get());
                 Boolean isTemplate = stack.get(ModDataComponents.IS_TEMPLATE.get());
                 yield data != null && data.complete() && data.type() == SequenceData.SeqType.DNA
-                        && data.strand() == SequenceData.Strand.SS && SeqOps.isValidDna(data.seq())
+                        && data.strand() == SequenceData.Strand.SS && Codec.isValidDna(data.seq())
                         && isTemplate != null;
             }
             case SLOT_ATP -> SequenceContainerUtil.matchesId(stack, "atp");

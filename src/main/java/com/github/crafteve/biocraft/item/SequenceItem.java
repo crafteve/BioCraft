@@ -2,10 +2,10 @@ package com.github.crafteve.biocraft.item;
 
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
-import com.github.crafteve.biocraft.seq.CodonTable;
-import com.github.crafteve.biocraft.seq.SeqCodec;
-import com.github.crafteve.biocraft.seq.SeqOps;
-import com.github.crafteve.biocraft.seq.SequenceData;
+import com.github.crafteve.biocraft.central.Codec;
+import com.github.crafteve.biocraft.central.Codec;
+import com.github.crafteve.biocraft.central.Codec;
+import com.github.crafteve.biocraft.central.SequenceData;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -85,12 +85,12 @@ public class SequenceItem extends Item implements AbbreviationProvider {
             // mRNA 的 Ctrl 尝试将 U→T 还原为 DNA 后解码程序
             String dnaEquiv = seq.replace('U', 'T');
             String core = dnaEquiv;
-            String prom = com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_CODING;
-            String term = com.github.crafteve.biocraft.seq.SeqOps.TERMINATOR_CODING;
+            String prom = com.github.crafteve.biocraft.central.Codec.PROMOTER_CODING;
+            String term = com.github.crafteve.biocraft.central.Codec.TERMINATOR_CODING;
             if (core.startsWith(prom) && core.endsWith(term) && core.length() > prom.length() + term.length()) {
                 core = core.substring(prom.length(), core.length() - term.length());
             }
-            SeqCodec.DecodeResult r = tryDecodeProgram(core);
+            Codec.DecodeResult r = tryDecodeProgram(core);
             if (r.ok()) {
                 tooltip.addAll(ProgramHighlight.highlight(r.text()));
             } else {
@@ -123,12 +123,12 @@ public class SequenceItem extends Item implements AbbreviationProvider {
         }
         if (Screen.hasControlDown()) {
             String core = seq;
-            String prom = com.github.crafteve.biocraft.seq.SeqOps.PROMOTER_CODING;
-            String term = com.github.crafteve.biocraft.seq.SeqOps.TERMINATOR_CODING;
+            String prom = com.github.crafteve.biocraft.central.Codec.PROMOTER_CODING;
+            String term = com.github.crafteve.biocraft.central.Codec.TERMINATOR_CODING;
             if (core.startsWith(prom) && core.endsWith(term) && core.length() > prom.length() + term.length()) {
                 core = core.substring(prom.length(), core.length() - term.length());
             }
-            SeqCodec.DecodeResult r = tryDecodeProgram(core);
+            Codec.DecodeResult r = tryDecodeProgram(core);
             if (r.ok()) {
                 tooltip.addAll(ProgramHighlight.highlight(r.text()));
             } else {
@@ -163,7 +163,7 @@ public class SequenceItem extends Item implements AbbreviationProvider {
      *   <li>Shift：单行完整三字母序列——白色 H₂N- 前缀 / -COOH 末端 / "-" 分隔符，
      *       残基按对应 aa-tRNA 物品主题色着色（生化惯例：肽链 N 端 → C 端）</li>
      *   <li>Ctrl：程序反推——规范密码子设计保证 aa1 ↔ 规范密码子双射
-     *       （CodonTable.CANONICAL_AA1/CANONICAL_DNA 同下标），逐残基还原
+     *       （Codec.CANONICAL_AA1/CANONICAL_DNA 同下标），逐残基还原
      *       密码子串后走 SeqCodec 解码 + ProgramHighlight 高亮；
      *       非程序链（天然基因/乱码）解码失败即提示</li>
      * </ul>
@@ -197,7 +197,7 @@ public class SequenceItem extends Item implements AbbreviationProvider {
                 codons.append(codon);
             }
             // 首残基为起始密码子 Met 时多肽流以 ATG 开头，tryDecodeProgram 自动兼容
-            SeqCodec.DecodeResult r = tryDecodeProgram(codons.toString());
+            Codec.DecodeResult r = tryDecodeProgram(codons.toString());
             if (r.ok()) {
                 tooltip.addAll(ProgramHighlight.highlight(r.text()));
             } else {
@@ -228,13 +228,13 @@ public class SequenceItem extends Item implements AbbreviationProvider {
     /**
      * 程序流解码（起始密码子兼容）：先按原样解码；失败且开头为 ATG 时剥掉
      * 起始密码子再试——2026-08-25 起程序 DNA 在正文前固定携带 ATG
-     * （SeqOps.START_CODON_CODING，翻译出的多肽首残基为 Met），
+     * （Codec.START_CODON_CODING，翻译出的多肽首残基为 Met），
      * DNA/mRNA/多肽三条 Ctrl 反推路径共用
      */
-    private static SeqCodec.DecodeResult tryDecodeProgram(String core) {
-        SeqCodec.DecodeResult r = SeqCodec.decodeText(core);
-        if (!r.ok() && core.startsWith(SeqOps.START_CODON_CODING)) {
-            SeqCodec.DecodeResult r2 = SeqCodec.decodeText(core.substring(3));
+    private static Codec.DecodeResult tryDecodeProgram(String core) {
+        Codec.DecodeResult r = Codec.decodeText(core);
+        if (!r.ok() && core.startsWith(Codec.START_CODON_CODING)) {
+            Codec.DecodeResult r2 = Codec.decodeText(core.substring(3));
             if (r2.ok()) {
                 return r2;
             }
@@ -247,9 +247,9 @@ public class SequenceItem extends Item implements AbbreviationProvider {
      * 同下标一一对应；未知字符返回 null（调用方提示不可反推）
      */
     private static String aa1ToCanonicalCodon(char aa1) {
-        for (int i = 0; i < CodonTable.CANONICAL_AA1.length; i++) {
-            if (CodonTable.CANONICAL_AA1[i] == aa1) {
-                return CodonTable.CANONICAL_DNA[i];
+        for (int i = 0; i < Codec.CANONICAL_AA1.length; i++) {
+            if (Codec.CANONICAL_AA1[i] == aa1) {
+                return Codec.CANONICAL_DNA[i];
             }
         }
         return null;
@@ -257,9 +257,9 @@ public class SequenceItem extends Item implements AbbreviationProvider {
 
     /** aa1 → 3 字母缩写（查规范表；未知字符原样返回单字母） */
     private static String aa1To3(char aa1) {
-        for (int i = 0; i < CodonTable.CANONICAL_AA1.length; i++) {
-            if (CodonTable.CANONICAL_AA1[i] == aa1) {
-                return CodonTable.CANONICAL_AA3[i];
+        for (int i = 0; i < Codec.CANONICAL_AA1.length; i++) {
+            if (Codec.CANONICAL_AA1[i] == aa1) {
+                return Codec.CANONICAL_AA3[i];
             }
         }
         return String.valueOf(aa1);

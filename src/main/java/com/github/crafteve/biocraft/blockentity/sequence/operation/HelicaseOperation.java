@@ -5,8 +5,8 @@ import com.github.crafteve.biocraft.blockentity.sequence.SeqStepState;
 
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
-import com.github.crafteve.biocraft.seq.SeqOps;
-import com.github.crafteve.biocraft.seq.SequenceData;
+import com.github.crafteve.biocraft.central.Codec;
+import com.github.crafteve.biocraft.central.SequenceData;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 
@@ -53,7 +53,7 @@ public class HelicaseOperation implements SequenceOperation {
         }
         SequenceData data = in.get(ModDataComponents.SEQUENCE.get());
         if (data == null || !data.complete() || data.type() != SequenceData.SeqType.DNA
-                || data.strand() != SequenceData.Strand.DS || !SeqOps.isValidDna(data.seq())) {
+                || data.strand() != SequenceData.Strand.DS || !Codec.isValidDna(data.seq())) {
             return false;
         }
         return container.getItem(SLOT_OUT_A).isEmpty() && container.getItem(SLOT_OUT_B).isEmpty();
@@ -63,7 +63,7 @@ public class HelicaseOperation implements SequenceOperation {
     public boolean init(SimpleContainer container, SeqStepState state) {
         ItemStack in = container.getItem(SLOT_IN_DNA);
         SequenceData data = in.get(ModDataComponents.SEQUENCE.get());
-        if (data == null || !data.complete() || !SeqOps.isValidDna(data.seq())) {
+        if (data == null || !data.complete() || !Codec.isValidDna(data.seq())) {
             return false;
         }
         state.beginExtending(data.seq());
@@ -104,7 +104,7 @@ public class HelicaseOperation implements SequenceOperation {
         boolean complete = pos >= state.total();
         String codingSeq = chain.substring(0, pos);
         // 模板链严格按 3'→5' 方向写：每 tick 读 S[pos-1] 追加互补碱基（complement，不反向）
-        String templateSeq = SeqOps.complementDna(codingSeq);
+        String templateSeq = Codec.complementDna(codingSeq);
         ItemStack outTemplate = new ItemStack(ModItems.DNA_SINGLE.get());
         outTemplate.set(ModDataComponents.SEQUENCE.get(), new SequenceData(
                 SequenceData.SeqType.DNA, SequenceData.Strand.SS, kind, templateSeq, complete));
@@ -145,7 +145,7 @@ public class HelicaseOperation implements SequenceOperation {
         if (slot == SLOT_IN_DNA) {
             SequenceData data = stack.get(ModDataComponents.SEQUENCE.get());
             return data != null && data.complete() && data.type() == SequenceData.SeqType.DNA
-                    && data.strand() == SequenceData.Strand.DS && SeqOps.isValidDna(data.seq());
+                    && data.strand() == SequenceData.Strand.DS && Codec.isValidDna(data.seq());
         }
         return false;
     }

@@ -3,10 +3,9 @@ package com.github.crafteve.biocraft.gui.sequence.operation;
 import com.github.crafteve.biocraft.data.EnzymeProgramChecker;
 import com.github.crafteve.biocraft.network.ServerboundProgramDraftPacket;
 import com.github.crafteve.biocraft.network.ServerboundSequenceProgramPacket;
-import com.github.crafteve.biocraft.program.EnzymeProgramParser;
-import com.github.crafteve.biocraft.program.ProgramError;
-import com.github.crafteve.biocraft.seq.SeqCodec;
-import com.github.crafteve.biocraft.seq.SequenceConstants;
+import com.github.crafteve.biocraft.central.DslParser;
+import com.github.crafteve.biocraft.central.Codec;
+import com.github.crafteve.biocraft.central.Codec;
 import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
 import com.github.crafteve.biocraft.gui.sequence.CodeEditorWidget;
 import com.github.crafteve.biocraft.gui.sequence.SequenceMachineScreen;
@@ -42,13 +41,13 @@ public class EncoderScreen extends SequenceMachineScreen {
     private CodeEditorWidget editor;
     private Button encodeButton;
 
-    /** 编码预览缓存（脏检测：文本变化才重算，避免每帧 SeqCodec.encodeText） */
+    /** 编码预览缓存（脏检测：文本变化才重算，避免每帧 Codec.encodeText） */
     private int cachedBp;
     private boolean bpOverLimit;
     private String lastEditorText = "";
 
     /** 程序校验错误缓存（脏检测：文本变化才跑解析 + 完整校验） */
-    private List<ProgramError> programErrors = List.of();
+    private List<DslParser.ProgramError> programErrors = List.of();
 
     /** 已发送服务端的草稿快照（脏检测：编辑器文本变化才发包保存） */
     private String lastSentDraft = null;
@@ -178,7 +177,7 @@ public class EncoderScreen extends SequenceMachineScreen {
         if (!text.equals(this.lastEditorText)) {
             this.lastEditorText = text;
             try {
-                this.cachedBp = SeqCodec.encodeText(text).length();
+                this.cachedBp = Codec.encodeText(text).length();
                 this.bpOverLimit = false;
             } catch (IllegalArgumentException e) {
                 this.bpOverLimit = true;
@@ -188,10 +187,10 @@ public class EncoderScreen extends SequenceMachineScreen {
                 this.programErrors = List.of();
             } else {
                 this.programErrors = EnzymeProgramChecker.check(
-                        EnzymeProgramParser.parse(text));
+                        DslParser.parse(text));
             }
         }
-        int maxBp = SequenceConstants.MAX_DNA_BP;
+        int maxBp = Codec.MAX_DNA_BP;
         boolean hasIssue = this.bpOverLimit || !this.programErrors.isEmpty();
         // 报错提示：左下角红色感叹号（悬停 tooltip 显示详情，见 render 覆写）——
         // 不直接在编码区打印错误文本（会与按钮/编辑器重叠）
@@ -220,9 +219,9 @@ public class EncoderScreen extends SequenceMachineScreen {
         if (isHoveringWarning(mouseX, mouseY)) {
             java.util.List<Component> lines = new java.util.ArrayList<>();
             if (this.bpOverLimit) {
-                lines.add(Component.literal("§c程序过长，超出 " + SequenceConstants.MAX_DNA_BP + "bp 上限"));
+                lines.add(Component.literal("§c程序过长，超出 " + Codec.MAX_DNA_BP + "bp 上限"));
             }
-            for (ProgramError e : this.programErrors) {
+            for (DslParser.ProgramError e : this.programErrors) {
                 lines.add(Component.literal("§c" + e.describe()));
             }
             if (!lines.isEmpty()) {

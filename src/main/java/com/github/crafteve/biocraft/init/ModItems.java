@@ -7,7 +7,7 @@ import com.github.crafteve.biocraft.item.MoleculeCategoryData;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.item.SequenceItem;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
-import com.github.crafteve.biocraft.seq.SequenceData;
+import com.github.crafteve.biocraft.central.SequenceData;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

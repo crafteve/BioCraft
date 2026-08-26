@@ -1,8 +1,8 @@
 package com.github.crafteve.biocraft.gui.sequence.operation;
 
 import com.github.crafteve.biocraft.init.ModDataComponents;
-import com.github.crafteve.biocraft.seq.SequenceData;
-import com.github.crafteve.biocraft.seq.SeqOps;
+import com.github.crafteve.biocraft.central.SequenceData;
+import com.github.crafteve.biocraft.central.Codec;
 import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
 import com.github.crafteve.biocraft.gui.sequence.SequenceLayout;
 import com.github.crafteve.biocraft.gui.sequence.SequenceMachineScreen;
@@ -144,7 +144,7 @@ public class HelicaseScreen extends SequenceMachineScreen {
             if (codingData != null && !codingData.seq().isEmpty()) {
                 chain = codingData.seq();
                 aBase = chain.charAt(chain.length() - 1);
-                bBase = SeqOps.complementDna(aBase);
+                bBase = Codec.complementDna(aBase);
             }
         } else if (isDone) {
             Slot codingSlot = menu.getSlot(2);

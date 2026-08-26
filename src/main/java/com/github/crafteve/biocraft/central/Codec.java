@@ -52,6 +52,9 @@ public final class Codec {
     public static final int MAX_BYTES = (int) Math.floor(
             (MAX_DNA_BP / 3.0 - 1 - LENGTH_HEAD_DIGITS) * LOG2_20 / 8.0);
 
+    /** 步进频率（每 tick 一步，原 SequenceConstants.STEP_TICKS） */
+    public static final int STEP_TICKS = 1;
+
     /** 转录启动子（编码链 5'→3'，模板链 3'→5' 为 ATATTA） */
     public static final String PROMOTER_CODING = "TATAAT";
     public static final String PROMOTER_TEMPLATE = "ATATTA";
@@ -65,27 +68,77 @@ public final class Codec {
     // 规范密码子表（20 条，私藏；T 版存盘，U 版现场换）
     // ------------------------------------------------------------------
 
-    private static final String[] CANONICAL_DNA = {
+    /** 规范 DNA 密码子（兼容旧 CodonTable.CANONICAL_DNA） */
+    public static final String[] CANONICAL_DNA = {
             "GCT", "CGT", "AAT", "GAT", "TGT", "CAA", "GAA", "GGT",
             "CAT", "ATT", "CTT", "AAA", "ATG", "TTT", "CCT", "TCT",
             "ACT", "TGG", "TAT", "GTT"
     };
 
-    private static final String[] CANONICAL_AA3 = {
+    public static final String[] CANONICAL_AA3 = {
             "Ala", "Arg", "Asn", "Asp", "Cys", "Gln", "Glu", "Gly",
             "His", "Ile", "Leu", "Lys", "Met", "Phe", "Pro", "Ser",
             "Thr", "Trp", "Tyr", "Val"
     };
 
-    private static final char[] CANONICAL_AA1 = {
+    public static final char[] CANONICAL_AA1 = {
             'A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G',
             'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S',
             'T', 'W', 'Y', 'V'
     };
 
-    private static final String[] STOP_CODONS = {"UAA", "UAG", "UGA"};
+    public static final String[] STOP_CODONS = {"UAA", "UAG", "UGA"};
 
-    private static final Map<String, Integer> CANONICAL_DNA_TO_DIGIT = buildCanonicalDigitMap();
+    /** 标准遗传密码 64 条（兼容旧 CodonTable.STANDARD，冻结事实） */
+    public static final Map<String, Character> STANDARD = buildStandard();
+
+    public static final Map<String, Integer> CANONICAL_DNA_TO_DIGIT = buildCanonicalDigitMap();
+
+    private static Map<String, Character> buildStandard() {
+        Map<String, Character> map = new LinkedHashMap<>(64);
+        map.put("UUU", 'F'); map.put("UUC", 'F'); map.put("UUA", 'L'); map.put("UUG", 'L');
+        map.put("UCU", 'S'); map.put("UCC", 'S'); map.put("UCA", 'S'); map.put("UCG", 'S');
+        map.put("UAU", 'Y'); map.put("UAC", 'Y'); map.put("UAA", '*'); map.put("UAG", '*');
+        map.put("UGU", 'C'); map.put("UGC", 'C'); map.put("UGA", '*'); map.put("UGG", 'W');
+        map.put("CUU", 'L'); map.put("CUC", 'L'); map.put("CUA", 'L'); map.put("CUG", 'L');
+        map.put("CCU", 'P'); map.put("CCC", 'P'); map.put("CCA", 'P'); map.put("CCG", 'P');
+        map.put("CAU", 'H'); map.put("CAC", 'H'); map.put("CAA", 'Q'); map.put("CAG", 'Q');
+        map.put("CGU", 'R'); map.put("CGC", 'R'); map.put("CGA", 'R'); map.put("CGG", 'R');
+        map.put("AUU", 'I'); map.put("AUC", 'I'); map.put("AUA", 'I'); map.put("AUG", 'M');
+        map.put("ACU", 'T'); map.put("ACC", 'T'); map.put("ACA", 'T'); map.put("ACG", 'T');
+        map.put("AAU", 'N'); map.put("AAC", 'N'); map.put("AAA", 'K'); map.put("AAG", 'K');
+        map.put("AGU", 'S'); map.put("AGC", 'S'); map.put("AGA", 'R'); map.put("AGG", 'R');
+        map.put("GUU", 'V'); map.put("GUC", 'V'); map.put("GUA", 'V'); map.put("GUG", 'V');
+        map.put("GCU", 'A'); map.put("GCC", 'A'); map.put("GCA", 'A'); map.put("GCG", 'A');
+        map.put("GAU", 'D'); map.put("GAC", 'D'); map.put("GAA", 'E'); map.put("GAG", 'E');
+        map.put("GGU", 'G'); map.put("GGC", 'G'); map.put("GGA", 'G'); map.put("GGG", 'G');
+        return map;
+    }
+
+    /** 兼容旧 CodonTable.codonToAa / isStop */
+    public static char codonToAa(String rnaCodon) {
+        Character aa = STANDARD.get(rnaCodon);
+        if (aa == null) {
+            throw new IllegalArgumentException("未知密码子: " + rnaCodon);
+        }
+        return aa;
+    }
+
+    public static boolean isStop(String rnaCodon) {
+        return codonToAa(rnaCodon) == '*';
+    }
+
+    /** 兼容旧 CodonTable.CANONICAL_RNA */
+    public static final String[] CANONICAL_RNA = canonicalRnaAll();
+
+    /** 兼容旧 SeqCodec.encodeText/decodeText */
+    public static String encodeText(String text) {
+        return encode(text);
+    }
+
+    public static DecodeResult decodeText(String nucleotides) {
+        return decodeFromDna(nucleotides);
+    }
 
     private static Map<String, Integer> buildCanonicalDigitMap() {
         Map<String, Integer> map = new LinkedHashMap<>(20);
@@ -356,15 +409,6 @@ public final class Codec {
             }
         }
         return null;
-    }
-
-    private static boolean isStop(String rnaCodon) {
-        for (String s : STOP_CODONS) {
-            if (s.equals(rnaCodon)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** DNA 互补（A↔T,C↔G） */

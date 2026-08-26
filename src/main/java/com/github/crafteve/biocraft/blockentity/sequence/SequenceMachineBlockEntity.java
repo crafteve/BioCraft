@@ -8,9 +8,9 @@ import com.github.crafteve.biocraft.blockentity.sequence.operation.HelicaseOpera
 import com.github.crafteve.biocraft.blockentity.sequence.operation.LoaderOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranscriptionOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
-import com.github.crafteve.biocraft.seq.SeqCodec;
-import com.github.crafteve.biocraft.seq.SequenceConstants;
-import com.github.crafteve.biocraft.seq.SequenceData;
+import com.github.crafteve.biocraft.central.Codec;
+import com.github.crafteve.biocraft.central.Codec;
+import com.github.crafteve.biocraft.central.SequenceData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -175,7 +175,7 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
                 // 其余序列机维持全局 STEP_TICKS 节奏
                 stepCooldown = kind() == SequenceMachineKind.TRANSLATOR
                         ? TranslatorOperation.TICKS_PER_CODON
-                        : SequenceConstants.STEP_TICKS;
+                        : Codec.STEP_TICKS;
                 SequenceOperation.StepResult result = operation.step(inventory, stepState);
                 if (result == SequenceOperation.StepResult.DONE) {
                     operation.finish(inventory, stepState);
@@ -247,7 +247,7 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
             return;
         }
         try {
-            SeqCodec.encodeText(program);
+            Codec.encodeText(program);
         } catch (IllegalArgumentException e) {
             return; // 超上限：拒绝
         }

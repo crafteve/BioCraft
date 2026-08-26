@@ -1,7 +1,7 @@
 package com.github.crafteve.biocraft.init;
 
 import com.github.crafteve.biocraft.BioCraft;
-import com.github.crafteve.biocraft.seq.SequenceData;
+import com.github.crafteve.biocraft.central.SequenceData;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.netty.buffer.ByteBuf;

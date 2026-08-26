@@ -1,9 +1,6 @@
 package seqTest;
 
-import com.github.crafteve.biocraft.seq.CodonTable;
-import com.github.crafteve.biocraft.seq.SeqCodec;
-import com.github.crafteve.biocraft.seq.SeqOps;
-import com.github.crafteve.biocraft.seq.SequenceConstants;
+import com.github.crafteve.biocraft.central.Codec;
 
 import java.util.Random;
 
@@ -47,79 +44,79 @@ public class SeqSelfTest {
     }
 
     private static void testCapacity() {
-        String maxText = "a".repeat(SequenceConstants.MAX_BYTES);
-        String enc = SeqCodec.encodeText(maxText);
-        check("上限文本可编码且不超 " + SequenceConstants.MAX_DNA_BP + "bp",
-                enc.length() <= SequenceConstants.MAX_DNA_BP);
-        check("上限文本往返一致", maxText.equals(SeqCodec.decodeText(enc).text()));
-        checkThrows("超上限编码抛异常", () -> SeqCodec.encodeText("a".repeat(SequenceConstants.MAX_BYTES + 1)));
+        String maxText = "a".repeat(Codec.MAX_BYTES);
+        String enc = Codec.encodeText(maxText);
+        check("上限文本可编码且不超 " + Codec.MAX_DNA_BP + "bp",
+                enc.length() <= Codec.MAX_DNA_BP);
+        check("上限文本往返一致", maxText.equals(Codec.decodeText(enc).text()));
+        checkThrows("超上限编码抛异常", () -> Codec.encodeText("a".repeat(Codec.MAX_BYTES + 1)));
     }
 
     private static void testBijection() {
-        String s1 = SeqCodec.encodeText("A+B=C");
-        String s2 = SeqCodec.encodeText("A-B=C");
+        String s1 = Codec.encodeText("A+B=C");
+        String s2 = Codec.encodeText("A-B=C");
         check("双射：异文本必异链", !s1.equals(s2));
-        check("解码 A+B=C", "A+B=C".equals(SeqCodec.decodeText(s1).text()));
-        check("解码 A-B=C", "A-B=C".equals(SeqCodec.decodeText(s2).text()));
+        check("解码 A+B=C", "A+B=C".equals(Codec.decodeText(s1).text()));
+        check("解码 A-B=C", "A-B=C".equals(Codec.decodeText(s2).text()));
     }
 
     private static void testNoStop() {
-        check("编码产物无终止子（A+B=C）", noStop(SeqCodec.encodeText("A+B=C")));
-        check("编码产物无终止子（中文+emoji）", noStop(SeqCodec.encodeText("你好😀 中心法则")));
-        check("编码产物无终止子（上限文本）", noStop(SeqCodec.encodeText("a".repeat(SequenceConstants.MAX_BYTES))));
+        check("编码产物无终止子（A+B=C）", noStop(Codec.encodeText("A+B=C")));
+        check("编码产物无终止子（中文+emoji）", noStop(Codec.encodeText("你好😀 中心法则")));
+        check("编码产物无终止子（上限文本）", noStop(Codec.encodeText("a".repeat(Codec.MAX_BYTES))));
     }
 
     private static void testDecodeFailures() {
-        check("null 解码失败", !SeqCodec.decodeText(null).ok());
-        check("空串解码失败", !SeqCodec.decodeText("").ok());
-        check("长度非 3 倍数失败", !SeqCodec.decodeText("ATG").ok());
-        check("非程序 DNA 失败", !SeqCodec.decodeText("AAAGGGCCC").ok());
+        check("null 解码失败", !Codec.decodeText(null).ok());
+        check("空串解码失败", !Codec.decodeText("").ok());
+        check("长度非 3 倍数失败", !Codec.decodeText("ATG").ok());
+        check("非程序 DNA 失败", !Codec.decodeText("AAAGGGCCC").ok());
 
-        String enc = SeqCodec.encodeText("hello biocraft 测试 123");
+        String enc = Codec.encodeText("hello biocraft 测试 123");
 
         String badMagic = "GTA" + enc.substring(3);
-        check("魔数破坏解码失败", !SeqCodec.decodeText(badMagic).ok());
+        check("魔数破坏解码失败", !Codec.decodeText(badMagic).ok());
 
-        check("截断解码失败", !SeqCodec.decodeText(enc.substring(0, enc.length() - 3)).ok());
+        check("截断解码失败", !Codec.decodeText(enc.substring(0, enc.length() - 3)).ok());
 
         StringBuilder headBroken = new StringBuilder(enc);
         char c = headBroken.charAt(3);
         headBroken.setCharAt(3, c == 'A' ? 'C' : 'A');
-        check("长度头破坏解码失败", !SeqCodec.decodeText(headBroken.toString()).ok());
+        check("长度头破坏解码失败", !Codec.decodeText(headBroken.toString()).ok());
 
         // 内容区单碱基翻转：改变一个数字 → 解码出不同文本（或非法 UTF-8）
         StringBuilder contentFlip = new StringBuilder(enc);
         int idx = 3 + 9; // 长度头之后的内容区
         char d = contentFlip.charAt(idx);
         contentFlip.setCharAt(idx, d == 'A' ? 'C' : 'A');
-        SeqCodec.DecodeResult r = SeqCodec.decodeText(contentFlip.toString());
+        Codec.DecodeResult r = Codec.decodeText(contentFlip.toString());
         check("内容突变解码不同或失败", !r.ok() || !"hello biocraft 测试 123".equals(r.text()));
     }
 
     private static void testSeqOps() {
-        check("互补 A→T", SeqOps.complementDna('A') == 'T');
-        check("互补 T→A", SeqOps.complementDna('T') == 'A');
-        check("互补链 TACG", "TACG".equals(SeqOps.complementDna("ATGC")));
-        check("反向互补 GCAT", "GCAT".equals(SeqOps.reverseComplement("ATGC")));
-        check("mRNA 转换", "AUGCAU".equals(SeqOps.toMrna("ATGCAT")));
-        check("DNA 合法", SeqOps.isValidDna("ATGC"));
-        check("DNA 非法（含 U）", !SeqOps.isValidDna("ATGU"));
-        check("RNA 合法", SeqOps.isValidRna("AUGC"));
-        check("RNA 非法（含 T）", !SeqOps.isValidRna("AUGT"));
-        checkThrows("非法碱基互补抛异常", () -> SeqOps.complementDna('U'));
+        check("互补 A→T", Codec.complementDna('A') == 'T');
+        check("互补 T→A", Codec.complementDna('T') == 'A');
+        check("互补链 TACG", "TACG".equals(Codec.complementDna("ATGC")));
+        check("反向互补 GCAT", "GCAT".equals(Codec.reverseComplement("ATGC")));
+        check("mRNA 转换", "AUGCAU".equals(Codec.toMrna("ATGCAT")));
+        check("DNA 合法", Codec.isValidDna("ATGC"));
+        check("DNA 非法（含 U）", !Codec.isValidDna("ATGU"));
+        check("RNA 合法", Codec.isValidRna("AUGC"));
+        check("RNA 非法（含 T）", !Codec.isValidRna("AUGT"));
+        checkThrows("非法碱基互补抛异常", () -> Codec.complementDna('U'));
     }
 
     private static void testCodonTable() {
-        check("标准表恰好 64 条", CodonTable.STANDARD.size() == 64);
-        check("Met = AUG 起始密码子", CodonTable.codonToAa("AUG") == 'M');
-        check("Trp = UGG", CodonTable.codonToAa("UGG") == 'W');
-        check("三个终止子识别", CodonTable.isStop("UAA") && CodonTable.isStop("UAG") && CodonTable.isStop("UGA"));
-        check("非终止子不误判", !CodonTable.isStop("UUU"));
+        check("标准表恰好 64 条", Codec.STANDARD.size() == 64);
+        check("Met = AUG 起始密码子", Codec.codonToAa("AUG") == 'M');
+        check("Trp = UGG", Codec.codonToAa("UGG") == 'W');
+        check("三个终止子识别", Codec.isStop("UAA") && Codec.isStop("UAG") && Codec.isStop("UGA"));
+        check("非终止子不误判", !Codec.isStop("UUU"));
         check("规范 20 条全为有义密码子", canonicalNoStop());
         check("规范密码子全部互异（双射）", canonicalBijective());
-        check("反查表 20 条", CodonTable.CANONICAL_DNA_TO_DIGIT.size() == 20);
-        check("反查表一致性", CodonTable.CANONICAL_DNA_TO_DIGIT.get("GTT") == 19
-                && CodonTable.CANONICAL_DNA_TO_DIGIT.get("GCT") == 0);
+        check("反查表 20 条", Codec.CANONICAL_DNA_TO_DIGIT.size() == 20);
+        check("反查表一致性", Codec.CANONICAL_DNA_TO_DIGIT.get("GTT") == 19
+                && Codec.CANONICAL_DNA_TO_DIGIT.get("GCT") == 0);
     }
 
     private static void testRandomRoundtrip() {
@@ -133,8 +130,8 @@ public class SeqSelfTest {
                 sb.appendCodePoint(pool[rnd.nextInt(pool.length)]);
             }
             String text = sb.toString();
-            String enc = SeqCodec.encodeText(text);
-            String dec = SeqCodec.decodeText(enc).text();
+            String enc = Codec.encodeText(text);
+            String dec = Codec.decodeText(enc).text();
             if (!text.equals(dec)) {
                 fail("随机往返不一致 t=" + t + " len=" + len);
                 return;
@@ -145,8 +142,8 @@ public class SeqSelfTest {
     }
 
     private static boolean canonicalNoStop() {
-        for (String rna : CodonTable.CANONICAL_RNA) {
-            if (CodonTable.isStop(rna)) {
+        for (String rna : Codec.CANONICAL_RNA) {
+            if (Codec.isStop(rna)) {
                 return false;
             }
         }
@@ -154,9 +151,9 @@ public class SeqSelfTest {
     }
 
     private static boolean canonicalBijective() {
-        for (int i = 0; i < CodonTable.CANONICAL_DNA.length; i++) {
-            for (int j = i + 1; j < CodonTable.CANONICAL_DNA.length; j++) {
-                if (CodonTable.CANONICAL_DNA[i].equals(CodonTable.CANONICAL_DNA[j])) {
+        for (int i = 0; i < Codec.CANONICAL_DNA.length; i++) {
+            for (int j = i + 1; j < Codec.CANONICAL_DNA.length; j++) {
+                if (Codec.CANONICAL_DNA[i].equals(Codec.CANONICAL_DNA[j])) {
                     return false;
                 }
             }
@@ -166,9 +163,9 @@ public class SeqSelfTest {
 
     /** 编码产物的每个密码子（转 RNA 后）都不是终止密码子 */
     private static boolean noStop(String nucleotides) {
-        String rna = SeqOps.toMrna(nucleotides);
+        String rna = Codec.toMrna(nucleotides);
         for (int i = 0; i + 3 <= rna.length(); i += 3) {
-            if (CodonTable.isStop(rna.substring(i, i + 3))) {
+            if (Codec.isStop(rna.substring(i, i + 3))) {
                 return false;
             }
         }
@@ -176,8 +173,8 @@ public class SeqSelfTest {
     }
 
     private static void roundtrip(String text) {
-        String enc = SeqCodec.encodeText(text);
-        String dec = SeqCodec.decodeText(enc).text();
+        String enc = Codec.encodeText(text);
+        String dec = Codec.decodeText(enc).text();
         if (!text.equals(dec)) {
             fail("往返不一致: " + text + " -> " + dec);
         } else {

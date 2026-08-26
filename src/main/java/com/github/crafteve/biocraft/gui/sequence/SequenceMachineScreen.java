@@ -9,7 +9,7 @@ import com.github.crafteve.biocraft.gui.base.BiocraftSlot;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
-import com.github.crafteve.biocraft.seq.SequenceData;
+import com.github.crafteve.biocraft.central.SequenceData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -647,9 +647,9 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
 
     /** aa1 → 3 字母缩写（查规范密码子表；未知字符原样返回单字母） */
     protected static String aa1To3(char aa1) {
-        for (int i = 0; i < com.github.crafteve.biocraft.seq.CodonTable.CANONICAL_AA1.length; i++) {
-            if (com.github.crafteve.biocraft.seq.CodonTable.CANONICAL_AA1[i] == aa1) {
-                return com.github.crafteve.biocraft.seq.CodonTable.CANONICAL_AA3[i];
+        for (int i = 0; i < com.github.crafteve.biocraft.central.Codec.CANONICAL_AA1.length; i++) {
+            if (com.github.crafteve.biocraft.central.Codec.CANONICAL_AA1[i] == aa1) {
+                return com.github.crafteve.biocraft.central.Codec.CANONICAL_AA3[i];
             }
         }
         return String.valueOf(aa1);
