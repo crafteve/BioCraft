@@ -338,7 +338,7 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                     {OUT_X + SLOT_X + 114, OUT_Y + SLOT_Y},
             };
             case HELICASE -> new int[][]{
-                    // 输入 1 槽（左侧 guiv1 输入区），输出 2 槽（右侧 guiv1 输出区垂直双卡，复用酶工厂布局）
+                    // 输入 1 槽（左侧 STAGE 输入区），输出 2 槽（右侧 STAGE 输出区垂直双卡，复用酶工厂布局）
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
                     {193 + SLOT_X, 41 + SLOT_Y},
                     {193 + SLOT_X, 41 + SLOT_Y + CARD_STEP},

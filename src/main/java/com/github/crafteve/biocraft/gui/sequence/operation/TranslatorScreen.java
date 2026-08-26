@@ -13,7 +13,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 翻译机屏幕（CONSOLE_ENCODER 族布局）：框架（背景/状态栏/标签/卡片/动画区面板骨架）
+ * 翻译机屏幕（CONSOLE族布局）：框架（背景/状态栏/标签/卡片/动画区面板骨架）
  * 全部由基类按 SequenceLayout 绘制，本类只实现：
  * <ul>
  *   <li>动画内容：上行 mRNA 密码子列 / 下行肽链三字母残基同列居中对齐，

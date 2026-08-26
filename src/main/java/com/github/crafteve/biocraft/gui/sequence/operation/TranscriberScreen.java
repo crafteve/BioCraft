@@ -14,7 +14,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 转录仪屏幕（CONSOLE_ENCODER 族布局）：框架（背景/状态栏/标签/卡片/动画区面板骨架）
+ * 转录仪屏幕（CONSOLE族布局）：框架（背景/状态栏/标签/卡片/动画区面板骨架）
  * 全部由基类按 SequenceLayout 绘制，本类只实现：
  * <ul>
  *   <li>动画内容：模板链↔mRNA 逐碱基配对行 + 启动子信息 + 当前位辉光</li>

@@ -37,7 +37,7 @@ import java.util.List;
  * <ul>
  *   <li>状态栏：机器名（y13）+ 状态 + 细进度条（y22-25）；转录仪/翻译机因
  *       顶栏 9,8 槽位标题右移至 x28 并补槽位底纹</li>
- *   <li>标签：INPUT (9,30)；CONSOLE_ENCODER 族 OUTPUT (70,132)，v1 族 OUTPUT (195,30)
+ *   <li>标签：INPUT (9,30)；CONSOLE族 OUTPUT (70,132)，STAGE族 OUTPUT (195,30)
  *       + 中央 LOAD/UNWIND (109,30)</li>
  *   <li>输入滚动卡片区 (7,41) 56×112 纵向；输出按布局横滚或右竖排</li>
  *   <li>动画区面板骨架：深色底 + 顶部 1px 亮线 + 淡网格（0x08FFFFFF，四边
@@ -215,7 +215,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
                         - vOffset + SequenceMachineMenu.SLOT_Y;
             }
         }
-        // 输出：v1 族右竖排（固定坐标，≤3 卡无需滚动），CONSOLE_ENCODER 族底横滚
+        // 输出：STAGE族右竖排（固定坐标，≤3 卡无需滚动），CONSOLE族底横滚
         if (!outputCards.isEmpty()) {
             if (layout().outputVertical()) {
                 for (int i = 0; i < outputCards.size(); i++) {
@@ -348,7 +348,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         }
     }
 
-    /** 标签组：INPUT 固定 (9,30)；输出按布局，v1 族加中央 LOAD/UNWIND 标签 */
+    /** 标签组：INPUT 固定 (9,30)；输出按布局，STAGE族加中央 LOAD/UNWIND 标签 */
     private void drawLabels(SequenceLayout L, GuiGraphics graphics) {
         graphics.drawString(this.font, "INPUT", this.leftPos + 9, this.topPos + 30, NAME_COLOR, false);
         if (L.outputVertical()) {
@@ -364,7 +364,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
 
     /**
      * 动画区面板骨架：深色底 + 顶部 1px 亮线 + 淡网格（全机统一）。
-     * plainPanel（编码器编辑器）只铺底色与顶线；panelTitle 为空（v1 族）
+     * plainPanel（编码器编辑器）只铺底色与顶线；panelTitle 为空（STAGE族）
      * 画网格但不画顶部文字标识（标题/状态/图标）——动画内容填满整个面板
      */
     private void drawAnimFrame(SequenceLayout L, GuiGraphics graphics) {
@@ -378,7 +378,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             return;
         }
         boolean hasText = !L.panelTitle().isEmpty();
-        // 网格：有标题行时从 y+12 起（让出标题行），无标题行（v1 族）近顶铺满
+        // 网格：有标题行时从 y+12 起（让出标题行），无标题行（STAGE族）近顶铺满
         int gridTop = hasText ? y + 12 : y + 6;
         for (int gx = x + 12; gx < x + w; gx += 14) {
             graphics.fill(gx, gridTop, gx + 1, y + h - 6, 0x08FFFFFF);
@@ -386,7 +386,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         for (int gy = y + (hasText ? 18 : 12); gy < y + h; gy += 14) {
             graphics.fill(x + 6, gy, x + w - 6, gy + 1, 0x08FFFFFF);
         }
-        // 状态文字（待机/进度/完成）与标题解耦：v1 族无标题无图标，但右上角
+        // 状态文字（待机/进度/完成）与标题解耦：STAGE族无标题无图标，但右上角
         // 状态文字保留（此前误绑在标题条件上被连带删除）
         String status = panelStatus();
         int iconX = x + w - 18;
@@ -435,7 +435,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         graphics.disableScissor();
     }
 
-    /** 输出横向滚动卡片（CONSOLE_ENCODER 族）：序列卡（DNA/mRNA）、多肽卡、库存卡 */
+    /** 输出横向滚动卡片（CONSOLE族）：序列卡（DNA/mRNA）、多肽卡、库存卡 */
     protected void drawOutputCards(GuiGraphics graphics) {
         if (outputCards.isEmpty()) {
             return;
@@ -463,7 +463,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         graphics.disableScissor();
     }
 
-    /** 输出右竖排卡片（v1 族）：固定坐标 193,41 起纵向排列（≤3 卡无需滚动） */
+    /** 输出右竖排卡片（STAGE族）：固定坐标 193,41 起纵向排列（≤3 卡无需滚动） */
     protected void drawVerticalOutputCards(GuiGraphics graphics) {
         if (outputCards.isEmpty()) {
             return;

@@ -19,7 +19,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import java.util.List;
 
 /**
- * DNA 编码器屏幕：编码区 = 自绘代码编辑器（CodeEditorWidget）
+ * DNA 编码器屏幕（CONSOLE族布局）：编码区 = 自绘代码编辑器（CodeEditorWidget）
  * <p>
  * 差异部分（基类 SequenceMachineScreen 只负责画布/背包/状态栏/输入滚动卡片/
  * 输出卡片/编码区面板）：

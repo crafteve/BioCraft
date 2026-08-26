@@ -13,7 +13,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 解旋酶屏幕（v1 族布局）：框架（背景/状态栏/标签/动画区面板骨架/槽位坐标）
+ * 解旋酶屏幕（STAGE族布局）：框架（背景/状态栏/标签/动画区面板骨架/槽位坐标）
  * 全部由基类按 SequenceLayout 绘制，本类只实现：
  * <ul>
  *   <li>专属卡片内容：输入 dsDNA 卡（解旋中显示已解旋前缀）与输出

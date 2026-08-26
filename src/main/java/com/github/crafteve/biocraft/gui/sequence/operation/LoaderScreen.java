@@ -13,7 +13,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 装载机屏幕（v1 族布局）：框架（背景/状态栏/标签/左右卡片/动画区面板骨架）
+ * 装载机屏幕（STAGE族布局）：框架（背景/状态栏/标签/左右卡片/动画区面板骨架）
  * 全部由基类按 SequenceLayout 绘制，本类只实现：
  * <ul>
  *   <li>动画内容：中央 tRNA 装载口袋（24 点呼吸圆环）+ 原料滑入 + 接触闪光
@@ -41,7 +41,7 @@ public class LoaderScreen extends SequenceMachineScreen {
         super.containerTick();
         if (menu.getKind() != SequenceMachineKind.LOADER) return;
         // 工作状态检测（每 tick）：输入槽有货 + 输出槽有空间 + 配方可执行
-        // 槽位坐标同步由基类 tickScrolls 按 v1 布局处理，此处不再覆写
+        // 槽位坐标同步由基类 tickScrolls 按 STAGE布局处理，此处不再覆写
         working = checkWorkable();
     }
 
