@@ -10,7 +10,7 @@ import com.github.crafteve.biocraft.blockentity.sequence.operation.Transcription
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
 import com.github.crafteve.biocraft.central.Codec;
 import com.github.crafteve.biocraft.central.Codec;
-import com.github.crafteve.biocraft.init.SequenceData;
+import com.github.crafteve.biocraft.item.SequenceData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;

@@ -7,7 +7,7 @@ import com.github.crafteve.biocraft.item.MoleculeCategoryData;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import com.github.crafteve.biocraft.item.SequenceItem;
 import com.github.crafteve.biocraft.reaction.EnzymeFactoryData;
-import com.github.crafteve.biocraft.init.SequenceData;
+import com.github.crafteve.biocraft.item.SequenceData;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -134,53 +134,40 @@ public final class ModItems {
     }
 
     // ------------------------------------------------------------------
-    // 序列物品族（中心法则信息层，DataComponent 承载序列，见 seq/ 包）
+    // 序列物品族（中心法则信息层，DataComponent 承载序列；烧杯/试管 + 黑灰色阶 + 装饰器）
     // ------------------------------------------------------------------
 
-    /** DNA 双链（编码器/复制酶产物，kind=PROGRAM 时带魔数头可解码） */
+    /** DNA 双链（编码器/复制酶产物，kind=PROGRAM 时带魔数头可解码）— 烧杯 深灰 */
     public static final DeferredItem<SequenceItem> DNA =
-            registerSequence("dna", SequenceData.SeqType.DNA, SequenceData.Strand.DS, "DNA");
+            registerSequence("dna", SequenceData.SeqType.DNA, SequenceData.Strand.DS, "DNA", 0xFF1A1A1A);
 
-    /** DNA 单链（解旋产物/复制模板） */
+    /** DNA 单链（解旋产物/复制模板）— 烧杯 中灰 */
     public static final DeferredItem<SequenceItem> DNA_SINGLE =
-            registerSequence("dna_single", SequenceData.SeqType.DNA, SequenceData.Strand.SS, "ssDNA");
+            registerSequence("dna_single", SequenceData.SeqType.DNA, SequenceData.Strand.SS, "ssDNA", 0xFF2E2E2E);
 
-    /** 信使 RNA（转录产物） */
+    /** 信使 RNA（转录产物）— 烧杯 灰 */
     public static final DeferredItem<SequenceItem> MRNA =
-            registerSequence("mrna", SequenceData.SeqType.MRNA, null, "mRNA");
+            registerSequence("mrna", SequenceData.SeqType.MRNA, null, "mRNA", 0xFF404040);
 
-    /** 多肽链（翻译产物，complete=false 为半成品，折叠机拒绝） */
+    /** 多肽链（翻译产物，complete=false 为半成品，折叠机拒绝）— 烧杯 浅灰 */
     public static final DeferredItem<SequenceItem> POLYPEPTIDE =
-            registerSequence("polypeptide", SequenceData.SeqType.POLYPEPTIDE, null, "肽链");
+            registerSequence("polypeptide", SequenceData.SeqType.POLYPEPTIDE, null, "肽链", 0xFF525252);
 
-    /** tRNA 支架基因（转录出通用 tRNA） */
-    public static final DeferredItem<Item> TRNA_GENE = registerStaticSequence("trna_gene");
+    /** 通用 tRNA（未装载，ARS 装载底物）— 试管 纯黑区分 */
+    public static final DeferredItem<SequenceItem> TRNA =
+            registerSequence("trna", SequenceData.SeqType.POLYPEPTIDE, null, "tRNA", 0xFF000000);
 
-    /** 通用 tRNA（未装载，ARS 装载底物） */
-    public static final DeferredItem<Item> TRNA = registerStaticSequence("trna");
-
-    /** 错误折叠蛋白（折叠失败产物：乱码/未授权/语法错） */
-    public static final DeferredItem<Item> MISFOLDED_PROTEIN = registerStaticSequence("misfolded_protein");
-
-    /** RNA 聚合酶（转录仪催化剂，中心法则催化剂占位；正式催化剂体系随遗迹种子后置） */
-    public static final DeferredItem<Item> RNA_POLYMERASE = registerStaticSequence("rna_polymerase");
+    /** 错误折叠蛋白（折叠失败产物：乱码/未授权/语法错）— 烧杯 中浅灰 */
+    public static final DeferredItem<SequenceItem> MISFOLDED_PROTEIN =
+            registerSequence("misfolded_protein", SequenceData.SeqType.POLYPEPTIDE, null, "错折", 0xFF6B6B6B);
 
     /**
-     * 注册序列物品（DataComponent 承载，缩写标注可复用图标装饰器）
+     * 注册序列物品（DataComponent 承载，烧杯/试管 + 黑灰色阶 + 缩写装饰器）
      */
     private static DeferredItem<SequenceItem> registerSequence(String id, SequenceData.SeqType type,
-                                                              SequenceData.Strand strand, String abbreviation) {
+                                                               SequenceData.Strand strand, String abbreviation, int tint) {
         DeferredItem<SequenceItem> item = ITEMS.register(id, () -> new SequenceItem(
-                new Item.Properties(), type, strand, SequenceData.Kind.GENE, abbreviation));
-        SEQUENCE_ORDERED.add(item);
-        return item;
-    }
-
-    /**
-     * 注册静态序列物品（无序列组件：tRNA 基因/通用 tRNA/错误折叠蛋白）
-     */
-    private static DeferredItem<Item> registerStaticSequence(String id) {
-        DeferredItem<Item> item = ITEMS.register(id, () -> new Item(new Item.Properties()));
+                new Item.Properties(), type, strand, SequenceData.Kind.GENE, abbreviation, tint));
         SEQUENCE_ORDERED.add(item);
         return item;
     }

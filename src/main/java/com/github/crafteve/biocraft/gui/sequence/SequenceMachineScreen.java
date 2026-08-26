@@ -9,7 +9,7 @@ import com.github.crafteve.biocraft.gui.base.BiocraftSlot;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
-import com.github.crafteve.biocraft.init.SequenceData;
+import com.github.crafteve.biocraft.item.SequenceData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;

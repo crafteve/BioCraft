@@ -59,6 +59,16 @@ public class MoleculeColors {
         };
         event.register(enzymeColorHandler,
                 ModItems.enzymeAll().values().stream().map(holder -> holder.get()).toArray(Item[]::new));
+
+        // 序列物品：烧杯/试管内容物按黑灰色阶染色（tRNA 试管纯黑区分）
+        ItemColor sequenceColorHandler = (ItemStack stack, int layer) -> {
+            if (layer != 0 || !(stack.getItem() instanceof SequenceItem seq)) {
+                return -1;
+            }
+            return seq.getTintColor();
+        };
+        event.register(sequenceColorHandler,
+                ModItems.sequenceOrdered().stream().map(holder -> holder.get()).toArray(Item[]::new));
     }
 
     /**
@@ -86,6 +96,8 @@ public class MoleculeColors {
         ModItems.all().values().forEach(holder -> event.register(holder.get(), MoleculeItemDecorator.INSTANCE));
         // 酶蛋白物品：缩写装饰器复用（数据源 AbbreviationProvider 接口）
         ModItems.enzymeAll().values().forEach(holder -> event.register(holder.get(), MoleculeItemDecorator.INSTANCE));
+        // 序列物品：烧杯/试管缩写装饰器（黑灰色阶，tRNA 试管区分）
+        ModItems.sequenceOrdered().forEach(holder -> event.register(holder.get(), MoleculeItemDecorator.INSTANCE));
     }
 }
 

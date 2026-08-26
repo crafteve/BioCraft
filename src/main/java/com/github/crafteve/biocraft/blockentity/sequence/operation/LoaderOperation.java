@@ -6,7 +6,7 @@ import com.github.crafteve.biocraft.blockentity.sequence.SequenceContainerUtil;
 
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
-import com.github.crafteve.biocraft.init.SequenceData;
+import com.github.crafteve.biocraft.item.SequenceData;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 

@@ -1,7 +1,7 @@
 package com.github.crafteve.biocraft.gui.sequence.operation;
 
 import com.github.crafteve.biocraft.init.ModDataComponents;
-import com.github.crafteve.biocraft.init.SequenceData;
+import com.github.crafteve.biocraft.item.SequenceData;
 import com.github.crafteve.biocraft.central.Codec;
 import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
 import com.github.crafteve.biocraft.gui.sequence.SequenceLayout;

@@ -23,16 +23,14 @@ import java.util.concurrent.CompletableFuture;
  */
 public class SequenceItemModelProvider implements DataProvider {
 
-    /** 序列物品 id → 容器贴图前缀（复用 substances.json 的容器定义） */
+    /** 序列物品 id → 容器贴图前缀（烧杯为主，tRNA 试管纯黑区分） */
     private static final Map<String, String> CONTAINERS = Map.of(
-            "dna", "flask",
-            "dna_single", "test_tube",
-            "mrna", "flask",
-            "polypeptide", "test_tube",
-            "trna_gene", "test_tube",
+            "dna", "beaker",
+            "dna_single", "beaker",
+            "mrna", "beaker",
+            "polypeptide", "beaker",
             "trna", "test_tube",
-            "misfolded_protein", "beaker",
-            "rna_polymerase", "beaker");
+            "misfolded_protein", "beaker");
 
     private final PackOutput packOutput;
     @SuppressWarnings("unused")

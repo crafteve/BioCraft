@@ -3,9 +3,7 @@ package com.github.crafteve.biocraft.item;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.central.Codec;
-import com.github.crafteve.biocraft.central.Codec;
-import com.github.crafteve.biocraft.central.Codec;
-import com.github.crafteve.biocraft.init.SequenceData;
+import com.github.crafteve.biocraft.item.SequenceData;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -31,6 +29,7 @@ public class SequenceItem extends Item implements AbbreviationProvider {
     private final SequenceData.Strand defaultStrand;
     private final SequenceData.Kind defaultKind;
     private final String abbreviation;
+    private final int tintColor;
 
     /**
      * @param properties   物品属性
@@ -38,19 +37,25 @@ public class SequenceItem extends Item implements AbbreviationProvider {
      * @param strand       链型（非 DNA 传 null）
      * @param kind         序列类型（程序/基因，默认 GENE，编码器产物运行期改 PROGRAM）
      * @param abbreviation 图标缩写标注（DNA/mRNA/肽链）
+     * @param tintColor    烧杯/试管内容物染色（黑灰色阶，tRNA 纯黑试管区分）
      */
     public SequenceItem(Properties properties, SequenceData.SeqType type, SequenceData.Strand strand,
-                        SequenceData.Kind kind, String abbreviation) {
+                        SequenceData.Kind kind, String abbreviation, int tintColor) {
         super(properties);
         this.defaultType = type;
         this.defaultStrand = strand;
         this.defaultKind = kind;
         this.abbreviation = abbreviation;
+        this.tintColor = tintColor;
     }
 
     @Override
     public String getAbbreviation() {
         return abbreviation;
+    }
+
+    public int getTintColor() {
+        return tintColor;
     }
 
     /** 无组件时的默认载荷（空序列） */

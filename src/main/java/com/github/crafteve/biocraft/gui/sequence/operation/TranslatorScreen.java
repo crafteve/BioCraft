@@ -3,7 +3,7 @@ package com.github.crafteve.biocraft.gui.sequence.operation;
 import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineKind;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
 import com.github.crafteve.biocraft.init.ModDataComponents;
-import com.github.crafteve.biocraft.init.SequenceData;
+import com.github.crafteve.biocraft.item.SequenceData;
 import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
 import com.github.crafteve.biocraft.gui.sequence.SequenceLayout;
 import com.github.crafteve.biocraft.gui.sequence.SequenceMachineScreen;

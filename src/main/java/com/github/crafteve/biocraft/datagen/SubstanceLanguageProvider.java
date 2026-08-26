@@ -173,14 +173,10 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "信使 RNA" : "Messenger RNA");
         translations.put("item.biocraft.polypeptide",
                 zh ? "多肽链" : "Polypeptide Chain");
-        translations.put("item.biocraft.trna_gene",
-                zh ? "tRNA 基因" : "tRNA Gene");
         translations.put("item.biocraft.trna",
                 zh ? "转移 RNA" : "Transfer RNA");
         translations.put("item.biocraft.misfolded_protein",
                 zh ? "错误折叠蛋白" : "Misfolded Protein");
-        translations.put("item.biocraft.rna_polymerase",
-                zh ? "RNA 聚合酶" : "RNA Polymerase");
     }
 
     /**

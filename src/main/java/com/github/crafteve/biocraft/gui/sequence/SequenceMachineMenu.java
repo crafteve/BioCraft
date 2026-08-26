@@ -9,7 +9,7 @@ import com.github.crafteve.biocraft.blockentity.sequence.operation.Transcription
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModDataComponents;
-import com.github.crafteve.biocraft.init.SequenceData;
+import com.github.crafteve.biocraft.item.SequenceData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.world.Container;
