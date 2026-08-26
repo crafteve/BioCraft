@@ -153,7 +153,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 
 ### 2026-08-26
 
-- **refactor** seq+program 合并为 central（信息层重构）：seq/ 5 文件 + program/ 7 文件合并为 central 4 文件（Codec 编解码门面 String进DecodeResult出 + DslField 含 HighlightRule 7色收口 + DslParser 单文件填表回 Map<DslField,String> 键值表 + BalanceChecker 对账工具），SequenceData 迁 init/SequenceData.java 纯 record 不持 NBT；ProgramHighlight/CodeEditorWidget 同引 DslField.Highlight 不再双份；seq/program 旧包删除，全量调用方切 central，	ools/seqTest 43/programTest 32 合 central 保持全绿
+- **refactor** seq+program 合并为 central（信息层重构）：seq/ 5 文件 + program/ 7 文件合并为 central 4 文件（Codec 编解码门面 String进DecodeResult出 + DslField 含 HighlightRule 7色收口 + DslParser 单文件填表回 Map<DslField,String> 键值表 + BalanceChecker 对账工具），SequenceData 迁 init/SequenceData.java 纯 record 不持 NBT；ProgramHighlight/CodeEditorWidget 同引 DslField.Highlight 不再双份；seq/program 旧包删除，全量调用方切 central，tools/seqTest 43/programTest 32 合 central 保持全绿
 - **refactor** 机器命名与分包对齐（内部重构，玩家无感知）：`AbstractMachineBlock→BioCraftMachineBlock`、`MachineBlock→EnzymeMachineBlock`（与 `SequenceMachineBlock` 对仗）；`blockentity` 按 `base/enzyme/sequence/operation` 分层，`IoMode` 内聚为 `EnzymeMachineBlockEntity` 内部枚举；`gui` 按 `base/enzyme/sequence/operation` 分层，`MachineLayout→SequenceLayout` 并更名 `STAGE`（舞台居中，双侧竖卡）/`CONSOLE`（控制台，上舞台下条形），贴图 `gui_v1→gui_stage`/`gui_encoder→gui_console`，`MachineMenu/Screen→EnzymeMachineMenu/Screen`；补齐全 `src` 残留 `v1/ENCODER` 族注释为 `STAGE/CONSOLE`
 
 ### 2026-08-25
@@ -246,7 +246,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 - **feat** DNA 编码器 GUI 重做：全新 IDE 风格代码编辑器（多行编辑/自动缩进/语法高亮/闪烁光标/鼠标定位，示例程序升级为三行）置于深色编码面板，左侧为输入滚动卡片（dNTP×4 + ATP，酶工厂同款滚动卡片机制），右侧输出卡片区（DNA 四色碱基序列实时生长 + ADP/PPi 副产物），顶部状态栏 + 进度条；编码过程有"扫描线"动画（已编码行渐变为暗绿）+ DNA 链四色生长 + 聚合酶发光标记
 - **feat** DNA 编码器计量改造：每接一个碱基消耗 1 dNTP + 1 ATP（编码需供能），产出 DNA + ADP + 焦磷酸 PPi（新增 PPi 物品）——副产物槽满即停摆回压，玩家必须抽走回收（模组招牌"副产物回收"物流玩法）
 - **fix** DNA 编码器/转录仪现可在"生物工艺 · 机器"创意标签页找到（此前方块已注册但未挂入任何标签页，创造模式翻不到）
-- **feat** 序列机信息层地基（中心法则第一波起步）：新增 central 纯信息引擎——玩家写的程序文本经无损编解码（UTF-8 → base-20 → DNA 碱基序列）加密成 DNA 链，天然不含终止密码子、翻译必然可读，且"同链必同程序"（双射）；43 项单测守护
+- **feat** 序列机信息层地基（中心法则第一波起步）：新增 seq 纯信息引擎——玩家写的程序文本经无损编解码（UTF-8 → base-20 → DNA 碱基序列）加密成 DNA 链，天然不含终止密码子、翻译必然可读，且"同链必同程序"（双射）；43 项单测守护
 - **feat** 新增序列物品族：DNA 双链 / DNA 单链 / mRNA / 多肽链 / tRNA 基因 / 通用 tRNA / 错误折叠蛋白 + RNA 聚合酶催化剂占位；新增 4 种脱氧核苷酸（dATP/dTTP/dCTP/dGTP，SMILES 批量校验全绿）；序列物品 tooltip 实时预览序列内容（程序 DNA 额外显示解码出的程序摘要）
 - **feat** 新增两台序列机：**DNA 编码器**（GUI 文本编辑器写程序 + 模板按钮 + 编码预览，消耗 dNTP 逐碱基合成程序 DNA）与**转录仪**（RNA 聚合酶催化，DNA 模板 → mRNA 互补链，消耗 NTP）；支持"链源模型"——产物在槽内实时生长可见、取走自动重建继续、缺单体停摆补料即续、换程序/换模板归零并弹出旧产物、半成品标记拒绝折叠
 
