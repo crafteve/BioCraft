@@ -1,7 +1,7 @@
 package com.github.crafteve.biocraft.gui;
 
-import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
-import com.github.crafteve.biocraft.blockentity.IoMode;
+import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity;
+import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.IoMode;
 import com.github.crafteve.biocraft.init.EnzymeFactoryRegistry;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModItems;
@@ -119,7 +119,7 @@ public class MachineMenu extends AbstractContainerMenu {
     private final String packetEnzymeId;
 
     /** 方块实体引用，菜单生命周期内保持存活（stillValid 与物种槽用） */
-    private final EnzymeFactoryBlockEntity blockEntity;
+    private final EnzymeMachineBlockEntity blockEntity;
 
     /** 容器数据（服务端权威，每 tick 同步） */
     private final ContainerData data;
@@ -136,7 +136,7 @@ public class MachineMenu extends AbstractContainerMenu {
      * @param fluxHistory     v-t 历史快照（旧→新，每 tick 通量×1000）
      */
     public MachineMenu(int containerId, Inventory playerInventory,
-                       EnzymeFactoryBlockEntity blockEntity, int[] fluxHistory) {
+                       EnzymeMachineBlockEntity blockEntity, int[] fluxHistory) {
         this(containerId, playerInventory, blockEntity, fluxHistory, null);
     }
 
@@ -150,7 +150,7 @@ public class MachineMenu extends AbstractContainerMenu {
      * @param packetEnzymeId  客户端打开包中的酶 id（空串 = 无酶，null = 服务端）
      */
     private MachineMenu(int containerId, Inventory playerInventory,
-                        EnzymeFactoryBlockEntity blockEntity, int[] fluxHistory, String packetEnzymeId) {
+                        EnzymeMachineBlockEntity blockEntity, int[] fluxHistory, String packetEnzymeId) {
         super(ModBlocks.ENZYME_CHAMBER_MENU.get(), containerId);
         this.blockEntity = blockEntity;
         this.packetEnzymeId = packetEnzymeId;
@@ -194,7 +194,7 @@ public class MachineMenu extends AbstractContainerMenu {
     }
 
     /**
-     * 解析打开数据包并定位方块实体（与 EnzymeFactoryBlockEntity.writeClientSideData
+     * 解析打开数据包并定位方块实体（与 EnzymeMachineBlockEntity.writeClientSideData
      * 的写入顺序严格对应：酶 id → 历史长度 → 历史数组 → BlockPos）
      * <p>
      * 方块已被破坏时按空气状态构造占位实体（防御降级，避免菜单崩溃）；
@@ -212,10 +212,10 @@ public class MachineMenu extends AbstractContainerMenu {
             history[i] = buffer.readVarInt();
         }
         BlockPos pos = buffer.readBlockPos();
-        EnzymeFactoryBlockEntity be = playerInventory.player.level().getBlockEntity(pos)
-                instanceof EnzymeFactoryBlockEntity factory ? factory : null;
+        EnzymeMachineBlockEntity be = playerInventory.player.level().getBlockEntity(pos)
+                instanceof EnzymeMachineBlockEntity factory ? factory : null;
         if (be == null) {
-            be = new EnzymeFactoryBlockEntity(pos, Blocks.AIR.defaultBlockState());
+            be = new EnzymeMachineBlockEntity(pos, Blocks.AIR.defaultBlockState());
         }
         return new InitData(be, history, enzymeId);
     }
@@ -227,7 +227,7 @@ public class MachineMenu extends AbstractContainerMenu {
      * @param fluxHistory 历史快照（旧→新）
      * @param enzymeId    酶 id（空串 = 无酶）
      */
-    private record InitData(EnzymeFactoryBlockEntity blockEntity, int[] fluxHistory, String enzymeId) {
+    private record InitData(EnzymeMachineBlockEntity blockEntity, int[] fluxHistory, String enzymeId) {
     }
 
     /**
@@ -237,7 +237,7 @@ public class MachineMenu extends AbstractContainerMenu {
      * 槽位背景贴图由 Screen 自绘（vanilla 不画槽位背景）
      */
     private void addEnzymeSlot() {
-        addSlot(new RestrictedSlot(this, blockEntity, EnzymeFactoryBlockEntity.ENZYME_SLOT,
+        addSlot(new RestrictedSlot(this, blockEntity, EnzymeMachineBlockEntity.ENZYME_SLOT,
                 ENZYME_SLOT_X, ENZYME_SLOT_Y, 64, true));
     }
 
@@ -252,8 +252,8 @@ public class MachineMenu extends AbstractContainerMenu {
      */
     private void addSpeciesSlots() {
         int slotLimit = 64 * com.github.crafteve.biocraft.reaction.KineticConstants.SLOT_GROUPS;
-        for (int slot = EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
-             slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount; slot++) {
+        for (int slot = EnzymeMachineBlockEntity.SPECIES_SLOT_BASE;
+             slot < EnzymeMachineBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount; slot++) {
             addSlot(new RestrictedSlot(this, blockEntity, slot, -100, -100, slotLimit, false));
         }
     }
@@ -289,7 +289,7 @@ public class MachineMenu extends AbstractContainerMenu {
         data.set(DATA_ENZYME, enzymeIndex(blockEntity.getEnzymeData()));
         for (int i = 0; i < speciesSlotCount; i++) {
             data.set(DATA_REMAINDER_BASE + i,
-                    (int) Math.round(blockEntity.getRemainder(EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + i) * 1000.0));
+                    (int) Math.round(blockEntity.getRemainder(EnzymeMachineBlockEntity.SPECIES_SLOT_BASE + i) * 1000.0));
         }
         data.set(energyIndex(0), blockEntity.getEnergyStored());
         data.set(energyIndex(1), (int) Math.round(blockEntity.getCachedEnergyRate() * 10.0));
@@ -386,8 +386,8 @@ public class MachineMenu extends AbstractContainerMenu {
      * @return 区域编码（-1 = 酶槽/无酶/未用槽位）
      */
     private int ioAreaOfSlot(int slot) {
-        if (slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
-                || slot >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
+        if (slot < EnzymeMachineBlockEntity.SPECIES_SLOT_BASE
+                || slot >= EnzymeMachineBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
             return -1;
         }
         EnzymeFactoryData data = getEnzymeData();
@@ -400,7 +400,7 @@ public class MachineMenu extends AbstractContainerMenu {
                 inputSlots++;
             }
         }
-        int offset = slot - EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+        int offset = slot - EnzymeMachineBlockEntity.SPECIES_SLOT_BASE;
         return offset < inputSlots ? 0 : 1;
     }
 
@@ -462,11 +462,11 @@ public class MachineMenu extends AbstractContainerMenu {
      * @return 0~1 的余量（浓度小数部分），0 槽/非法槽恒 0
      */
     public double getRemainder(int slot) {
-        if (slot < EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE
-                || slot >= EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
+        if (slot < EnzymeMachineBlockEntity.SPECIES_SLOT_BASE
+                || slot >= EnzymeMachineBlockEntity.SPECIES_SLOT_BASE + speciesSlotCount) {
             return 0.0;
         }
-        return data.get(DATA_REMAINDER_BASE + slot - EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE) / 1000.0;
+        return data.get(DATA_REMAINDER_BASE + slot - EnzymeMachineBlockEntity.SPECIES_SLOT_BASE) / 1000.0;
     }
 
     /**
@@ -522,7 +522,7 @@ public class MachineMenu extends AbstractContainerMenu {
      * @return 酶数据档案，0 槽无酶/非法为 null
      */
     private EnzymeFactoryData fallbackEnzymeFromSlot() {
-        ItemStack enzymeStack = blockEntity.getContainer().getItem(EnzymeFactoryBlockEntity.ENZYME_SLOT);
+        ItemStack enzymeStack = blockEntity.getContainer().getItem(EnzymeMachineBlockEntity.ENZYME_SLOT);
         if (!enzymeStack.isEmpty() && enzymeStack.getItem() instanceof EnzymeItem enzymeItem) {
             return enzymeItem.getEnzymeData();
         }
@@ -534,7 +534,7 @@ public class MachineMenu extends AbstractContainerMenu {
      *
      * @return 方块实体
      */
-    public EnzymeFactoryBlockEntity getBlockEntity() {
+    public EnzymeMachineBlockEntity getBlockEntity() {
         return blockEntity;
     }
 
@@ -598,10 +598,10 @@ public class MachineMenu extends AbstractContainerMenu {
      */
     private static class RestrictedSlot extends BiocraftSlot {
         private final MachineMenu menu;
-        private final EnzymeFactoryBlockEntity blockEntity;
+        private final EnzymeMachineBlockEntity blockEntity;
         private final boolean enzymeSlot;
 
-        RestrictedSlot(MachineMenu menu, EnzymeFactoryBlockEntity blockEntity, int slot, int x, int y,
+        RestrictedSlot(MachineMenu menu, EnzymeMachineBlockEntity blockEntity, int slot, int x, int y,
                        int maxStack, boolean enzymeSlot) {
             super(blockEntity.getContainer(), slot, x, y, maxStack);
             this.menu = menu;
@@ -656,3 +656,4 @@ public class MachineMenu extends AbstractContainerMenu {
         }
     }
 }
+

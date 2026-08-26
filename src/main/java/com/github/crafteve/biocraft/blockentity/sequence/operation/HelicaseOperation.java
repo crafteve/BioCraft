@@ -1,4 +1,7 @@
-package com.github.crafteve.biocraft.blockentity;
+package com.github.crafteve.biocraft.blockentity.sequence.operation;
+
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.SeqStepState;
 
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
@@ -147,3 +150,5 @@ public class HelicaseOperation implements SequenceOperation {
         return false;
     }
 }
+
+

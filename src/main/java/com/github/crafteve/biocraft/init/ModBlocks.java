@@ -2,11 +2,11 @@ package com.github.crafteve.biocraft.init;
 
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.block.BioCraftMachineBlock;
-import com.github.crafteve.biocraft.block.EnzymeChamberBlock;
+import com.github.crafteve.biocraft.block.EnzymeMachineBlock;
 import com.github.crafteve.biocraft.block.SequenceMachineBlock;
-import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
-import com.github.crafteve.biocraft.blockentity.SequenceMachineBlockEntity;
-import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
+import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity;
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineBlockEntity;
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineKind;
 import com.github.crafteve.biocraft.gui.SequenceMachineMenu;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.inventory.MenuType;
@@ -40,9 +40,9 @@ public final class ModBlocks {
             DeferredRegister.create(Registries.MENU, BioCraft.MODID);
 
     /** 酶反应腔方块（化学线，酶由 0 槽物品动态解析） */
-    public static final DeferredBlock<EnzymeChamberBlock> ENZYME_CHAMBER = BLOCKS.register(
+    public static final DeferredBlock<EnzymeMachineBlock> ENZYME_CHAMBER = BLOCKS.register(
             "enzyme_chamber",
-            () -> new EnzymeChamberBlock());
+            () -> new EnzymeMachineBlock());
 
     /**
      * 酶反应腔方块物品（手持放置方块用）
@@ -55,9 +55,9 @@ public final class ModBlocks {
             () -> new BlockItem(ENZYME_CHAMBER.get(), new Item.Properties()));
 
     /** 酶反应腔方块实体类型（唯一 BE，酶从 0 槽动态解析） */
-    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<EnzymeFactoryBlockEntity>> ENZYME_CHAMBER_BE =
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<EnzymeMachineBlockEntity>> ENZYME_CHAMBER_BE =
             BE_TYPES.register("enzyme_chamber",
-                    () -> BlockEntityType.Builder.of(EnzymeFactoryBlockEntity::new, ENZYME_CHAMBER.get())
+                    () -> BlockEntityType.Builder.of(EnzymeMachineBlockEntity::new, ENZYME_CHAMBER.get())
                             .build(null));
 
     /**
@@ -161,3 +161,4 @@ public final class ModBlocks {
     private ModBlocks() {
     }
 }
+

@@ -1,8 +1,8 @@
 package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.BioCraft;
-import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
-import com.github.crafteve.biocraft.blockentity.IoMode;
+import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity;
+import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.IoMode;
 import com.github.crafteve.biocraft.compat.CompatRenderUtil;
 import com.github.crafteve.biocraft.compat.EnzymeEquation;
 import com.github.crafteve.biocraft.init.ModItems;
@@ -201,7 +201,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 滚动插值系数（每 tick 向目标偏移逼近的比例，越大越跟手） */
     private static final double SCROLL_LERP = 0.25;
 
-    private final EnzymeFactoryBlockEntity blockEntity;
+    private final EnzymeMachineBlockEntity blockEntity;
 
     /**
      * 当前酶数据（动态：每 tick 从 menu.getEnzymeData() 刷新，
@@ -295,7 +295,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         if (!id.equals(currentEnzymeId)) {
             if (current == null && enzymeData != null) {
                 ItemStack enzymeStack = blockEntity.getContainer().getItem(
-                        com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.ENZYME_SLOT);
+                        com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.ENZYME_SLOT);
                 if (!enzymeStack.isEmpty()) {
                     return;
                 }
@@ -328,7 +328,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         this.clientDefinition = enzymeData.buildSimulator().getDefinition();
         this.speciesToMenuSlot = buildSpeciesToMenuSlot(enzymeData);
         int inputSlots = nonEnergyCount(enzymeData.reactants());
-        int speciesBase = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+        int speciesBase = com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.SPECIES_SLOT_BASE;
         this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X,
                 buildCards(enzymeData.reactants(), speciesBase));
         this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X,
@@ -348,7 +348,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         int total = data.reactants().size() + data.products().size();
         int[] mapping = new int[total];
         int speciesIndex = 0;
-        int slot = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+        int slot = com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.SPECIES_SLOT_BASE;
         for (EnzymeFactoryData.SpeciesSpec spec : data.reactants()) {
             mapping[speciesIndex++] =
                     com.github.crafteve.biocraft.reaction.EnergyKinetics.isEnergySpecies(spec.item()) ? -1 : slot++;
@@ -596,7 +596,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      */
     @Override
     protected void renderSlot(GuiGraphics graphics, Slot slot) {
-        int base = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+        int base = com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.SPECIES_SLOT_BASE;
         if (slot.index >= base && slot.index < base + speciesSlotCount()) {
             graphics.enableScissor(this.leftPos + MachineMenu.SCROLL_X,
                     this.topPos + MachineMenu.SCROLL_Y,
@@ -996,7 +996,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         // 线性倍率（Vmax = kcat × [E]，活性通道），随酶堆叠数动态缩放；
         // [E] 从 0 槽物品堆叠数取（经槽位广播同步，客户端可用）
         double enzymeCount = Math.max(1.0,
-                menu.getSlot(EnzymeFactoryBlockEntity.ENZYME_SLOT).getItem().getCount());
+                menu.getSlot(EnzymeMachineBlockEntity.ENZYME_SLOT).getItem().getCount());
         double vmaxFShow = definition.forwardReachableFlux() * enzymeCount;
         double vmaxRShow = definition.reverseReachableFlux() * enzymeCount;
         double span = Math.max(vmaxFShow + vmaxRShow, 1e-9);
@@ -1460,7 +1460,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * syncSlotPositions 只写自己区域的坐标，未用槽位靠本方法兜底
      */
     private void clearSpeciesSlotPositions() {
-        int base = com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity.SPECIES_SLOT_BASE;
+        int base = com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.SPECIES_SLOT_BASE;
         for (int slot = base; slot < base + speciesSlotCount(); slot++) {
             menu.getSlot(slot).x = -100;
             menu.getSlot(slot).y = -100;
@@ -1888,3 +1888,4 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         // 空实现
     }
 }
+

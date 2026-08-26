@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.blockentity;
+package com.github.crafteve.biocraft.blockentity.base;
 
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
@@ -48,3 +48,4 @@ public class MachineContainer extends SimpleContainer {
         return super.removeItem(index, count);
     }
 }
+

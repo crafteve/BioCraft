@@ -1,6 +1,6 @@
 package com.github.crafteve.biocraft;
 
-import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
+import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity;
 import com.github.crafteve.biocraft.client.EmissiveLampBakedModel;
 import com.github.crafteve.biocraft.gui.EncoderScreen;
 import com.github.crafteve.biocraft.gui.HelicaseScreen;
@@ -65,12 +65,12 @@ public class BioCraftClient {
         // 有酶时液体=酶数据表色、灯=提亮酶色；同一模型零 blockstate 表达状态
         event.register((state, level, pos, tintIndex) -> {
             if (level != null && pos != null
-                    && level.getBlockEntity(pos) instanceof EnzymeFactoryBlockEntity be) {
+                    && level.getBlockEntity(pos) instanceof EnzymeMachineBlockEntity be) {
                 return tintIndex == 1 ? be.getThemeLampArgb() : be.getThemeLiquidArgb();
             }
             return tintIndex == 1
-                    ? EnzymeFactoryBlockEntity.EMPTY_LAMP_ARGB
-                    : EnzymeFactoryBlockEntity.EMPTY_LIQUID_ARGB;
+                    ? EnzymeMachineBlockEntity.EMPTY_LAMP_ARGB
+                    : EnzymeMachineBlockEntity.EMPTY_LIQUID_ARGB;
         }, ModBlocks.ENZYME_CHAMBER.get());
     }
 
@@ -79,8 +79,9 @@ public class BioCraftClient {
         // 酶反应腔方块物品（无 BE，无法知道具体酶色）：固定呈现"空机"暗灰
         // （物品 = 缩小版未装酶机器，与用户确认的默认 3D 方块模型渲染一致）
         event.register((stack, tintIndex) -> tintIndex == 1
-                ? EnzymeFactoryBlockEntity.EMPTY_LAMP_ARGB
-                : EnzymeFactoryBlockEntity.EMPTY_LIQUID_ARGB,
+                ? EnzymeMachineBlockEntity.EMPTY_LAMP_ARGB
+                : EnzymeMachineBlockEntity.EMPTY_LIQUID_ARGB,
                 ModBlocks.ENZYME_CHAMBER_ITEM.get());
     }
 }
+

@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.blockentity;
+package com.github.crafteve.biocraft.blockentity.sequence;
 
 import com.github.crafteve.biocraft.BioCraft;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -56,3 +56,4 @@ public final class SequenceContainerUtil {
         return key.getNamespace().equals(BioCraft.MODID) && key.getPath().equals(itemId);
     }
 }
+

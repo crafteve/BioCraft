@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.blockentity;
+package com.github.crafteve.biocraft.blockentity.base;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -178,3 +178,4 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
     @Override
     public abstract AbstractContainerMenu createMenu(int containerId, net.minecraft.world.entity.player.Inventory playerInventory, Player player);
 }
+

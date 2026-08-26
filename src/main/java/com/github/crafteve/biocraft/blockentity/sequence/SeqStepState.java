@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.blockentity;
+package com.github.crafteve.biocraft.blockentity.sequence;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -127,3 +127,4 @@ public final class SeqStepState {
         }
     }
 }
+

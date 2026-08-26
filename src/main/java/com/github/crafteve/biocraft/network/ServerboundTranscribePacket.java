@@ -1,8 +1,8 @@
 package com.github.crafteve.biocraft.network;
 
 import com.github.crafteve.biocraft.BioCraft;
-import com.github.crafteve.biocraft.blockentity.SequenceMachineBlockEntity;
-import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineBlockEntity;
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineKind;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -42,15 +42,15 @@ public record ServerboundTranscribePacket(BlockPos pos) implements CustomPacketP
                         || be.kind() == SequenceMachineKind.TRANSCRIBER
                         || be.kind() == SequenceMachineKind.TRANSLATOR)
                     && player.blockPosition().distSqr(pos) <= 64) {
-                if (be.stepState().stage() == com.github.crafteve.biocraft.blockentity.SeqStepState.Stage.IDLE
+                if (be.stepState().stage() == com.github.crafteve.biocraft.blockentity.sequence.SeqStepState.Stage.IDLE
                         && be.operation().canStart(be.getContainer(), be.stepState())
                         && be.operation().init(be.getContainer(), be.stepState())) {
                     // 记录模板指纹：转录仪 = ssDNA 模板槽，翻译机 = mRNA 槽；
                     // 编码器链源是程序文本（submitProgram 换文本即归零），无指纹
                     // （指纹用于 BE tick 检测模板被拿走/换链，见 SequenceMachineBlockEntity）
                     int templateSlot = switch (be.kind()) {
-                        case TRANSCRIBER -> com.github.crafteve.biocraft.blockentity.TranscriptionOperation.SLOT_TEMPLATE;
-                        case TRANSLATOR -> com.github.crafteve.biocraft.blockentity.TranslatorOperation.SLOT_MRNA;
+                        case TRANSCRIBER -> com.github.crafteve.biocraft.blockentity.sequence.operation.TranscriptionOperation.SLOT_TEMPLATE;
+                        case TRANSLATOR -> com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation.SLOT_MRNA;
                         default -> -1;
                     };
                     if (templateSlot >= 0) {
@@ -64,3 +64,4 @@ public record ServerboundTranscribePacket(BlockPos pos) implements CustomPacketP
         });
     }
 }
+

@@ -1,8 +1,8 @@
 package com.github.crafteve.biocraft.network;
 
 import com.github.crafteve.biocraft.BioCraft;
-import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
-import com.github.crafteve.biocraft.blockentity.IoMode;
+import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity;
+import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.IoMode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -62,10 +62,11 @@ public record ServerboundSetIoModePacket(BlockPos pos, int area, int mode) imple
             if (area < 0 || area > 1 || mode < 0 || mode > 2) {
                 return;
             }
-            if (player.level().getBlockEntity(pos) instanceof EnzymeFactoryBlockEntity be
+            if (player.level().getBlockEntity(pos) instanceof EnzymeMachineBlockEntity be
                     && player.blockPosition().distSqr(pos) <= 64) {
                 be.setIoMode(area, IoMode.byId(mode));
             }
         });
     }
 }
+

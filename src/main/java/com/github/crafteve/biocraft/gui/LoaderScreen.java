@@ -1,7 +1,7 @@
 package com.github.crafteve.biocraft.gui;
 
-import com.github.crafteve.biocraft.blockentity.LoaderOperation;
-import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.LoaderOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineKind;
 import com.github.crafteve.biocraft.item.MoleculeItem;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -174,3 +174,4 @@ public class LoaderScreen extends SequenceMachineScreen {
         return fallback;
     }
 }
+

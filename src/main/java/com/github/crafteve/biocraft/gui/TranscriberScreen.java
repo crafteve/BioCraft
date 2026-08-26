@@ -1,6 +1,6 @@
 package com.github.crafteve.biocraft.gui;
 
-import com.github.crafteve.biocraft.blockentity.TranscriptionOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.TranscriptionOperation;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.seq.SequenceData;
 import com.github.crafteve.biocraft.seq.SeqOps;
@@ -184,3 +184,4 @@ public class TranscriberScreen extends SequenceMachineScreen {
         }
     }
 }
+

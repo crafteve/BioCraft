@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.blockentity;
+package com.github.crafteve.biocraft.blockentity.enzyme;
 
 import com.github.crafteve.biocraft.item.EnzymeItem;
 import net.minecraft.world.SimpleContainer;
@@ -28,14 +28,14 @@ import net.neoforged.neoforge.items.IItemHandlerModifiable;
  * 本类不改动容器结构：SimpleContainer 仍是内部权威存储，
  * 玩家 GUI / 原版漏斗 / 工业管道三路共用同一容器
  */
-public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
+public class EnzymeMachineItemHandler implements IItemHandlerModifiable {
     /** 宿主方块实体（浓度回写经其 setChanged 链完成） */
-    private final EnzymeFactoryBlockEntity blockEntity;
+    private final EnzymeMachineBlockEntity blockEntity;
 
     /**
      * @param blockEntity 宿主酶反应腔方块实体
      */
-    public EnzymeFactoryItemHandler(EnzymeFactoryBlockEntity blockEntity) {
+    public EnzymeMachineItemHandler(EnzymeMachineBlockEntity blockEntity) {
         this.blockEntity = blockEntity;
     }
 
@@ -131,7 +131,7 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
         if (amount <= 0 || slot < 0 || slot >= getSlots()) {
             return ItemStack.EMPTY;
         }
-        if (slot == EnzymeFactoryBlockEntity.ENZYME_SLOT) {
+        if (slot == EnzymeMachineBlockEntity.ENZYME_SLOT) {
             return ItemStack.EMPTY;
         }
         if (!blockEntity.canExtractFromSlot(slot)) {
@@ -157,7 +157,7 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
      */
     @Override
     public int getSlotLimit(int slot) {
-        if (slot == EnzymeFactoryBlockEntity.ENZYME_SLOT) {
+        if (slot == EnzymeMachineBlockEntity.ENZYME_SLOT) {
             return 64;
         }
         return 64 * com.github.crafteve.biocraft.reaction.KineticConstants.SLOT_GROUPS;
@@ -184,7 +184,7 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
         if (!blockEntity.canInsertIntoSlot(slot)) {
             return false;
         }
-        if (slot == EnzymeFactoryBlockEntity.ENZYME_SLOT) {
+        if (slot == EnzymeMachineBlockEntity.ENZYME_SLOT) {
             return stack.is(com.github.crafteve.biocraft.init.ModTags.ENZYME_ITEMS);
         }
         String speciesId = blockEntity.getSpeciesId(slot);
@@ -218,3 +218,4 @@ public class EnzymeFactoryItemHandler implements IItemHandlerModifiable {
         }
     }
 }
+

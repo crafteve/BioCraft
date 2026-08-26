@@ -1,6 +1,8 @@
-package com.github.crafteve.biocraft.blockentity;
+package com.github.crafteve.biocraft.blockentity.enzyme;
 
 import com.github.crafteve.biocraft.BioCraft;
+import com.github.crafteve.biocraft.blockentity.base.MachineBlockEntity;
+import com.github.crafteve.biocraft.blockentity.base.MachineContainer;
 import com.github.crafteve.biocraft.init.EnzymeFactoryRegistry;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModItems;
@@ -38,7 +40,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *   <li>存档：只存浓度数组 + 容器内容（含 0 槽酶物品），读档时从酶槽重建</li>
  * </ul>
  */
-public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
+public class EnzymeMachineBlockEntity extends MachineBlockEntity {
     /** 酶槽容器下标（0 槽，放酶蛋白物品） */
     public static final int ENZYME_SLOT = 0;
 
@@ -140,7 +142,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     private int cachedProgressX1000;
 
     /** 工业 IO 适配器（懒加载单例：管道查询 capability 时复用同一实例，避免每 tick 分配） */
-    private EnzymeFactoryItemHandler itemHandler;
+    private EnzymeMachineItemHandler itemHandler;
 
     /**
      * INPUT 区域（反应物槽）IO 模式，默认仅输入（只允许物品进入）
@@ -191,7 +193,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      * @param pos   方块位置
      * @param state 方块状态
      */
-    public EnzymeFactoryBlockEntity(BlockPos pos, BlockState state) {
+    public EnzymeMachineBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlocks.ENZYME_CHAMBER_BE.get(), pos, state, 1 + EnzymeFactoryRegistry.maxNonFeSpeciesCount());
         // 数组长度 = 最大非 fe 物种数 + 1：映射用"容器槽位下标"索引（从
         // SPECIES_SLOT_BASE=1 起），需容纳槽位 1..maxNonFeSpeciesCount，
@@ -485,9 +487,9 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      *
      * @return 本实体的 IItemHandler 适配器
      */
-    public EnzymeFactoryItemHandler getItemHandler() {
+    public EnzymeMachineItemHandler getItemHandler() {
         if (itemHandler == null) {
-            itemHandler = new EnzymeFactoryItemHandler(this);
+            itemHandler = new EnzymeMachineItemHandler(this);
         }
         return itemHandler;
     }
@@ -892,7 +894,7 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
      * @param be    本实体
      */
     public static void serverTick(net.minecraft.world.level.Level level, BlockPos pos,
-                                  BlockState state, EnzymeFactoryBlockEntity be) {
+                                  BlockState state, EnzymeMachineBlockEntity be) {
         be.tickServer();
     }
 
@@ -1295,4 +1297,28 @@ public class EnzymeFactoryBlockEntity extends MachineBlockEntity {
     public int getCachedProgressX1000() {
         return cachedProgressX1000;
     }
+    /**
+     * 侧向 IO 模式：INPUT/OUTPUT 区域各自的物品进出许可（酶机器专用内部枚举）
+     * <p>
+     * 仅酶机器使用，内聚于酶机器 BE 内，不再独立文件
+     */
+    public enum IoMode {
+        INPUT_ONLY(0),
+        OUTPUT_ONLY(1),
+        BOTH(2);
+        private final int id;
+        IoMode(int id) { this.id = id; }
+        public int id() { return id; }
+        public static IoMode byId(int id) {
+            return switch (id) { case 0 -> INPUT_ONLY; case 1 -> OUTPUT_ONLY; default -> BOTH; };
+        }
+        public IoMode next() {
+            return switch (this) { case INPUT_ONLY -> OUTPUT_ONLY; case OUTPUT_ONLY -> BOTH; case BOTH -> INPUT_ONLY; };
+        }
+        public boolean allowsInsert() { return this != OUTPUT_ONLY; }
+        public boolean allowsExtract() { return this != INPUT_ONLY; }
+    }
+
 }
+
+

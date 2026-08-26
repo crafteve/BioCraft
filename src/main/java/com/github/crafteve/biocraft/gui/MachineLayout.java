@@ -1,7 +1,7 @@
 package com.github.crafteve.biocraft.gui;
 
 import com.github.crafteve.biocraft.BioCraft;
-import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineKind;
 import net.minecraft.resources.ResourceLocation;
 
 /**
@@ -139,3 +139,4 @@ public enum MachineLayout {
         return verb;
     }
 }
+

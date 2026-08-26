@@ -1,12 +1,12 @@
 package com.github.crafteve.biocraft.gui;
 
-import com.github.crafteve.biocraft.blockentity.DnaSynthesisOperation;
-import com.github.crafteve.biocraft.blockentity.HelicaseOperation;
-import com.github.crafteve.biocraft.blockentity.SequenceMachineBlockEntity;
-import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
-import com.github.crafteve.biocraft.blockentity.SequenceOperation;
-import com.github.crafteve.biocraft.blockentity.TranscriptionOperation;
-import com.github.crafteve.biocraft.blockentity.TranslatorOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.DnaSynthesisOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.HelicaseOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineBlockEntity;
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineKind;
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.TranscriptionOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.seq.SequenceData;
@@ -458,3 +458,4 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
         return itemstack;
     }
 }
+

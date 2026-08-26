@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.blockentity;
+package com.github.crafteve.biocraft.blockentity.enzyme;
 
 import net.neoforged.neoforge.energy.IEnergyStorage;
 
@@ -17,7 +17,7 @@ import net.neoforged.neoforge.energy.IEnergyStorage;
  */
 public class MachineEnergyStorage implements IEnergyStorage {
     /** 宿主方块实体（存量读写与存档标记） */
-    private final EnzymeFactoryBlockEntity blockEntity;
+    private final EnzymeMachineBlockEntity blockEntity;
 
     /** 容量（FE，构造时固化） */
     private final int capacity;
@@ -30,7 +30,7 @@ public class MachineEnergyStorage implements IEnergyStorage {
      * @param capacity    能量容量（FE）
      * @param output      方向：产物侧 fe（发电机）为 true，反应物侧 fe 为 false
      */
-    public MachineEnergyStorage(EnzymeFactoryBlockEntity blockEntity, int capacity, boolean output) {
+    public MachineEnergyStorage(EnzymeMachineBlockEntity blockEntity, int capacity, boolean output) {
         this.blockEntity = blockEntity;
         this.capacity = capacity;
         this.output = output;
@@ -82,3 +82,4 @@ public class MachineEnergyStorage implements IEnergyStorage {
         return !output;
     }
 }
+

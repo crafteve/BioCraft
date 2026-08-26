@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.blockentity;
+package com.github.crafteve.biocraft.blockentity.sequence;
 
 import com.github.crafteve.biocraft.BioCraft;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -63,3 +63,4 @@ public interface SequenceOperation {
         return SequenceContainerUtil.matchesId(stack, itemId);
     }
 }
+

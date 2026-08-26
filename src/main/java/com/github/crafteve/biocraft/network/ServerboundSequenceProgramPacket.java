@@ -1,7 +1,7 @@
 package com.github.crafteve.biocraft.network;
 
 import com.github.crafteve.biocraft.BioCraft;
-import com.github.crafteve.biocraft.blockentity.SequenceMachineBlockEntity;
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -46,3 +46,4 @@ public record ServerboundSequenceProgramPacket(BlockPos pos, String program) imp
         });
     }
 }
+

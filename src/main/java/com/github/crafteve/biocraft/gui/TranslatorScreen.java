@@ -1,7 +1,7 @@
 package com.github.crafteve.biocraft.gui;
 
-import com.github.crafteve.biocraft.blockentity.SequenceMachineKind;
-import com.github.crafteve.biocraft.blockentity.TranslatorOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineKind;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.seq.SequenceData;
 import net.minecraft.client.gui.GuiGraphics;
@@ -315,3 +315,4 @@ public class TranslatorScreen extends SequenceMachineScreen {
         }
     }
 }
+

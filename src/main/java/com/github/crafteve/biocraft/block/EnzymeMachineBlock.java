@@ -1,6 +1,6 @@
 package com.github.crafteve.biocraft.block;
 
-import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
+import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -22,7 +22,7 @@ import javax.annotation.Nullable;
  * <p>
  * 与 {@link SequenceMachineBlock} 并列，共享 {@link BioCraftMachineBlock} 基类
  */
-public class EnzymeChamberBlock extends BioCraftMachineBlock {
+public class EnzymeMachineBlock extends BioCraftMachineBlock {
 
     /**
      * 酶反应腔构造（唯一机器形态，无参数——酶数据来自 0 槽物品）
@@ -32,14 +32,14 @@ public class EnzymeChamberBlock extends BioCraftMachineBlock {
      *
      * @param properties 方块属性
      */
-    public EnzymeChamberBlock(Properties properties) {
+    public EnzymeMachineBlock(Properties properties) {
         super(properties);
     }
 
     /**
      * 无参数构造（DeferredRegister 默认工厂）：硬度/声音/地图色统一
      */
-    public EnzymeChamberBlock() {
+    public EnzymeMachineBlock() {
         this(Properties.of()
                 .mapColor(MapColor.COLOR_GRAY)
                 .strength(1.5F)
@@ -55,7 +55,7 @@ public class EnzymeChamberBlock extends BioCraftMachineBlock {
      */
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        return new EnzymeFactoryBlockEntity(pos, state);
+        return new EnzymeMachineBlockEntity(pos, state);
     }
 
     /**
@@ -77,6 +77,7 @@ public class EnzymeChamberBlock extends BioCraftMachineBlock {
             return null;
         }
         return (lvl, pos, st, be) ->
-                EnzymeFactoryBlockEntity.serverTick(lvl, pos, st, (EnzymeFactoryBlockEntity) be);
+                EnzymeMachineBlockEntity.serverTick(lvl, pos, st, (EnzymeMachineBlockEntity) be);
     }
 }
+

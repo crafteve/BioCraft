@@ -1,7 +1,13 @@
-package com.github.crafteve.biocraft.blockentity;
+package com.github.crafteve.biocraft.blockentity.sequence;
 
+import com.github.crafteve.biocraft.blockentity.base.MachineBlockEntity;
 import com.github.crafteve.biocraft.gui.SequenceMachineMenu;
 import com.github.crafteve.biocraft.init.ModDataComponents;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.DnaSynthesisOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.HelicaseOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.LoaderOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.TranscriptionOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
 import com.github.crafteve.biocraft.seq.SeqCodec;
 import com.github.crafteve.biocraft.seq.SequenceConstants;
 import com.github.crafteve.biocraft.seq.SequenceData;
@@ -455,3 +461,5 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         return true;
     }
 }
+
+

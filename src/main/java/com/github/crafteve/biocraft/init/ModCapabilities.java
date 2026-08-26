@@ -1,7 +1,7 @@
 package com.github.crafteve.biocraft.init;
 
 import com.github.crafteve.biocraft.BioCraft;
-import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
+import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.capabilities.Capabilities;
@@ -19,7 +19,7 @@ import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
  *   <li>side 参数忽略：所有面同权（全槽位可进可出，不做方向限制）</li>
  *   <li>返回懒加载单例：每 BE 一个适配器实例，避免管道每 tick
  *       查询 capability 时重复分配对象</li>
- *   <li>物种过滤/浓度回写全部在 {@code EnzymeFactoryItemHandler}
+ *   <li>物种过滤/浓度回写全部在 {@code EnzymeMachineItemHandler}
  *       内实现，本类只做注册</li>
  *   <li>能量能力仅对含 fe 物种的酶注册（getEnergyStorage 内部判空返回 null），
  *       换酶后经 invalidateCapabilities 通知缓存刷新</li>
@@ -40,9 +40,10 @@ public final class ModCapabilities {
     static void onRegisterCapabilities(RegisterCapabilitiesEvent event) {
         event.registerBlockEntity(Capabilities.ItemHandler.BLOCK,
                 ModBlocks.ENZYME_CHAMBER_BE.get(),
-                (EnzymeFactoryBlockEntity be, net.minecraft.core.Direction side) -> be.getItemHandler());
+                (EnzymeMachineBlockEntity be, net.minecraft.core.Direction side) -> be.getItemHandler());
         event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK,
                 ModBlocks.ENZYME_CHAMBER_BE.get(),
-                (EnzymeFactoryBlockEntity be, net.minecraft.core.Direction side) -> be.getEnergyStorage());
+                (EnzymeMachineBlockEntity be, net.minecraft.core.Direction side) -> be.getEnergyStorage());
     }
 }
+
