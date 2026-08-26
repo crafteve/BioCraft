@@ -151,6 +151,10 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 
 ## 更新日志
 
+### 2026-08-26
+
+- **refactor** 机器命名与分包对齐（内部重构，玩家无感知）：`AbstractMachineBlock→BioCraftMachineBlock`、`MachineBlock→EnzymeMachineBlock`（与 `SequenceMachineBlock` 对仗）；`blockentity` 按 `base/enzyme/sequence/operation` 分层，`IoMode` 内聚为 `EnzymeMachineBlockEntity` 内部枚举；`gui` 按 `base/enzyme/sequence/operation` 分层，`MachineLayout→SequenceLayout` 并更名 `STAGE`（舞台居中，双侧竖卡）/`CONSOLE`（控制台，上舞台下条形），贴图 `gui_v1→gui_stage`/`gui_encoder→gui_console`，`MachineMenu/Screen→EnzymeMachineMenu/Screen`；补齐全 `src` 残留 `v1/ENCODER` 族注释为 `STAGE/CONSOLE`
+
 ### 2026-08-25
 
 - **fix** 翻译机"程序肽链无程序"根治（起始密码子方案）：程序 DNA 的编码流首现 AUG 的位置随程序字节运气漂移（实测 @17/@45 两例），翻译机从首个 AUG 开工会跳过魔数与长度头、只翻出程序后半截，Ctrl 反推因缺魔数必失败——现编码器在程序正文前固定携带起始密码子 ATG（链结构：启动子 + ATG + 程序流 + 终止子），mRNA 恒以 AUG 开头、翻译机 0 位命中整链翻译，多肽 = Met + 完整程序蛋白；DNA/mRNA/多肽三条 Ctrl 反推路径加起始密码子兼容（解码失败且开头为 ATG 时剥掉再试），旧格式链直接解码不受影响。探针全链路验证：AUG@0、三路反推全过、旧链兼容、43 项 seq 单测全绿。**旧存档的程序 DNA 需重新编码一次**
