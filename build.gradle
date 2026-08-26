@@ -280,4 +280,8 @@ tasks.named('javadoc', Javadoc) {
     failOnError = false
 }
 
+// build 默认附带 javadoc（仅本模组 API，不含 MC 本体），产物在 build/docs/javadoc
+tasks.named('build') { dependsOn 'javadoc' }
+tasks.named('assemble') { dependsOn 'javadoc' }
+
 
