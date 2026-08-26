@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.gui;
+package com.github.crafteve.biocraft.gui.sequence.operation;
 
 import com.github.crafteve.biocraft.data.EnzymeProgramChecker;
 import com.github.crafteve.biocraft.network.ServerboundProgramDraftPacket;
@@ -7,6 +7,9 @@ import com.github.crafteve.biocraft.program.EnzymeProgramParser;
 import com.github.crafteve.biocraft.program.ProgramError;
 import com.github.crafteve.biocraft.seq.SeqCodec;
 import com.github.crafteve.biocraft.seq.SequenceConstants;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
+import com.github.crafteve.biocraft.gui.sequence.CodeEditorWidget;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineScreen;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;

@@ -13,7 +13,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 /**
  * 序列机启动工序包：客户端点击"编码/转录/翻译"按钮 → 服务端手动触发开工
  * <p>
- * 泛化自原转录包（原只支持 TRANSCRIBER）：服务端按 BE kind 校验，
+ * 泛化自原转录包（原只支持 CONSOLE_TRANSCRIBER）：服务端按 BE kind 校验，
  * 编码器/转录仪/翻译机共用同一通道——三机均为"点按钮才开工"语义（禁自动），
  * 触发时执行 canStart+init；转录仪/翻译机额外记录模板指纹
  * （编码器链源是提交的程序文本，由 submitProgram 归零语义覆盖，无指纹）

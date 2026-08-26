@@ -2,13 +2,13 @@ package com.github.crafteve.biocraft;
 
 import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity;
 import com.github.crafteve.biocraft.client.EmissiveLampBakedModel;
-import com.github.crafteve.biocraft.gui.EncoderScreen;
-import com.github.crafteve.biocraft.gui.HelicaseScreen;
-import com.github.crafteve.biocraft.gui.LoaderScreen;
-import com.github.crafteve.biocraft.gui.MachineScreen;
-import com.github.crafteve.biocraft.gui.SequenceMachineScreen;
-import com.github.crafteve.biocraft.gui.TranscriberScreen;
-import com.github.crafteve.biocraft.gui.TranslatorScreen;
+import com.github.crafteve.biocraft.gui.sequence.operation.EncoderScreen;
+import com.github.crafteve.biocraft.gui.sequence.operation.HelicaseScreen;
+import com.github.crafteve.biocraft.gui.sequence.operation.LoaderScreen;
+import com.github.crafteve.biocraft.gui.enzyme.EnzymeMachineScreen;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineScreen;
+import com.github.crafteve.biocraft.gui.sequence.operation.TranscriberScreen;
+import com.github.crafteve.biocraft.gui.sequence.operation.TranslatorScreen;
 import com.github.crafteve.biocraft.init.ModBlocks;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.client.resources.model.ModelResourceLocation;
@@ -32,7 +32,7 @@ public class BioCraftClient {
     static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
         // 将机器菜单类型与对应的屏幕类绑定，打开 GUI 时客户端按 MenuType 实例化屏幕
         // NeoForge 1.21.1 的 MenuScreens.register 为私有方法，必须经本事件注册
-        event.register(ModBlocks.ENZYME_CHAMBER_MENU.get(), MachineScreen::new);
+        event.register(ModBlocks.ENZYME_CHAMBER_MENU.get(), EnzymeMachineScreen::new);
         event.register(ModBlocks.DNA_ENCODER_MENU.get(), EncoderScreen::new);
         event.register(ModBlocks.TRANSCRIBER_MENU.get(), TranscriberScreen::new);
         event.register(ModBlocks.HELICASE_MENU.get(), HelicaseScreen::new);

@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.gui;
+package com.github.crafteve.biocraft.gui.base;
 
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.Slot;

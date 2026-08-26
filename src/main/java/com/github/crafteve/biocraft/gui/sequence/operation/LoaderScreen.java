@@ -1,8 +1,11 @@
-package com.github.crafteve.biocraft.gui;
+package com.github.crafteve.biocraft.gui.sequence.operation;
 
 import com.github.crafteve.biocraft.blockentity.sequence.operation.LoaderOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineKind;
 import com.github.crafteve.biocraft.item.MoleculeItem;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
+import com.github.crafteve.biocraft.gui.sequence.SequenceLayout;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineScreen;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
@@ -11,7 +14,7 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * 装载机屏幕（v1 族布局）：框架（背景/状态栏/标签/左右卡片/动画区面板骨架）
- * 全部由基类按 MachineLayout 绘制，本类只实现：
+ * 全部由基类按 SequenceLayout 绘制，本类只实现：
  * <ul>
  *   <li>动画内容：中央 tRNA 装载口袋（24 点呼吸圆环）+ 原料滑入 + 接触闪光
  *       + AMP/PPi 副产物坠落 + 完成光环（独立 30 tick 循环）</li>

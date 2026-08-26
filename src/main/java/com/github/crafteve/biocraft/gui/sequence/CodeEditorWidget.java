@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.gui;
+package com.github.crafteve.biocraft.gui.sequence;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;

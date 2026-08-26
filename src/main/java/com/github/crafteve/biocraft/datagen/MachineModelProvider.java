@@ -76,7 +76,7 @@ public class MachineModelProvider implements DataProvider {
      */
     private Map<Path, JsonObject> sequenceMachineResources() {
         Map<Path, JsonObject> outputs = new HashMap<>();
-        for (String blockName : new String[]{"dna_encoder", "transcriber", "helicase", "loader", "translator"}) {
+        for (String blockName : new String[]{"dna_encoder", "CONSOLE_TRANSCRIBER", "STAGE_HELICASE", "STAGE_LOADER", "CONSOLE_TRANSLATOR"}) {
             ResourceLocation blockModel = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/" + blockName);
 
             JsonObject blockState = new JsonObject();
@@ -97,10 +97,10 @@ public class MachineModelProvider implements DataProvider {
             // 纯几何中心对称单贴图（V4，同 chassis 白箱+黑晶，点缀高饱和色区分）
             String tex;
             if ("dna_encoder".equals(blockName)) tex = "biocraft:block/dna_encoder";
-            else if ("transcriber".equals(blockName)) tex = "biocraft:block/transcriber";
-            else if ("helicase".equals(blockName)) tex = "biocraft:block/helicase";
-            else if ("loader".equals(blockName)) tex = "biocraft:block/loader";
-            else if ("translator".equals(blockName)) tex = "biocraft:block/translator";
+            else if ("CONSOLE_TRANSCRIBER".equals(blockName)) tex = "biocraft:block/CONSOLE_TRANSCRIBER";
+            else if ("STAGE_HELICASE".equals(blockName)) tex = "biocraft:block/STAGE_HELICASE";
+            else if ("STAGE_LOADER".equals(blockName)) tex = "biocraft:block/STAGE_LOADER";
+            else if ("CONSOLE_TRANSLATOR".equals(blockName)) tex = "biocraft:block/CONSOLE_TRANSLATOR";
             else tex = "biocraft:block/enzyme_chamber_side";
             textures.addProperty("all", tex);
             textures.addProperty("particle", tex);

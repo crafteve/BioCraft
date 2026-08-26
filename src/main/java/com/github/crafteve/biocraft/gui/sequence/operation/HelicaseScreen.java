@@ -1,8 +1,11 @@
-package com.github.crafteve.biocraft.gui;
+package com.github.crafteve.biocraft.gui.sequence.operation;
 
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.seq.SequenceData;
 import com.github.crafteve.biocraft.seq.SeqOps;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
+import com.github.crafteve.biocraft.gui.sequence.SequenceLayout;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineScreen;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
@@ -11,7 +14,7 @@ import net.minecraft.world.item.ItemStack;
 
 /**
  * 解旋酶屏幕（v1 族布局）：框架（背景/状态栏/标签/动画区面板骨架/槽位坐标）
- * 全部由基类按 MachineLayout 绘制，本类只实现：
+ * 全部由基类按 SequenceLayout 绘制，本类只实现：
  * <ul>
  *   <li>专属卡片内容：输入 dsDNA 卡（解旋中显示已解旋前缀）与输出
  *       模板链/编码链卡（nt 数 + 四色碱基窗口）——序列预览型卡片，

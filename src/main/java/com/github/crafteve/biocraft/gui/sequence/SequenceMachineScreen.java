@@ -1,10 +1,11 @@
-package com.github.crafteve.biocraft.gui;
+package com.github.crafteve.biocraft.gui.sequence;
 
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.sequence.SeqStepState;
 import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineKind;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
 import com.github.crafteve.biocraft.compat.CompatRenderUtil;
+import com.github.crafteve.biocraft.gui.base.BiocraftSlot;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
@@ -23,9 +24,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 序列机通用屏幕基类（256×256 窗口，布局由 MachineLayout 数据驱动）
+ * 序列机通用屏幕基类（256×256 窗口，布局由 SequenceLayout 数据驱动）
  * <p>
- * 框架差异全部收敛到 {@link MachineLayout}：背景贴图（gui_v1/gui_encoder）、
+ * 框架差异全部收敛到 {@link SequenceLayout}：背景贴图（gui_stage/gui_console）、
  * 输出卡方向（右竖滚/底横滚）、中央区标签、动画区矩形、状态栏进度条、
  * 右上角状态文字与催化剂图标——renderBg 据此一次画完全部家常逻辑。
  * 子类只覆写 {@link #renderMachineAnimation} 画自己的动画内容
@@ -36,7 +37,7 @@ import java.util.List;
  * <ul>
  *   <li>状态栏：机器名（y13）+ 状态 + 细进度条（y22-25）；转录仪/翻译机因
  *       顶栏 9,8 槽位标题右移至 x28 并补槽位底纹</li>
- *   <li>标签：INPUT (9,30)；encoder 族 OUTPUT (70,132)，v1 族 OUTPUT (195,30)
+ *   <li>标签：INPUT (9,30)；CONSOLE_ENCODER 族 OUTPUT (70,132)，v1 族 OUTPUT (195,30)
  *       + 中央 LOAD/UNWIND (109,30)</li>
  *   <li>输入滚动卡片区 (7,41) 56×112 纵向；输出按布局横滚或右竖排</li>
  *   <li>动画区面板骨架：深色底 + 顶部 1px 亮线 + 淡网格（0x08FFFFFF，四边
@@ -104,8 +105,8 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     protected float animPartialTick;
 
     /** 当前机器的布局描述（框架差异的单一事实源） */
-    protected MachineLayout layout() {
-        return MachineLayout.of(menu.getKind());
+    protected SequenceLayout layout() {
+        return SequenceLayout.of(menu.getKind());
     }
 
     protected List<InputCard> buildInputCards(SequenceMachineKind kind) {
@@ -214,7 +215,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
                         - vOffset + SequenceMachineMenu.SLOT_Y;
             }
         }
-        // 输出：v1 族右竖排（固定坐标，≤3 卡无需滚动），encoder 族底横滚
+        // 输出：v1 族右竖排（固定坐标，≤3 卡无需滚动），CONSOLE_ENCODER 族底横滚
         if (!outputCards.isEmpty()) {
             if (layout().outputVertical()) {
                 for (int i = 0; i < outputCards.size(); i++) {
@@ -294,7 +295,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         this.animPartialTick = partialTick;
-        MachineLayout L = layout();
+        SequenceLayout L = layout();
         graphics.blit(L.bg(), leftPos, topPos, 0, 0, imageWidth, imageHeight, imageWidth, imageHeight);
         drawStatusBar(L, graphics);
         drawLabels(L, graphics);
@@ -316,7 +317,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     }
 
     /** 状态栏：机器名（顶栏槽位机型右移至 x28 并补槽底纹）+ 状态 + 细进度条 */
-    private void drawStatusBar(MachineLayout L, GuiGraphics graphics) {
+    private void drawStatusBar(SequenceLayout L, GuiGraphics graphics) {
         boolean topSlot = menu.getKind() == SequenceMachineKind.TRANSCRIBER
                 || menu.getKind() == SequenceMachineKind.TRANSLATOR;
         graphics.drawString(this.font, this.title, this.leftPos + (topSlot ? 28 : 8),
@@ -348,7 +349,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     }
 
     /** 标签组：INPUT 固定 (9,30)；输出按布局，v1 族加中央 LOAD/UNWIND 标签 */
-    private void drawLabels(MachineLayout L, GuiGraphics graphics) {
+    private void drawLabels(SequenceLayout L, GuiGraphics graphics) {
         graphics.drawString(this.font, "INPUT", this.leftPos + 9, this.topPos + 30, NAME_COLOR, false);
         if (L.outputVertical()) {
             graphics.drawString(this.font, "OUTPUT", this.leftPos + 195, this.topPos + 30, NAME_COLOR, false);
@@ -366,7 +367,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
      * plainPanel（编码器编辑器）只铺底色与顶线；panelTitle 为空（v1 族）
      * 画网格但不画顶部文字标识（标题/状态/图标）——动画内容填满整个面板
      */
-    private void drawAnimFrame(MachineLayout L, GuiGraphics graphics) {
+    private void drawAnimFrame(SequenceLayout L, GuiGraphics graphics) {
         int x = leftPos + L.ax();
         int y = topPos + L.ay();
         int w = L.aw();
@@ -434,7 +435,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         graphics.disableScissor();
     }
 
-    /** 输出横向滚动卡片（encoder 族）：序列卡（DNA/mRNA）、多肽卡、库存卡 */
+    /** 输出横向滚动卡片（CONSOLE_ENCODER 族）：序列卡（DNA/mRNA）、多肽卡、库存卡 */
     protected void drawOutputCards(GuiGraphics graphics) {
         if (outputCards.isEmpty()) {
             return;

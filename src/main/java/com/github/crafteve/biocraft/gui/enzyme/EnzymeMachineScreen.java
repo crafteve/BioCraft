@@ -1,9 +1,10 @@
-package com.github.crafteve.biocraft.gui;
+package com.github.crafteve.biocraft.gui.enzyme;
 
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity;
 import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.IoMode;
 import com.github.crafteve.biocraft.compat.CompatRenderUtil;
+import com.github.crafteve.biocraft.gui.base.BiocraftSlot;
 import com.github.crafteve.biocraft.compat.EnzymeEquation;
 import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.item.MoleculeItem;
@@ -31,7 +32,7 @@ import java.util.List;
 /**
  * 酶工厂屏幕（experiment/gui-remake 分支全新重建，与 main 合并前定稿）
  * <p>
- * 整张 gui_v1.png（256×256）作为 GUI 基底 1:1 blit，容器坐标
+ * 整张 gui_stage.png（256×256）作为 GUI 基底 1:1 blit，容器坐标
  * （leftPos/topPos）即贴图 blit 原点；GUI 内相对坐标布局如下：
  * <ul>
  *   <li>标题区：方块物品图标 (8,8) 16×16；缩写文本框 (28,10) 下沿 21
@@ -68,10 +69,10 @@ import java.util.List;
  * 字体约定：全程使用 Minecraft 自带字体（含中文 unicode 自动回退），
  * 不加载任何自定义 TTF 字体资源
  */
-public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
+public class EnzymeMachineScreen extends AbstractContainerScreen<EnzymeMachineMenu> {
     /** GUI 基底贴图（用户手绘，256×256，含背包区视觉） */
     private static final ResourceLocation GUI_BG =
-            ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/gui_v1.png");
+            ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "textures/gui/gui_stage.png");
 
     /** GUI 画布宽 = 基底贴图宽（1:1 blit，杜绝缩放虚化） */
     private static final int GUI_W = 256;
@@ -172,7 +173,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     /** 坐标轴颜色（深灰） */
     private static final int AXIS_COLOR = 0xFF555555;
 
-    // 滚动卡片布局常量统一引用 MachineMenu（Menu 与 Screen 共享，全酶工厂写死）
+    // 滚动卡片布局常量统一引用 EnzymeMachineMenu（Menu 与 Screen 共享，全酶工厂写死）
 
     /** 槽位贴图（slot.png 18×18）资源 */
     private static final ResourceLocation SLOT =
@@ -258,15 +259,15 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * @param playerInventory 玩家物品栏
      * @param title           窗口标题
      */
-    public MachineScreen(MachineMenu menu, Inventory playerInventory, Component title) {
+    public EnzymeMachineScreen(EnzymeMachineMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
         this.imageWidth = GUI_W;
         this.imageHeight = GUI_H;
         this.blockEntity = menu.getBlockEntity();
         this.enzymeData = menu.getEnzymeData();
         this.currentEnzymeId = enzymeData == null ? "" : enzymeData.id();
-        this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, java.util.Collections.emptyList());
-        this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X, java.util.Collections.emptyList());
+        this.inputArea = new CardScrollArea(EnzymeMachineMenu.SCROLL_X, java.util.Collections.emptyList());
+        this.outputArea = new CardScrollArea(EnzymeMachineMenu.OUTPUT_SCROLL_X, java.util.Collections.emptyList());
         rebuildEnzymeAreas();
         // 立即同步一次滚动槽坐标：Screen 构造后首个 containerTick 之前渲染
         // 就会发生，槽位初始坐标是屏外 (-100,-100)——不立即写坐标则首帧
@@ -319,8 +320,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         if (enzymeData == null) {
             this.speciesToMenuSlot = new int[0];
             this.clientDefinition = null;
-            this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X, java.util.Collections.emptyList());
-            this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X, java.util.Collections.emptyList());
+            this.inputArea = new CardScrollArea(EnzymeMachineMenu.SCROLL_X, java.util.Collections.emptyList());
+            this.outputArea = new CardScrollArea(EnzymeMachineMenu.OUTPUT_SCROLL_X, java.util.Collections.emptyList());
             return;
         }
         // 客户端只读定义：由酶数据临时构建（纯数据无状态，仅用于显示层
@@ -329,9 +330,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
         this.speciesToMenuSlot = buildSpeciesToMenuSlot(enzymeData);
         int inputSlots = nonEnergyCount(enzymeData.reactants());
         int speciesBase = com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.SPECIES_SLOT_BASE;
-        this.inputArea = new CardScrollArea(MachineMenu.SCROLL_X,
+        this.inputArea = new CardScrollArea(EnzymeMachineMenu.SCROLL_X,
                 buildCards(enzymeData.reactants(), speciesBase));
-        this.outputArea = new CardScrollArea(MachineMenu.OUTPUT_SCROLL_X,
+        this.outputArea = new CardScrollArea(EnzymeMachineMenu.OUTPUT_SCROLL_X,
                 buildCards(enzymeData.products(), speciesBase + inputSlots));
     }
 
@@ -454,11 +455,11 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
-            if (isHoveringIoButton(MachineMenu.SCROLL_X, mouseX, mouseY)) {
+            if (isHoveringIoButton(EnzymeMachineMenu.SCROLL_X, mouseX, mouseY)) {
                 cycleIoMode(0);
                 return true;
             }
-            if (isHoveringIoButton(MachineMenu.OUTPUT_SCROLL_X, mouseX, mouseY)) {
+            if (isHoveringIoButton(EnzymeMachineMenu.OUTPUT_SCROLL_X, mouseX, mouseY)) {
                 cycleIoMode(1);
                 return true;
             }
@@ -495,10 +496,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     private void drawIoButtons(GuiGraphics graphics, int mouseX, int mouseY) {
         // 无酶态由 drawNoEnzymeArea 提前返回，按钮只在有酶态绘制
         int theme = enzymeData.color();
-        drawIoButton(graphics, MachineMenu.SCROLL_X, menu.getInputIoMode(), theme,
-                isHoveringIoButton(MachineMenu.SCROLL_X, mouseX, mouseY));
-        drawIoButton(graphics, MachineMenu.OUTPUT_SCROLL_X, menu.getOutputIoMode(), theme,
-                isHoveringIoButton(MachineMenu.OUTPUT_SCROLL_X, mouseX, mouseY));
+        drawIoButton(graphics, EnzymeMachineMenu.SCROLL_X, menu.getInputIoMode(), theme,
+                isHoveringIoButton(EnzymeMachineMenu.SCROLL_X, mouseX, mouseY));
+        drawIoButton(graphics, EnzymeMachineMenu.OUTPUT_SCROLL_X, menu.getOutputIoMode(), theme,
+                isHoveringIoButton(EnzymeMachineMenu.OUTPUT_SCROLL_X, mouseX, mouseY));
     }
 
     /**
@@ -513,9 +514,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      */
     private void drawIoButton(GuiGraphics graphics, int areaX, IoMode mode, int theme, boolean hovered) {
         int x = this.leftPos + areaX;
-        int y = this.topPos + MachineMenu.IO_BUTTON_Y;
-        int w = MachineMenu.SCROLL_W;
-        int h = MachineMenu.IO_BUTTON_H;
+        int y = this.topPos + EnzymeMachineMenu.IO_BUTTON_Y;
+        int w = EnzymeMachineMenu.SCROLL_W;
+        int h = EnzymeMachineMenu.IO_BUTTON_H;
         // 1px 边框（主题色）+ 内部浅色填充（标题栏缩写框同款配色）
         graphics.fill(x, y, x + w, y + h, theme | 0xFF000000);
         graphics.fill(x + 1, y + 1, x + w - 1, y + h - 1, lighten(theme));
@@ -547,9 +548,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      */
     private boolean isHoveringIoButton(int areaX, double mouseX, double mouseY) {
         int x = this.leftPos + areaX;
-        int y = this.topPos + MachineMenu.IO_BUTTON_Y;
-        return mouseX >= x && mouseX < x + MachineMenu.SCROLL_W
-                && mouseY >= y && mouseY < y + MachineMenu.IO_BUTTON_H;
+        int y = this.topPos + EnzymeMachineMenu.IO_BUTTON_Y;
+        return mouseX >= x && mouseX < x + EnzymeMachineMenu.SCROLL_W
+                && mouseY >= y && mouseY < y + EnzymeMachineMenu.IO_BUTTON_H;
     }
 
     /**
@@ -561,9 +562,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      */
     private void drawIoButtonTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
         int area;
-        if (isHoveringIoButton(MachineMenu.SCROLL_X, mouseX, mouseY)) {
+        if (isHoveringIoButton(EnzymeMachineMenu.SCROLL_X, mouseX, mouseY)) {
             area = 0;
-        } else if (isHoveringIoButton(MachineMenu.OUTPUT_SCROLL_X, mouseX, mouseY)) {
+        } else if (isHoveringIoButton(EnzymeMachineMenu.OUTPUT_SCROLL_X, mouseX, mouseY)) {
             area = 1;
         } else {
             return;
@@ -598,10 +599,10 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
     protected void renderSlot(GuiGraphics graphics, Slot slot) {
         int base = com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.SPECIES_SLOT_BASE;
         if (slot.index >= base && slot.index < base + speciesSlotCount()) {
-            graphics.enableScissor(this.leftPos + MachineMenu.SCROLL_X,
-                    this.topPos + MachineMenu.SCROLL_Y,
-                    this.leftPos + MachineMenu.OUTPUT_SCROLL_X + MachineMenu.SCROLL_W,
-                    this.topPos + MachineMenu.SCROLL_Y + MachineMenu.SCROLL_H);
+            graphics.enableScissor(this.leftPos + EnzymeMachineMenu.SCROLL_X,
+                    this.topPos + EnzymeMachineMenu.SCROLL_Y,
+                    this.leftPos + EnzymeMachineMenu.OUTPUT_SCROLL_X + EnzymeMachineMenu.SCROLL_W,
+                    this.topPos + EnzymeMachineMenu.SCROLL_Y + EnzymeMachineMenu.SCROLL_H);
             renderSpeciesSlot(graphics, slot);
             graphics.disableScissor();
             return;
@@ -759,8 +760,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
      * JEI U/R 快捷键经 hoveredSlot 机制可用）
      */
     private void drawEnzymeSlot(GuiGraphics graphics) {
-        graphics.blit(SLOT, this.leftPos + MachineMenu.ENZYME_SLOT_X - 1,
-                this.topPos + MachineMenu.ENZYME_SLOT_Y - 1, 0, 0, 18, 18, 18, 18);
+        graphics.blit(SLOT, this.leftPos + EnzymeMachineMenu.ENZYME_SLOT_X - 1,
+                this.topPos + EnzymeMachineMenu.ENZYME_SLOT_Y - 1, 0, 0, 18, 18, 18, 18);
     }
 
     /**
@@ -1558,9 +1559,9 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
          * @return 是否在视口内
          */
         boolean contains(int localX, int localY) {
-            return localX >= areaX && localX < areaX + MachineMenu.SCROLL_W
-                    && localY >= MachineMenu.SCROLL_Y
-                    && localY < MachineMenu.SCROLL_Y + MachineMenu.SCROLL_H;
+            return localX >= areaX && localX < areaX + EnzymeMachineMenu.SCROLL_W
+                    && localY >= EnzymeMachineMenu.SCROLL_Y
+                    && localY < EnzymeMachineMenu.SCROLL_Y + EnzymeMachineMenu.SCROLL_H;
         }
 
         /**
@@ -1569,8 +1570,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
          * @param verticalAmount 垂直滚轮增量（向上为正，向上看更上方卡片）
          */
         void scrollBy(double verticalAmount) {
-            int maxScroll = Math.max(0, getCount() * MachineMenu.CARD_STEP
-                    - MachineMenu.CARD_GAP - MachineMenu.SCROLL_H);
+            int maxScroll = Math.max(0, getCount() * EnzymeMachineMenu.CARD_STEP
+                    - EnzymeMachineMenu.CARD_GAP - EnzymeMachineMenu.SCROLL_H);
             this.scrollTarget = Math.max(0,
                     Math.min(scrollTarget - verticalAmount * SCROLL_PIXELS_PER_NOTCH, maxScroll));
         }
@@ -1607,8 +1608,8 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                     continue;
                 }
                 Slot slot = menu.getSlot(speciesCard.containerSlot());
-                slot.x = areaX + MachineMenu.SLOT_X;
-                slot.y = MachineMenu.SCROLL_Y + i * MachineMenu.CARD_STEP - offset + MachineMenu.SLOT_Y;
+                slot.x = areaX + EnzymeMachineMenu.SLOT_X;
+                slot.y = EnzymeMachineMenu.SCROLL_Y + i * EnzymeMachineMenu.CARD_STEP - offset + EnzymeMachineMenu.SLOT_Y;
             }
         }
 
@@ -1624,20 +1625,20 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
          */
         void draw(GuiGraphics graphics) {
             int x = leftPos + areaX;
-            int y = topPos + MachineMenu.SCROLL_Y;
-            graphics.enableScissor(x, y, x + MachineMenu.SCROLL_W, y + MachineMenu.SCROLL_H);
+            int y = topPos + EnzymeMachineMenu.SCROLL_Y;
+            graphics.enableScissor(x, y, x + EnzymeMachineMenu.SCROLL_W, y + EnzymeMachineMenu.SCROLL_H);
             int offset = (int) Math.round(scrollOffset);
             for (int i = 0; i < getCount(); i++) {
-                int cardY = y + i * MachineMenu.CARD_STEP - offset;
-                graphics.fill(x, cardY, x + MachineMenu.CARD_W, cardY + MachineMenu.CARD_H, CARD_COLOR);
+                int cardY = y + i * EnzymeMachineMenu.CARD_STEP - offset;
+                graphics.fill(x, cardY, x + EnzymeMachineMenu.CARD_W, cardY + EnzymeMachineMenu.CARD_H, CARD_COLOR);
                 if (cards.get(i) instanceof EnergyCard energyCard) {
                     drawEnergyCard(graphics, x, cardY, energyCard.count());
                     continue;
                 }
                 SpeciesCard speciesCard = (SpeciesCard) cards.get(i);
                 // 槽位背景：slot.png 18×18 @卡片内 (1,2)（物品图标由 vanilla 渲染）
-                int pngX = x + MachineMenu.SLOT_PNG_X;
-                int pngY = cardY + MachineMenu.SLOT_PNG_Y;
+                int pngX = x + EnzymeMachineMenu.SLOT_PNG_X;
+                int pngY = cardY + EnzymeMachineMenu.SLOT_PNG_Y;
                 Slot slot = menu.getSlot(speciesCard.containerSlot());
                 graphics.blit(SLOT, pngX, pngY, 0, 0, 18, 18, 18, 18);
                 ItemStack stack = slot.getItem();
@@ -1651,7 +1652,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
 
                 // 缩写：与槽位上顶面平齐（y = png 顶），颜色 = 物品色加深 1/5
                 graphics.drawString(font, item.getAbbreviation(),
-                        x + MachineMenu.SLOT_PNG_X + MachineMenu.NAME_DX,
+                        x + EnzymeMachineMenu.SLOT_PNG_X + EnzymeMachineMenu.NAME_DX,
                         pngY, itemColor, false);
 
                 // 浓度：客户端重建引擎连续浓度 = (槽位数量 + 同步余量)/64，
@@ -1667,7 +1668,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 // 填充比例按 MAX_CONCENTRATION 归一化：槽位容量参数化后满堆
                 // 浓度可达 n 组（2.0），若直接 54×浓度会超出 54px 轨道（过满 bug），
                 // 归一化后"满堆 = 满格"（上限含余量，略高于 2.0 时满格）
-                int barY = cardY + MachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
+                int barY = cardY + EnzymeMachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
                 double barFill = 54.0 * concentration / com.github.crafteve.biocraft.reaction.KineticConstants.MAX_CONCENTRATION;
                 graphics.fill(x + 1, barY, x + 1 + 54, barY + 3, BAR_TRACK);
                 graphics.fill(x + 1, barY, x + 1 + (int) Math.min(barFill, 54), barY + 3, itemColor);
@@ -1676,7 +1677,7 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
                 // 浅灰黑文字，数值 = 浓度 × 堆叠数（连续值，允许小数）；
                 // 格式防过长：整数部分 ≥3 位（满堆 128 个）时只保留 1 位小数，
                 // 否则保留 2 位（"x128.00" 超卡片宽被遮挡的修复）
-                int numX = pngX + MachineMenu.NAME_DX;
+                int numX = pngX + EnzymeMachineMenu.NAME_DX;
                 int numBottomY = pngY + 18 + 1;
                 double itemCount = concentration * 64.0;
                 String countText = itemCount >= 100.0
@@ -1713,19 +1714,19 @@ public class MachineScreen extends AbstractContainerScreen<MachineMenu> {
             int stored = menu.getEnergyStored();
             int capacity = com.github.crafteve.biocraft.reaction.EnergyKinetics.capacity(count);
             // 槽位贴图（装饰性）：与物种卡贴图同位置，绿色 tint（#4CAF50）
-            int pngX = cardX + MachineMenu.SLOT_PNG_X;
-            int pngY = cardY + MachineMenu.SLOT_PNG_Y;
+            int pngX = cardX + EnzymeMachineMenu.SLOT_PNG_X;
+            int pngY = cardY + EnzymeMachineMenu.SLOT_PNG_Y;
             graphics.setColor(ENERGY_TINT_R, ENERGY_TINT_G, ENERGY_TINT_B, 1.0f);
             graphics.blit(SLOT, pngX, pngY, 0, 0, 18, 18, 18, 18);
             graphics.setColor(1.0f, 1.0f, 1.0f, 1.0f);
             // 第一行 "FE"：y 与物种卡缩写平齐（贴图顶），绿色主题色
-            int textX = pngX + MachineMenu.NAME_DX;
+            int textX = pngX + EnzymeMachineMenu.NAME_DX;
             graphics.drawString(font, "FE", textX, pngY, ENERGY_COLOR, false);
             // 第二行 "xN"（紧凑单位）：y 与物种卡浓度读数平齐，灰色与物品卡同步
             int numY = pngY + 18 + 1 - 8;
             graphics.drawString(font, "x" + formatCompact(stored), textX, numY, CONC_TEXT_COLOR, false);
             // 中部：绿色进度条（与物种卡进度条同位置口径：卡片内 y 20..28 居中）
-            int barY = cardY + MachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
+            int barY = cardY + EnzymeMachineMenu.SLOT_PNG_Y + 18 + (8 - 3) / 2;
             int fill = capacity > 0 ? (int) (54L * stored / capacity) : 0;
             graphics.fill(cardX + 1, barY, cardX + 1 + 54, barY + 3, BAR_TRACK);
             graphics.fill(cardX + 1, barY, cardX + 1 + Math.min(fill, 54), barY + 3, ENERGY_COLOR);

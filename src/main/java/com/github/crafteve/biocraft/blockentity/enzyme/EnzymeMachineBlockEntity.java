@@ -1251,7 +1251,7 @@ public class EnzymeMachineBlockEntity extends MachineBlockEntity {
      */
     @Override
     public AbstractContainerMenu createMenu(int containerId, Inventory playerInventory, Player player) {
-        return new com.github.crafteve.biocraft.gui.MachineMenu(containerId, playerInventory, this, historySnapshot());
+        return new com.github.crafteve.biocraft.gui.enzyme.EnzymeMachineMenu(containerId, playerInventory, this, historySnapshot());
     }
 
     /**

@@ -1,7 +1,7 @@
 package com.github.crafteve.biocraft.blockentity.sequence;
 
 import com.github.crafteve.biocraft.blockentity.base.MachineBlockEntity;
-import com.github.crafteve.biocraft.gui.SequenceMachineMenu;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.DnaSynthesisOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.HelicaseOperation;

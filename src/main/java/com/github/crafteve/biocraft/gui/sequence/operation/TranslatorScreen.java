@@ -1,17 +1,20 @@
-package com.github.crafteve.biocraft.gui;
+package com.github.crafteve.biocraft.gui.sequence.operation;
 
 import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineKind;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.seq.SequenceData;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
+import com.github.crafteve.biocraft.gui.sequence.SequenceLayout;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineScreen;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 翻译机屏幕（encoder 族布局）：框架（背景/状态栏/标签/卡片/动画区面板骨架）
- * 全部由基类按 MachineLayout 绘制，本类只实现：
+ * 翻译机屏幕（CONSOLE_ENCODER 族布局）：框架（背景/状态栏/标签/卡片/动画区面板骨架）
+ * 全部由基类按 SequenceLayout 绘制，本类只实现：
  * <ul>
  *   <li>动画内容：上行 mRNA 密码子列 / 下行肽链三字母残基同列居中对齐，
  *       列中线对准密码子正中，当前列黄白脉动 + 白底闪；就绪闪烁光标 +

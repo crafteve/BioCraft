@@ -6,7 +6,7 @@ import com.github.crafteve.biocraft.blockentity.sequence.operation.HelicaseOpera
 import com.github.crafteve.biocraft.blockentity.sequence.operation.LoaderOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranscriptionOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
-import com.github.crafteve.biocraft.gui.SequenceMachineMenu;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -21,10 +21,10 @@ import java.util.function.Supplier;
  */
 public enum SequenceMachineKind {
     DNA_ENCODER("dna_encoder", DnaSynthesisOperation::new, 8),
-    TRANSCRIBER("transcriber", TranscriptionOperation::new, 8),
-    HELICASE("helicase", HelicaseOperation::new, 3),
-    LOADER("loader", LoaderOperation::new, 6),
-    TRANSLATOR("translator", TranslatorOperation::new, 26);
+    TRANSCRIBER("TRANSCRIBER", TranscriptionOperation::new, 8),
+    HELICASE("HELICASE", HelicaseOperation::new, 3),
+    LOADER("LOADER", LoaderOperation::new, 6),
+    TRANSLATOR("TRANSLATOR", TranslatorOperation::new, 26);
 
     private final String blockId;
     private final Supplier<SequenceOperation> operationFactory;

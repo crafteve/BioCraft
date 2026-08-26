@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.gui;
+package com.github.crafteve.biocraft.gui.sequence;
 
 import com.github.crafteve.biocraft.blockentity.sequence.operation.DnaSynthesisOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.HelicaseOperation;
@@ -20,6 +20,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.SimpleContainerData;
+import com.github.crafteve.biocraft.gui.base.BiocraftSlot;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 

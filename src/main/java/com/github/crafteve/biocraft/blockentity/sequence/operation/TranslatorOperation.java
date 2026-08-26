@@ -53,7 +53,7 @@ public class TranslatorOperation implements SequenceOperation {
     private static final Map<Character, String> AA1_TO_TRNA = new HashMap<>();
     // trna id → slot
     private static final Map<String, Integer> TRNA_TO_SLOT = new HashMap<>();
-    // trna id → aa 三字母（用于多肽卡着色回查，保持与 loader 同色）
+    // trna id → aa 三字母（用于多肽卡着色回查，保持与 STAGE_LOADER 同色）
     private static final Map<String, String> TRNA_TO_AA3 = Map.ofEntries(
             Map.entry("trna_ala", "Ala"), Map.entry("trna_arg", "Arg"), Map.entry("trna_asn", "Asn"),
             Map.entry("trna_asp", "Asp"), Map.entry("trna_cys", "Cys"), Map.entry("trna_gln", "Gln"),

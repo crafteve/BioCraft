@@ -12,12 +12,12 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 转录仪操作（重做：encoder 风格，状态栏模板 + 左 NTP/ATP + 右 mRNA/PPi + 启动子/终止子）
+ * 转录仪操作（重做：CONSOLE_ENCODER 风格，状态栏模板 + 左 NTP/ATP + 右 mRNA/PPi + 启动子/终止子）
  * <p>
  * 槽位（8 槽，0 为状态栏模板槽固定 GUI）：
- * 0: 模板 dna_single（单链，3'→5'，IS_TEMPLATE=false 的模板链，helicase 产）
+ * 0: 模板 dna_single（单链，3'→5'，IS_TEMPLATE=false 的模板链，STAGE_HELICASE 产）
  * 1-4: atp/utp/ctp/gtp（左 4 NTP，逐碱基消耗）
- * 5: ATP 能量（左第5，暂与 atp 同物品，分槽以复用 encoder 能量回压）
+ * 5: ATP 能量（左第5，暂与 atp 同物品，分槽以复用 CONSOLE_ENCODER 能量回压）
  * 6: mRNA 产物（右宽卡，5'→3'，T→U，完成前 complete=false 锁）
  * 7: PPi 副产物（右窄卡，每碱基 +1）
  * <p>

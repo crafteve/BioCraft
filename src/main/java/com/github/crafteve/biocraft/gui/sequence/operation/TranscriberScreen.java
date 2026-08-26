@@ -1,9 +1,12 @@
-package com.github.crafteve.biocraft.gui;
+package com.github.crafteve.biocraft.gui.sequence.operation;
 
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranscriptionOperation;
 import com.github.crafteve.biocraft.init.ModDataComponents;
 import com.github.crafteve.biocraft.seq.SequenceData;
 import com.github.crafteve.biocraft.seq.SeqOps;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
+import com.github.crafteve.biocraft.gui.sequence.SequenceLayout;
+import com.github.crafteve.biocraft.gui.sequence.SequenceMachineScreen;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
@@ -11,8 +14,8 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 转录仪屏幕（encoder 族布局）：框架（背景/状态栏/标签/卡片/动画区面板骨架）
- * 全部由基类按 MachineLayout 绘制，本类只实现：
+ * 转录仪屏幕（CONSOLE_ENCODER 族布局）：框架（背景/状态栏/标签/卡片/动画区面板骨架）
+ * 全部由基类按 SequenceLayout 绘制，本类只实现：
  * <ul>
  *   <li>动画内容：模板链↔mRNA 逐碱基配对行 + 启动子信息 + 当前位辉光</li>
  *   <li>右下角"转录"按钮（手动开工，共用启动工序包）</li>

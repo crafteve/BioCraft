@@ -245,18 +245,22 @@ com.github.crafteve.biocraft
 │   ├── ThermoUtil.java           # Keq 换算/van't Hoff+Q10/Arrhenius
 │   └── KineticConstants.java     # 缩放常量（TIME_SCALE=1000 唯一节奏旋钮，待 M6 调参；SLOT_GROUPS=2 槽位容量组数 + MAX_CONCENTRATION 浓度上限；FIXED_ACTIVITY_SPECIES 含 fe）
 ├── gui/
-│   ├── BiocraftSlot.java         # 槽位基类：统一堆叠上限与 isActive，消除 MachineMenu/SequenceMachineMenu 重复样板
-│   ├── MachineMenu.java          # 酶反应腔菜单：0 槽酶槽 + 滚动卡片物种槽 + DATA_ENZYME/IO 模式同步 + 打开数据包解析 + RestrictedSlot 继承 BiocraftSlot（mayPlace/mayPickup 双门控 IO 模式）
-│   ├── MachineScreen.java        # 酶反应腔屏幕：gui_v1.png 手绘基底 + 滚动卡片 + v-t 折线图 + 平衡区 + 速率区 + IO 模式按钮（三态循环/悬停遮罩动画/tooltip）+ 无酶态（[unknown] 占位缩写框 + 三栏标签照常）
-│   ├── SequenceMachineMenu.java  # 序列机通用菜单：槽位布局按 kind（服务端 data 实时读 BE，客户端 SimpleContainerData 收广播）+ MachineSlot 继承 BiocraftSlot + quickMoveStack
-│   ├── MachineLayout.java        # 序列机屏幕布局描述枚举（2026-08-23 统一框架）：背景贴图/输出卡方向/中央标签/动画区矩形/进度条/面板标题/催化剂图标全部数据化，of(kind) 映射——新增序列机 = 加一行布局 + 子类实现动画方法
-│   ├── SequenceMachineScreen.java # 序列机通用屏幕基类：renderBg 按 MachineLayout 一次画完框架（贴图/状态栏/标签/输入竖滚卡/输出横滚或右竖排/动画区面板骨架+网格+右上角状态与图标），动画内容走 renderMachineAnimation 钩子；卡片三样式（库存/序列/多肽）+ 输入卡绿底高亮 + 滚动/命中/quickCraft 全在此
-│   ├── EncoderScreen.java        # DNA 编码器屏幕：文本编辑器 + 模板/编码按钮 + 客户端编码预览（plainPanel 布局，面板即编辑器）
-│   ├── TranscriberScreen.java    # 转录仪屏幕：动画钩子（模板↔mRNA 逐碱基配对行）+ 转录按钮 + 左下角红叹号错误提示
-│   ├── TranslatorScreen.java     # 翻译机屏幕：动画钩子（mRNA 密码子列/肽链三字母同列居中对齐 + 滚窗浮点缓动 + 就绪光标/完成扫光）+ 翻译按钮 + 红叹号
-│   ├── LoaderScreen.java         # 装载机屏幕：动画钩子（tRNA 装载口袋 24 点呼吸环 + 原料滑入 + 副产物坠落）+ 工作状态检测
-│   ├── HelicaseScreen.java       # 解旋酶屏幕：专属 DNA 卡（nt 数 + 四色碱基窗口，输入前缀同步/输出模板链编码链）+ 动画钩子（双螺旋/分叉/平行）
-│   └── CodeEditorWidget.java     # 编码器文本编辑器控件（多行/光标/自动缩进/语法高亮，ProgramHighlight 共用分词）
+│   ├── base/
+│   │   └── BiocraftSlot.java         # 槽位基类：统一堆叠上限与 isActive，消除 EnzymeMachineMenu/SequenceMachineMenu 重复样板
+│   ├── enzyme/
+│   │   ├── EnzymeMachineMenu.java    # 酶机器菜单：0 槽酶槽 + 滚动卡片物种槽 + DATA_ENZYME/IO 模式同步 + 打开数据包解析 + RestrictedSlot 继承 BiocraftSlot（mayPlace/mayPickup 双门控 IoMode）
+│   │   └── EnzymeMachineScreen.java  # 酶机器屏幕：gui_stage.png 手绘基底 + 滚动卡片 + v-t 折线图 + 平衡区 + 速率区 + IO 模式按钮（三态循环/悬停遮罩动画/tooltip）+ 无酶态（[unknown] 占位缩写框 + 三栏标签照常）
+│   └── sequence/
+│       ├── SequenceLayout.java       # 序列机布局枚举（STAGE 舞台居中 vs CONSOLE 控制台，上舞台下条形）：背景贴图 gui_stage/gui_console、输出卡方向、动画区矩形、面板标题、催化剂图标全部数据化，of(kind) 映射——新增序列机 = 加一行布局 + 子类实现动画方法
+│       ├── SequenceMachineMenu.java  # 序列机通用菜单：槽位布局按 kind（服务端 data 实时读 BE，客户端 SimpleContainerData 收广播）+ MachineSlot 继承 BiocraftSlot + quickMoveStack
+│       ├── SequenceMachineScreen.java # 序列机通用屏幕基类：renderBg 按 SequenceLayout 一次画完框架（贴图/状态栏/标签/输入竖滚卡/输出横滚或右竖排/动画区面板骨架+网格+右上角状态与图标），动画内容走 renderMachineAnimation 钩子；卡片三样式（库存/序列/多肽）+ 输入卡绿底高亮 + 滚动/命中/quickCraft 全在此
+│       ├── CodeEditorWidget.java     # 编码器文本编辑器控件（多行/光标/自动缩进/语法高亮，ProgramHighlight 共用分词）
+│       └── operation/
+│           ├── EncoderScreen.java        # DNA 编码器屏幕：文本编辑器 + 模板/编码按钮 + 客户端编码预览（plainPanel 布局，面板即编辑器）
+│           ├── TranscriberScreen.java    # 转录仪屏幕：动画钩子（模板↔mRNA 逐碱基配对行）+ 转录按钮 + 左下角红叹号错误提示
+│           ├── TranslatorScreen.java     # 翻译机屏幕：动画钩子（mRNA 密码子列/肽链三字母同列居中对齐 + 滚窗浮点缓动 + 就绪光标/完成扫光）+ 翻译按钮 + 红叹号
+│           ├── LoaderScreen.java         # 装载机屏幕：动画钩子（tRNA 装载口袋 24 点呼吸环 + 原料滑入 + 副产物坠落）+ 工作状态检测
+│           └── HelicaseScreen.java       # 解旋酶屏幕：专属 DNA 卡（nt 数 + 四色碱基窗口，输入前缀同步/输出模板链编码链）+ 动画钩子（双螺旋/分叉/平行）
 ├── network/                      # 网络载荷（NeoForge payload 机制）
 │   ├── ModNetwork.java           # 载荷注册中心（RegisterPayloadHandlersEvent 装配 playToServer 通道：IO 模式 + 序列程序提交 + 编辑器草稿持久化）
 │   ├── ServerboundSetIoModePacket.java # IO 模式切换包（GUI 按钮 → 服务端：方块坐标 + 区域 + 模式，服务端校验后写 BE）

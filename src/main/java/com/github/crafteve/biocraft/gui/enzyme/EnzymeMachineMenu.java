@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.gui;
+package com.github.crafteve.biocraft.gui.enzyme;
 
 import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity;
 import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity.IoMode;
@@ -15,6 +15,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.inventory.SimpleContainerData;
+import com.github.crafteve.biocraft.gui.base.BiocraftSlot;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
@@ -42,7 +43,7 @@ import net.minecraft.world.level.block.Blocks;
  * （DATA_ENZYME：registry 顺序索引 +1，0 = 无酶——GUI 打开期间
  * 放酶/换酶也能实时刷新）+ 每物种槽余量 + 能量存量/产率
  */
-public class MachineMenu extends AbstractContainerMenu {
+public class EnzymeMachineMenu extends AbstractContainerMenu {
     /** 背包槽起始 x（16×16 内容区左上角） */
     private static final int INV_X0 = 48;
 
@@ -135,7 +136,7 @@ public class MachineMenu extends AbstractContainerMenu {
      * @param blockEntity     方块实体
      * @param fluxHistory     v-t 历史快照（旧→新，每 tick 通量×1000）
      */
-    public MachineMenu(int containerId, Inventory playerInventory,
+    public EnzymeMachineMenu(int containerId, Inventory playerInventory,
                        EnzymeMachineBlockEntity blockEntity, int[] fluxHistory) {
         this(containerId, playerInventory, blockEntity, fluxHistory, null);
     }
@@ -149,7 +150,7 @@ public class MachineMenu extends AbstractContainerMenu {
      * @param fluxHistory     v-t 历史快照
      * @param packetEnzymeId  客户端打开包中的酶 id（空串 = 无酶，null = 服务端）
      */
-    private MachineMenu(int containerId, Inventory playerInventory,
+    private EnzymeMachineMenu(int containerId, Inventory playerInventory,
                         EnzymeMachineBlockEntity blockEntity, int[] fluxHistory, String packetEnzymeId) {
         super(ModBlocks.ENZYME_CHAMBER_MENU.get(), containerId);
         this.blockEntity = blockEntity;
@@ -178,7 +179,7 @@ public class MachineMenu extends AbstractContainerMenu {
      * @param playerInventory 玩家物品栏
      * @param buffer          打开数据包缓冲
      */
-    public MachineMenu(int containerId, Inventory playerInventory, RegistryFriendlyByteBuf buffer) {
+    public EnzymeMachineMenu(int containerId, Inventory playerInventory, RegistryFriendlyByteBuf buffer) {
         this(containerId, playerInventory, parseOpenBuffer(playerInventory, buffer));
     }
 
@@ -189,7 +190,7 @@ public class MachineMenu extends AbstractContainerMenu {
      * @param playerInventory 玩家物品栏
      * @param initData        打开初始化数据（实体 + 历史 + 酶 id）
      */
-    private MachineMenu(int containerId, Inventory playerInventory, InitData initData) {
+    private EnzymeMachineMenu(int containerId, Inventory playerInventory, InitData initData) {
         this(containerId, playerInventory, initData.blockEntity(), initData.fluxHistory(), initData.enzymeId());
     }
 
@@ -597,11 +598,11 @@ public class MachineMenu extends AbstractContainerMenu {
      * </ul>
      */
     private static class RestrictedSlot extends BiocraftSlot {
-        private final MachineMenu menu;
+        private final EnzymeMachineMenu menu;
         private final EnzymeMachineBlockEntity blockEntity;
         private final boolean enzymeSlot;
 
-        RestrictedSlot(MachineMenu menu, EnzymeMachineBlockEntity blockEntity, int slot, int x, int y,
+        RestrictedSlot(EnzymeMachineMenu menu, EnzymeMachineBlockEntity blockEntity, int slot, int x, int y,
                        int maxStack, boolean enzymeSlot) {
             super(blockEntity.getContainer(), slot, x, y, maxStack);
             this.menu = menu;
