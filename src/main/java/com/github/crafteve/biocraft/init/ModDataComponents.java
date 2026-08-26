@@ -31,7 +31,7 @@ public final class ModDataComponents {
                     .networkSynchronized(SequenceDataCodecs.STREAM)
                     .build());
 
-    /** 模板链标记（STAGE_HELICASE 产物的模板/非模板区分，tooltip 方向与 nbt 区分） */
+    /** 模板链标记（helicase 产物的模板/非模板区分，tooltip 方向与 nbt 区分） */
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Boolean>> IS_TEMPLATE =
             COMPONENTS.register("is_template", () -> DataComponentType.<Boolean>builder()
                     .persistent(Codec.BOOL)
