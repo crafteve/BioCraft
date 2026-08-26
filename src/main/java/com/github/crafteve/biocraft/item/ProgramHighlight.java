@@ -17,14 +17,14 @@ import java.util.List;
  */
 final class ProgramHighlight {
 
-    /** 语法高亮配色（与 CodeEditorWidget 一致） */
-    private static final int COLOR_KEYWORD = 0xFF569CD6;   // 关键字蓝
-    private static final int COLOR_FUNCTION = 0xFFC586C0;  // 函数紫
-    private static final int COLOR_NUMBER = 0xFFB5CEA8;    // 数字绿
-    private static final int COLOR_STRING = 0xFFCE9178;    // 字符串橙
-    private static final int COLOR_COMMENT = 0xFF6A9955;   // 注释灰绿
-    private static final int COLOR_SYMBOL = 0xFFD7BA7D;    // 符号金
-    private static final int COLOR_PLAIN = 0xFFD4D4D4;     // 普通文字白
+    /** 语法高亮配色（收口到 central/DslField.Highlight，改色只改 DslField） */
+    private static final int COLOR_KEYWORD = com.github.crafteve.biocraft.central.DslField.Highlight.KEYWORD.color();
+    private static final int COLOR_FUNCTION = com.github.crafteve.biocraft.central.DslField.Highlight.FUNCTION.color();
+    private static final int COLOR_NUMBER = com.github.crafteve.biocraft.central.DslField.Highlight.NUMBER.color();
+    private static final int COLOR_STRING = com.github.crafteve.biocraft.central.DslField.Highlight.STRING.color();
+    private static final int COLOR_COMMENT = com.github.crafteve.biocraft.central.DslField.Highlight.COMMENT.color();
+    private static final int COLOR_SYMBOL = com.github.crafteve.biocraft.central.DslField.Highlight.SYMBOL.color();
+    private static final int COLOR_PLAIN = com.github.crafteve.biocraft.central.DslField.Highlight.PLAIN.color();
 
     private ProgramHighlight() {
     }
@@ -107,13 +107,8 @@ final class ProgramHighlight {
         return Component.literal(s).withStyle(Style.EMPTY.withColor(TextColor.fromRgb(color)));
     }
 
-    /** 酶设计单字段关键词（DSL：id/name/kcat/input/output，大小写不敏感，与编辑器同步） */
+    /** 酶设计单字段关键词（收口 DslField，大小写不敏感） */
     private static boolean isFieldKeyword(String word) {
-        for (String keyword : new String[]{"id", "name", "kcat", "input", "output"}) {
-            if (keyword.equalsIgnoreCase(word)) {
-                return true;
-            }
-        }
-        return false;
+        return com.github.crafteve.biocraft.central.DslField.isFieldKeyword(word);
     }
 }

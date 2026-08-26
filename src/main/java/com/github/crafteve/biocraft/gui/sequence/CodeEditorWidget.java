@@ -19,17 +19,17 @@ import org.lwjgl.glfw.GLFW;
  */
 public class CodeEditorWidget {
 
-    /** 语法高亮配色 */
-    private static final int COLOR_KEYWORD = 0xFF569CD6;   // 关键字蓝
-    private static final int COLOR_FUNCTION = 0xFFC586C0;  // 函数紫
-    private static final int COLOR_NUMBER = 0xFFB5CEA8;    // 数字绿
-    private static final int COLOR_STRING = 0xFFCE9178;    // 字符串橙
-    private static final int COLOR_COMMENT = 0xFF6A9955;   // 注释灰绿
-    private static final int COLOR_SYMBOL = 0xFFD7BA7D;    // 符号金
-    private static final int COLOR_PLAIN = 0xFFD4D4D4;     // 普通文字白
+    /** 语法高亮配色（收口到 central/DslField.Highlight，改色只改 DslField） */
+    private static final int COLOR_KEYWORD = com.github.crafteve.biocraft.central.DslField.Highlight.KEYWORD.color();
+    private static final int COLOR_FUNCTION = com.github.crafteve.biocraft.central.DslField.Highlight.FUNCTION.color();
+    private static final int COLOR_NUMBER = com.github.crafteve.biocraft.central.DslField.Highlight.NUMBER.color();
+    private static final int COLOR_STRING = com.github.crafteve.biocraft.central.DslField.Highlight.STRING.color();
+    private static final int COLOR_COMMENT = com.github.crafteve.biocraft.central.DslField.Highlight.COMMENT.color();
+    private static final int COLOR_SYMBOL = com.github.crafteve.biocraft.central.DslField.Highlight.SYMBOL.color();
+    private static final int COLOR_PLAIN = com.github.crafteve.biocraft.central.DslField.Highlight.PLAIN.color();
     /** 未解锁字段行颜色（暗灰，kcat 等后续解锁字段） */
     private static final int LOCKED_LINE_COLOR = 0xFF6A6A6A;
-    /** 酶设计单字段关键词（DSL：id/name/kcat/input/output，大小写不敏感） */
+    /** 酶设计单字段关键词（DSL：id/name/kcat/input/output，大小写不敏感，收口 DslField） */
     private static final String[] FIELD_KEYWORDS = {"id", "name", "kcat", "input", "output"};
 
     // ---- 逐字符编码动画配色（编码波峰 → 渐变冷却） ----
@@ -481,14 +481,9 @@ public class CodeEditorWidget {
         graphics.drawString(font, s, x, y, color, false);
     }
 
-    /** 单词是否为酶设计单字段关键词（大小写不敏感） */
+    /** 单词是否为酶设计单字段关键词（收口 DslField，大小写不敏感） */
     private static boolean isFieldKeyword(String word) {
-        for (String keyword : FIELD_KEYWORDS) {
-            if (keyword.equalsIgnoreCase(word)) {
-                return true;
-            }
-        }
-        return false;
+        return com.github.crafteve.biocraft.central.DslField.isFieldKeyword(word);
     }
 
     /** 行是否为未解锁字段行（当前仅 kcat；整行灰显 + 行尾提示） */
