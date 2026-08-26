@@ -1,4 +1,4 @@
-package com.github.crafteve.biocraft.central;
+package com.github.crafteve.biocraft.init;
 
 /**
  * 序列物品载荷（纯数据 record，DataComponent 的 seq 侧映射对象）

@@ -5,7 +5,7 @@ import com.github.crafteve.biocraft.init.ModItems;
 import com.github.crafteve.biocraft.central.Codec;
 import com.github.crafteve.biocraft.central.Codec;
 import com.github.crafteve.biocraft.central.Codec;
-import com.github.crafteve.biocraft.central.SequenceData;
+import com.github.crafteve.biocraft.init.SequenceData;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;

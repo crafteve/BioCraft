@@ -174,14 +174,15 @@ com.github.crafteve.biocraft
 ├── init/
 │   ├── ModItems.java             # 读 substances.json → 动态注册 71 个 MoleculeItem + 序列物品族（dna/dna_single/mrna/polypeptide/trna_gene/trna/misfolded_protein/rna_polymerase）；读 enzymes.json → 动态注册 14 个酶蛋白物品（enzyme_<酶id>，EnzymeItem）
 │   ├── ModBlocks.java            # 方块/BE 类型/MenuType/方块物品四件套：酶反应腔 enzyme_chamber（酶由 0 槽动态解析）+ 序列机家族（dna_encoder/transcriber，SequenceMachineKind 硬绑定处理器，共享 BE 类型 + 每机一个 MenuType）
-│   ├── ModDataComponents.java    # 数据组件注册中心（重建）：SEQUENCE 序列载荷组件（Codec + StreamCodec，seq/ 保持零依赖）
+│   ├── ModDataComponents.java    # 数据组件注册中心（重建）：SEQUENCE 序列载荷组件（Codec + StreamCodec，SequenceData 在 init/SequenceData.java 纯 record，Codec 零依赖）
+│   ├── SequenceData.java         # 序列载荷纯 record（type/strand/kind/seq/complete，零 MC 依赖，DataComponent 事实源在 ModDataComponents）
 │   ├── ModCreativeTabs.java      # 多标签页架构：分子页 + 酶页 + 机器页 + 序列页（信息层物品族）
 │   ├── EnzymeFactoryRegistry.java # 读 enzymes.json → 构建酶数据档案（含 color 主题色字段；构建期跑引擎断言防火墙，失败快速失败）
 │   ├── ModCapabilities.java      # 机器 capability 注册（酶工厂 ItemHandler.BLOCK → BE 懒加载 IO 适配器单例）
 │   └── ModTags.java               # tag 注册中心：biocraft:enzyme 物品 tag（0 槽酶槽输入过滤用，datagen 由 EnzymeTagProvider 生成）
 ├── data/
 │   ├── SubstanceData.java        # 物质表读取工具（classpath，GsonHelper 解析）
-│   └── EnzymeProgramChecker.java # 酶设计单完整校验器（MC 侧装配）：id 解析到 enzymes.json 模板酶 + 物种存在性 substances.json + 完整反应式 = 模板反应式 + input/output 新增项（方案甲，CDK 原子守恒）；编辑器预览与未来折叠机共用
+│   └── EnzymeProgramChecker.java # 酶设计单完整校验器（MC 侧装配）：id 解析到 enzymes.json 模板酶 + 物种存在性 substances.json + 完整反应式 = 模板反应式 + input/output 新增项（方案甲，CDK 原子守恒，central/BalanceChecker 纯核）；编辑器预览与未来折叠机共用
 ├── item/
 │   ├── AbbreviationProvider.java # 图标缩写标注数据源接口（MoleculeItem 与 EnzymeItem 共用装饰器的契约）
 │   ├── MoleculeItem.java         # 分子基类：SMILES/缩写/染色/类别 + tooltip 布局（Shift 展示结构式）
@@ -189,8 +190,8 @@ com.github.crafteve.biocraft
 │   ├── MoleculeDataCalculator.java # CDK 计算分子式（Hill 排序）与摩尔质量，缓存+防御降级
 │   ├── MoleculeColors.java       # ItemColor 染色 + TooltipComponent 工厂 + 装饰器注册（Dist.CLIENT，含酶物品染色/装饰器）
 │   ├── EnzymeItem.java           # 酶蛋白物品（新架构酶形态）：数据驱动注册、堆叠 64 = [E]、双层贴图数据表色染色、tooltip 沿用酶方块摘要
-│   ├── SequenceItem.java         # 序列物品族（DNA/mRNA/多肽等聚合物）：DataComponent 读写 + tooltip 序列预览/程序解码摘要/半成品标记（AbbreviationProvider 复用）
-│   └── ProgramHighlight.java     # 酶设计单关键词高亮分词（编辑器与 DNA tooltip Ctrl 视图共用同一规则）
+│   ├── SequenceItem.java         # 序列物品族（DNA/mRNA/多肽等聚合物）：DataComponent 读写 + tooltip 序列预览/程序解码摘要/半成品标记（AbbreviationProvider 复用，解码走 central/Codec 多入口）
+│   └── ProgramHighlight.java     # 酶设计单关键词高亮分词（收口 central/DslField.Highlight，编辑器与 DNA tooltip Ctrl 视图共用同一规则）
 ├── client/                       # 客户端渲染辅助（分子结构图自绘管线 + 方块模型包装）
 │   ├── EmissiveLampBakedModel.java # 自发光指示灯模型包装：tintindex==1 灯 quad 光照全亮（ModifyBakingResult 挂载）
 │   ├── MoleculeTextureCache.java # CDK 解析+2D 坐标+Kekulize → 自绘键线骨架 → DynamicTexture 缓存
@@ -225,14 +226,12 @@ com.github.crafteve.biocraft
 │           ├── HelicaseOperation.java     # 解旋：1 dsDNA → 2 ssDNA 逐碱基对动态解旋（每 tick 1 bp）
 │           ├── LoaderOperation.java       # 装载：tRNA + AA + ATP → aa-tRNA + AMP + PPi
 │           └── TranslatorOperation.java   # 翻译：mRNA + aa-tRNA + GTP → 多肽 + tRNA + GDP + Pi
-├── program/                     # 酶设计单 DSL 纯核心（纯 Java 零 MC 依赖，已完成 + 32 用例单测）
-│   ├── ProgramField.java        # 字段硬编码枚举（id/name/kcat/input/output + 值类型 + 解锁标记，非 JSON 查表）
-│   ├── EnzymeProgramParser.java # 解析器：逐行 keyword: value（重复字段后者覆盖/大小写不敏感/注释/值含冒号）+ 值格式校验（kcat 百分比/物种列表 ≤2）
-│   ├── EnzymeProgram.java       # 解析结果 record（字段表 + 行号映射 + input/output 列表）
-│   ├── ProgramError.java        # 错误 record（code/line/detail + describe）
-│   ├── ProgramErrorCode.java    # 错误码枚举（MISSING_ID/ID_NOT_FOUND/UNKNOWN_FIELD/BAD_VALUE/TOO_MANY_SPECIES/UNKNOWN_SPECIES/CHEM_UNBALANCED）
-│   ├── SpeciesComposition.java  # 物种原子组成 record（元素→计数，装配输入）
-│   └── ChemBalanceChecker.java  # 化学守恒纯逻辑（反应项 = 组成 × 系数，∑反应物 = ∑产物）
+├── central/                    # 中心法则信息层纯核心（原 seq+program 合并，纯 Java 零 MC 依赖，43+32 用例合 central）
+│   ├── Codec.java               # 编解码门面（原 SeqCodec+CodonTable20+SeqOps+SequenceConstants 合并）：encode/decodeFromDna/Mrna/Polypeptide 四入口 String→DecodeResult，不碰 SequenceData NBT
+│   ├── SequenceData.java        # 已移至 init/SequenceData.java（见上，central 不持 NBT，仅 Codec 纯核）
+│   ├── DslField.java            # 字段枚举（原 ProgramField → DslField）+ HighlightRule 颜色枚举收口（CentralProgramHighlight，ProgramHighlight/CodeEditorWidget 同引）
+│   ├── DslParser.java           # 填表解析器（原 EnzymeProgramParser+EnzymeProgram 合单文件）：parse(text)→ParseResult 回 Map<DslField,String> 键值表（供折叠机按表填产物 DataComponent，不回 ItemStack）
+│   └── BalanceChecker.java      # 对账工具（原 ChemBalanceChecker+SpeciesComposition）：isBalanced 纯逻辑，DslParser 内引验 input/output 守恒
 ├── reaction/                     # 化学引擎内核（纯 Java 零 MC 依赖，已完成 + 28 用例单测）
 │   ├── EnzymeFactoryData.java    # 酶数据档案 record（物品 id 直填/每物种自带 Km/直存 Keq/color 主题色直填）
 │   ├── EnzymeSimulator.java      # 每机一实例：Rosenbrock 积分 + 温度缓存 + 边界缩放 + 矛盾守卫细分
@@ -319,7 +318,7 @@ com.github.crafteve.biocraft
 14. **BlockEntity.setRemoved 双触发陷阱**：`setRemoved()` 不只方块破坏时调用，**世界卸载/区块卸载同样触发**（Level 卸载 chunk 时清理 BE）。掉落实体/玩家反馈类逻辑**禁止放 setRemoved**，否则进出存档会误触发（实测：DNA 编码器缓冲池碱基每次进出存档爆一地，该机器已移除但规则仍适用）。正确位置是方块类的 `Block.onRemove`（仅方块被破坏/替换时触发），通过 `BlockEntity` 的 `dropExtraContents(Level, BlockPos)` 类钩子统一调用
 15. **视觉审查子代理**：vision agent 定义在 `.opencode/agents/`，启动时加载，修改后必须重启 opencode 才生效；Task 派发时给出图片绝对路径与审查要点，子代理无 edit 权限只能读图返回文字；mimo-v2.5 描述精度不足已弃用，主用 qwen3.7-plus，若在 OpenCode Go 订阅出现额度/速率限制或精度下降，换备选视觉模型（qwen3.6-plus / qwen3.8-max / gpt-5.6-luna）
 16. **贴图工具链编码**：`tools/texturegen` 的 javac 必须带 `-encoding UTF-8`（Windows 默认 GBK 会编译失败），输出目录 gitignore，正式贴图需手动拷入 `src/main/resources`，工具脚本不进 mod 源码源集
-17. **引擎零依赖隔离门禁**：`reaction/`、`seq/` 与 `program/` 包只能 import `java.*`；`tools/engineTest`、`tools/seqTest`、`tools/programTest` 的 javac classpath 只含 `build/classes/java/main`（无 MC 类），引擎/信息层/DSL 核心若意外引入 MC 依赖编译直接失败——这是天然门禁，新增代码时保持此约束
+17. **引擎零依赖隔离门禁**：`reaction/` 与 `central/` 包只能 import `java.*`；`tools/engineTest`、`tools/seqTest`、`tools/programTest`（已合 `central` 但目录名暂留）的 javac classpath 只含 `build/classes/java/main`（无 MC 类），引擎/信息层/DSL 核心若意外引入 MC 依赖编译直接失败——这是天然门禁，新增代码时保持此约束
 18. **引擎速率公式三大数学性质（勿改坏）**：①平衡精确——可逆多底物共享分母乘积形式下 v=0 时 ∏产物/∏底物 = Keq（Haldane 保证），Keq 绝不缩放红线由构建断言+收敛测试双重守护；②逆向 Vmax 由 `Vmax_f·∏KmP/(∏KmS·Keq)` 决定而非独立逆向数据（Keq 小时逆向极强是正确行为）；③饱和有界——高浓度速率 ≤ Vmax_f 不爆表
 19. **边界截断是正确物流行为不是 bug**：积分器（RK4 时代与现 Rosenbrock 通用）终值越界时全局同比缩放（scale=0 反应冻结）——产物满堆（上限 = 槽位容量 n 组 + 余量，见 KineticConstants.MAX_CONCENTRATION）、逆向底物满堆、固定活性资源耗尽（水解缺水/H⁺ 耗尽无法逆向）都会表现为"反应停摆"，物理语义正确，测试场景设计时必须给预期方向的产物留出容量空间
 20. **固定活性物种约定**：`{water, hydrogen_ion}` 不进速率方程（eQuilibrator 变换值已隐含 H₂O 活度 1/pH7）但参与化学计量结算（ENO 产水物品），反应物侧耗尽停供（水解必须供水）
