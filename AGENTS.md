@@ -172,10 +172,9 @@ com.github.crafteve.biocraft
 ├── BioCraft.java                 # 瘦身为纯装配：注册各 init 注册中心（无功能实现）
 ├── BioCraftClient.java           # 客户端装配：菜单屏幕绑定（酶腔/编码器/转录仪）+ 方块/物品染色（BlockColor 按 BE 缓存酶主题色给贴片元素 tint，ItemColor 物品固定空机暗灰）+ 烘焙模型包装（ModifyBakingResult 给酶反应腔挂自发光灯）
 ├── init/
-│   ├── ModItems.java             # 读 substances.json → 动态注册 71 个 MoleculeItem + 序列物品族（dna/dna_single/mrna/polypeptide/trna_gene/trna/misfolded_protein/rna_polymerase）；读 enzymes.json → 动态注册 14 个酶蛋白物品（enzyme_<酶id>，EnzymeItem）
+│   ├── ModItems.java             # 读 substances.json → 动态注册 71 个 MoleculeItem + 序列物品族（dna/dna_single/mrna/polypeptide/trna/misfolded_protein 共6，烧杯黑灰色阶 tRNA 试管纯黑，trna_gene/rna_polymerase 已移除）；读 enzymes.json → 动态注册 14 个酶蛋白物品（enzyme_<酶id>，EnzymeItem）
 │   ├── ModBlocks.java            # 方块/BE 类型/MenuType/方块物品四件套：酶反应腔 enzyme_chamber（酶由 0 槽动态解析）+ 序列机家族（dna_encoder/transcriber，SequenceMachineKind 硬绑定处理器，共享 BE 类型 + 每机一个 MenuType）
-│   ├── ModDataComponents.java    # 数据组件注册中心（重建）：SEQUENCE 序列载荷组件（Codec + StreamCodec，SequenceData 在 init/SequenceData.java 纯 record，Codec 零依赖）
-│   ├── SequenceData.java         # 序列载荷纯 record（type/strand/kind/seq/complete，零 MC 依赖，DataComponent 事实源在 ModDataComponents）
+│   ├── ModDataComponents.java    # 数据组件注册中心（重建）：SEQUENCE 序列载荷组件（Codec + StreamCodec，SequenceData 在 item/SequenceData.java 纯 record，Codec 零依赖）
 │   ├── ModCreativeTabs.java      # 多标签页架构：分子页 + 酶页 + 机器页 + 序列页（信息层物品族）
 │   ├── EnzymeFactoryRegistry.java # 读 enzymes.json → 构建酶数据档案（含 color 主题色字段；构建期跑引擎断言防火墙，失败快速失败）
 │   ├── ModCapabilities.java      # 机器 capability 注册（酶工厂 ItemHandler.BLOCK → BE 懒加载 IO 适配器单例）
@@ -191,7 +190,8 @@ com.github.crafteve.biocraft
 │   ├── MoleculeColors.java       # ItemColor 染色 + TooltipComponent 工厂 + 装饰器注册（Dist.CLIENT，含酶物品染色/装饰器）
 │   ├── EnzymeItem.java           # 酶蛋白物品（新架构酶形态）：数据驱动注册、堆叠 64 = [E]、双层贴图数据表色染色、tooltip 沿用酶方块摘要
 │   ├── SequenceItem.java         # 序列物品族（DNA/mRNA/多肽等聚合物）：DataComponent 读写 + tooltip 序列预览/程序解码摘要/半成品标记（AbbreviationProvider 复用，解码走 central/Codec 多入口）
-│   └── ProgramHighlight.java     # 酶设计单关键词高亮分词（收口 central/DslField.Highlight，编辑器与 DNA tooltip Ctrl 视图共用同一规则）
+│   ├── ProgramHighlight.java     # 酶设计单关键词高亮分词（收口 central/DslField.Highlight，编辑器与 DNA tooltip Ctrl 视图共用同一规则）
+│   └── SequenceData.java         # 序列载荷纯 record（type/strand/kind/seq/complete，零 MC 依赖，DataComponent 事实源在 ModDataComponents，归 item 家族）
 ├── client/                       # 客户端渲染辅助（分子结构图自绘管线 + 方块模型包装）
 │   ├── EmissiveLampBakedModel.java # 自发光指示灯模型包装：tintindex==1 灯 quad 光照全亮（ModifyBakingResult 挂载）
 │   ├── MoleculeTextureCache.java # CDK 解析+2D 坐标+Kekulize → 自绘键线骨架 → DynamicTexture 缓存
@@ -228,7 +228,6 @@ com.github.crafteve.biocraft
 │           └── TranslatorOperation.java   # 翻译：mRNA + aa-tRNA + GTP → 多肽 + tRNA + GDP + Pi
 ├── central/                    # 中心法则信息层纯核心（原 seq+program 合并，纯 Java 零 MC 依赖，43+32 用例合 central）
 │   ├── Codec.java               # 编解码门面（原 SeqCodec+CodonTable20+SeqOps+SequenceConstants 合并）：encode/decodeFromDna/Mrna/Polypeptide 四入口 String→DecodeResult，不碰 SequenceData NBT
-│   ├── SequenceData.java        # 已移至 init/SequenceData.java（见上，central 不持 NBT，仅 Codec 纯核）
 │   ├── DslField.java            # 字段枚举（原 ProgramField → DslField）+ HighlightRule 颜色枚举收口（CentralProgramHighlight，ProgramHighlight/CodeEditorWidget 同引）
 │   ├── DslParser.java           # 填表解析器（原 EnzymeProgramParser+EnzymeProgram 合单文件）：parse(text)→ParseResult 回 Map<DslField,String> 键值表（供折叠机按表填产物 DataComponent，不回 ItemStack）
 │   └── BalanceChecker.java      # 对账工具（原 ChemBalanceChecker+SpeciesComposition）：isBalanced 纯逻辑，DslParser 内引验 input/output 守恒

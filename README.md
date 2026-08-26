@@ -91,7 +91,7 @@
 
 **序列机信息层（中心法则第一波，2026-08-18）**
 - central 信息引擎（纯 Java 零 MC 依赖，43 用例单测全绿）：程序文本 ↔ DNA 碱基序列的无损编解码（UTF-8 → base-20 → 20 个规范密码子），"同链必同程序"双射、天然无终止密码子翻译必然可读
-- 序列物品族：DNA 双链/单链、mRNA、多肽链、tRNA 基因、通用 tRNA、错误折叠蛋白 + RNA 聚合酶催化剂占位；tooltip 实时预览序列与程序解码摘要
+- 序列物品族：DNA 双链/单链、mRNA、多肽链、转移 RNA、错误折叠蛋白共6（烧杯黑灰色阶，tRNA 试管纯黑区分，`trna_gene`/`rna_polymerase` 已移除）；tooltip 实时预览序列与程序解码摘要
 - 序列机家族：**DNA 编码器**（GUI 文本编辑器写程序 → 消耗 dNTP 合成程序 DNA，每 10 碱基 1 dNTP + 1 ATP，产物仅完整时方可取出）与**转录仪**（RNA 聚合酶催化，DNA 模板 → mRNA 互补链，消耗 NTP）；"链源模型"——产物槽内实时生长可见、取走自动重建、缺料停摆补料即续、换程序归零并弹出旧产物
 - 序列机与酶反应腔分工：化学引擎管速率与平衡，信息层管序列传递（离散逐位步进，保留化学计量）
 - 编码器编辑器持续打磨（2026-08-20）：草稿实时持久化（重开 GUI 不重置、模板仅无草稿时使用）、报错左下角红色感叹号（悬停 tooltip 列错误详情）、逐字符编码动画（波峰金色 + 渐变冷却 + 完成闪光）、程序 DNA 上限 3000bp（= 1000 个整密码子，翻译读码框对齐）
@@ -153,7 +153,8 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 
 ### 2026-08-26
 
-- **refactor** seq+program 合并为 central（信息层重构）：seq/ 5 文件 + program/ 7 文件合并为 central 4 文件（Codec 编解码门面 String进DecodeResult出 + DslField 含 HighlightRule 7色收口 + DslParser 单文件填表回 Map<DslField,String> 键值表 + BalanceChecker 对账工具），SequenceData 迁 init/SequenceData.java 纯 record 不持 NBT；ProgramHighlight/CodeEditorWidget 同引 DslField.Highlight 不再双份；seq/program 旧包删除，全量调用方切 central，tools/seqTest 43/programTest 32 合 central 保持全绿
+- **refactor** seq+program 合并为 central（信息层重构）：seq/ 5 文件 + program/ 7 文件合并为 central 4 文件（Codec 编解码门面 String进DecodeResult出 + DslField 含 HighlightRule 7色收口 + DslParser 单文件填表回 Map<DslField,String> 键值表 + BalanceChecker 对账工具），SequenceData 迁 item/SequenceData.java 纯 record 不持 NBT（central 保持 String 纯核）；ProgramHighlight/CodeEditorWidget 同引 DslField.Highlight 不再双份；seq/program 旧包删除，全量调用方切 central，tools/seqTest 43/programTest 32 合 central 保持全绿
+- **refactor** SequenceData 归位 item 与序列物品烧杯化：`init/SequenceData.java → item/SequenceData.java`（贴纸表归物品家族，`ModDataComponents` 仅注册），序列物品全改烧杯贴图 + 黑灰色阶（`dna 1A1A1A/dna_single 2E2E2E/mrna 404040/polypeptide 525252/misfolded 6B6B6B`）`tRNA` 试管纯黑 `000000` 区分，`SequenceItem` 新增 `tintColor` + `MoleculeColors` 颜色/装饰器注册，已删 `trna_gene/rna_polymerase` 2 项，`SequenceItemModelProvider` 6 项烧杯/试管
 - **refactor** 机器命名与分包对齐（内部重构，玩家无感知）：`AbstractMachineBlock→BioCraftMachineBlock`、`MachineBlock→EnzymeMachineBlock`（与 `SequenceMachineBlock` 对仗）；`blockentity` 按 `base/enzyme/sequence/operation` 分层，`IoMode` 内聚为 `EnzymeMachineBlockEntity` 内部枚举；`gui` 按 `base/enzyme/sequence/operation` 分层，`MachineLayout→SequenceLayout` 并更名 `STAGE`（舞台居中，双侧竖卡）/`CONSOLE`（控制台，上舞台下条形），贴图 `gui_v1→gui_stage`/`gui_encoder→gui_console`，`MachineMenu/Screen→EnzymeMachineMenu/Screen`；补齐全 `src` 残留 `v1/ENCODER` 族注释为 `STAGE/CONSOLE`
 
 ### 2026-08-25
