@@ -186,7 +186,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         }
         if (kind == SequenceMachineKind.TRANSLATOR) {
             List<OutputCard> cards = new ArrayList<>();
-            cards.add(new OutputCard(22, "polypeptide", 104, STYLE_PEPTIDE));
+            cards.add(new OutputCard(22, "polypeptide", 56, STYLE_PEPTIDE));
             cards.add(new OutputCard(23, "trna", 56, STYLE_STOCK));
             cards.add(new OutputCard(24, "gdp", 56, STYLE_STOCK));
             cards.add(new OutputCard(25, "phosphate_ion", 56, STYLE_STOCK));
@@ -211,34 +211,21 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     }
 
     private void tickScrolls() {
-        // 输入（纵向，滚动遮挡的槽位移至 (-1000,-1000) 使其不可交互，修复“看不见但能点”)
+        // 输入（纵向，所有布局一致）
         if (!inputCards.isEmpty()) {
             this.inputScrollOffset += (this.inputScrollTarget - this.inputScrollOffset) * SCROLL_LERP;
             if (Math.abs(this.inputScrollTarget - this.inputScrollOffset) < 0.5) {
                 this.inputScrollOffset = this.inputScrollTarget;
             }
             int vOffset = (int) Math.round(inputScrollOffset);
-            int areaY = SequenceMachineMenu.INPUT_SCROLL_Y;
-            int areaH = SequenceMachineMenu.INPUT_SCROLL_H;
             for (int i = 0; i < inputCards.size(); i++) {
                 Slot slot = menu.getSlot(inputCards.get(i).containerSlot());
-                int cardY = areaY + i * SequenceMachineMenu.CARD_STEP - vOffset;
-                if (cardY + SequenceMachineMenu.CARD_H < areaY || cardY > areaY + areaH) {
-                    slot.x = -1000;
-                    slot.y = -1000;
-                } else {
-                    slot.x = SequenceMachineMenu.INPUT_SCROLL_X + SequenceMachineMenu.SLOT_X;
-                    slot.y = cardY + SequenceMachineMenu.SLOT_Y;
-                }
+                slot.x = SequenceMachineMenu.INPUT_SCROLL_X + SequenceMachineMenu.SLOT_X;
+                slot.y = SequenceMachineMenu.INPUT_SCROLL_Y + i * SequenceMachineMenu.CARD_STEP
+                        - vOffset + SequenceMachineMenu.SLOT_Y;
             }
         }
-        // 翻译机顶栏 mRNA 槽固定 9,8（不随滚动），每帧校正
-        if (menu.getKind() == SequenceMachineKind.TRANSLATOR) {
-            Slot mrna = menu.getSlot(0);
-            mrna.x = 9;
-            mrna.y = 8;
-        }
-        // 输出：STAGE族右竖排（固定坐标，≤3 卡无需滚动），CONSOLE族底横滚（遮挡槽位同样移至不可交互区）
+        // 输出：STAGE族右竖排（固定坐标，≤3 卡无需滚动），CONSOLE族底横滚
         if (!outputCards.isEmpty()) {
             if (layout().outputVertical()) {
                 for (int i = 0; i < outputCards.size(); i++) {
@@ -254,19 +241,11 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             }
             int hOffset = (int) Math.round(outputScrollOffset);
             int cardX = SequenceMachineMenu.OUT_X;
-            int areaX = SequenceMachineMenu.OUT_X;
-            int areaW = SequenceMachineMenu.OUT_W;
             for (int i = 0; i < outputCards.size(); i++) {
                 OutputCard card = outputCards.get(i);
                 Slot slot = menu.getSlot(card.containerSlot());
-                int thisCardX = cardX - hOffset;
-                if (thisCardX + card.cardWidth() < areaX || thisCardX > areaX + areaW) {
-                    slot.x = -1000;
-                    slot.y = -1000;
-                } else {
-                    slot.x = thisCardX + SequenceMachineMenu.SLOT_X;
-                    slot.y = SequenceMachineMenu.OUT_Y + SequenceMachineMenu.SLOT_Y;
-                }
+                slot.x = cardX - hOffset + SequenceMachineMenu.SLOT_X;
+                slot.y = SequenceMachineMenu.OUT_Y + SequenceMachineMenu.SLOT_Y;
                 cardX += card.cardWidth() + SequenceMachineMenu.CARD_GAP;
             }
         }
