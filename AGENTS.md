@@ -28,9 +28,8 @@
 
 ### 1.4 技术架构
 
-- 只写一个通用 `MachineBlock` 类，**不要为每种机器单独建方块类**；酶工厂方块时代结束后机器收敛为唯一的"酶反应腔"（enzyme_chamber）——一个方块 + 一个 BE 类型 + 一个 MenuType，酶由 0 槽（酶蛋白物品）动态解析，`EnzymeFactoryBlockEntity` 随插入的酶种构建对应引擎模拟器
-- 序列机家族为**第二方块类**（`SequenceMachineBlock`）：信息处理设备，与酶反应腔外观/交互/职责不同；每台序列机一个方块实例共享一个类（`SequenceMachineKind` **硬绑定处理器**，不做 0 槽动态解析——一台机器干一件事），共享一个 BE 类型 + 每机一个 MenuType
-- 两类机器方块共享 `AbstractMachineBlock` 抽象基类：朝向/放置/旋转/镜像/右键开 GUI/破坏掉落等公共行为在基类统一实现，子类仅实现 BE 创建与 tick 调度，消除重复
+- 机器方块体系：**唯一抽象基类 `BioCraftMachineBlock`**，两大具体族并列——**酶反应腔 `MachineBlock`**（化学线，`enzyme_chamber` 单方块 + 单 BE 类型 + 单 MenuType，酶由 0 槽酶蛋白物品动态解析，`EnzymeFactoryBlockEntity` 随酶种构建引擎模拟器）与**序列机家族 `SequenceMachineBlock`**（信息线，每台序列机一个方块实例共享一个类，`SequenceMachineKind` 硬绑定处理器，不做 0 槽动态解析——一台机器干一件事，共享一个 BE 类型 + 每机一个 MenuType）；新增机器类型继承 `BioCraftMachineBlock` 即可
+- 两类机器方块共享 `BioCraftMachineBlock` 基类：朝向/放置/旋转/镜像/右键开 GUI/破坏掉落等公共皮层行为在基类统一实现，子类仅实现 BE 创建与 tick 调度，消除重复
 - 配方由 **enzymes.json 结构化数据表**驱动（反应物/产物直接写物品注册名 + 化学计量系数 + Km，Keq/ΔH/kcat 等热力学与动力学参数随表直填），**绝不硬编码**；引擎在注册期对每条数据执行断言校验，失败即快速失败
 - 性能设计宗旨："事件驱动 + 睡眠"机制（睡眠已实现：无酶或全部物种浓度≈0 时跳过引擎步进；**酶槽事件驱动已实现**——容器 setChanged 立即触发酶槽解析/引擎构建/回收，tick 兜底保留，429fc95；输入槽变动唤醒引擎步进仍为设计方向，当前为每 tick 步进）
 - 细胞器（**尚未实现**）：相邻机器检测 + 控制核心方块（线粒体 = 基质控制器 + 十字排列的 4 个 ETC 模块；内质网 = 腔体机器紧邻堆叠实现速度线性叠加；膜 = 装饰性透明无碰撞方块，提供区室化增益）；ATP合酶的 H⁺ 浓度机制同样未实现
@@ -203,9 +202,9 @@ com.github.crafteve.biocraft
 │   ├── MoleculeTooltipComponent.java # TooltipComponent+ClientTooltipComponent：blit 结构图
 │   ├── MoleculeTooltipLayout.java # 标签页标题移置 tooltip 末尾（GatherComponents 事件）
 │   └── MoleculeItemDecorator.java # 图标左上角缩写标注（IItemDecorator，白字黑阴影、z=200；超长缩写按可用宽度自适应缩小）
-├── block/AbstractMachineBlock.java # 机器方块抽象基类：抽取酶反应腔与序列机公共的朝向/放置/旋转/镜像/右键开 GUI/破坏掉落（按 64 拆堆），子类仅实现 BE 创建与 tick 调度
-├── block/MachineBlock.java       # 唯一机器方块类：继承 AbstractMachineBlock，统一酶反应腔形态（无酶数据字段——酶由 BE 从 0 槽物品动态解析）
-├── block/SequenceMachineBlock.java # 序列机方块类：继承 AbstractMachineBlock，第二方块类，一台机器一个方块实例（SequenceMachineKind 硬绑定处理器）
+├── block/BioCraftMachineBlock.java # 机器方块唯一抽象基类：抽取酶反应腔与序列机公共的朝向/放置/旋转/镜像/右键开 GUI/破坏掉落（按 64 拆堆），子类仅实现 BE 创建与 tick 调度
+├── block/MachineBlock.java       # 酶反应腔方块（enzyme_chamber 专用）：继承 BioCraftMachineBlock，酶由 BE 从 0 槽物品动态解析
+├── block/SequenceMachineBlock.java # 序列机方块类（信息线）：继承 BioCraftMachineBlock，一台机器一个方块实例（SequenceMachineKind 硬绑定处理器）
 ├── blockentity/
 │   ├── MachineBlockEntity.java   # 机器 BE 基类：持 MachineContainer 具名容器（原匿名内部类已抽离）+ NBT 存档 + MenuProvider + dropExtraContents 钩子
 │   ├── MachineContainer.java     # 机器容器具名封装：SimpleContainer 子类，委托 BE 的 slotStackLimit/canPlaceItemInternal/canTakeItemInternal 与 setChanged 转发

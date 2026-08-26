@@ -143,7 +143,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 
 - **环境**：Minecraft 1.21.1 / NeoForge 21.1.248 / Java 21 / Gradle 9.2.1 / ModDevGradle 2.0.143 / Parchment 2024.11.17
 - **构建**：`gradlew build`（产物 `build/libs/biocraft-1.0.0.jar`）；进游戏 `gradlew runClient`；datagen `gradlew runData`；引擎单测见 `tools/engineTest/`（28 用例 + 工作效率基准，先 `gradlew build` 再 javac 编译运行）
-- **架构**：唯一 `MachineBlock`（统一酶反应腔，酶由 0 槽物品动态解析）；`enzymes.json` 数据驱动配方；酶槽事件驱动 + 睡眠性能模型（引擎步进每 tick）；CDK 化学库（合并单 jar 嵌入）；FE 为固定活性物种（满能量自动停转回压）；细胞器相邻检测（规划中）
+- **架构**：`BioCraftMachineBlock` 唯一抽象基类，两大机器族并列——`MachineBlock`（酶反应腔，酶由 0 槽物品动态解析）与 `SequenceMachineBlock`（序列机家族，kind 硬绑定）；`enzymes.json` 数据驱动配方；酶槽事件驱动 + 睡眠性能模型（引擎步进每 tick）；CDK 化学库（合并单 jar 嵌入）；FE 为固定活性物种（满能量自动停转回压）；细胞器相邻检测（规划中）
 
 ## 灵感来源与致谢
 

@@ -89,7 +89,7 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
     /**
      * 方块被破坏/替换时的额外掉落钩子（仅服务端）
      * <p>
-     * 由 MachineBlock.onRemove 统一调用：容器内容已由 onRemove 掉落，
+     * 由 BioCraftMachineBlock.onRemove 统一调用：容器内容已由 onRemove 掉落，
      * 本方法用于掉落容器之外的特殊库存（如 DNA 编码器的缓冲池碱基）
      * <p>
      * 注意不可依赖 setRemoved() 实现掉落：世界卸载/区块卸载同样触发
@@ -158,7 +158,7 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
     /**
      * 打开数据包追加写入钩子（子类覆写）：NeoForge openMenu(machine, buf -> ...)
      * 写方块位置后调用本方法——序列机编码器用于下发编辑器草稿
-     * （MachineBlock.useWithoutItem 写入顺序：BlockPos → 本钩子）
+     * （BioCraftMachineBlock.useWithoutItem 写入顺序：BlockPos → 本钩子）
      *
      * @param buf 打开数据包缓冲
      */
@@ -169,7 +169,7 @@ public abstract class MachineBlockEntity extends BlockEntity implements net.mine
     /**
      * MenuProvider 实现：返回当前玩家使用的菜单容器
      * <p>
-     * 方块类右键交互时调用 openMenu，最终到达本方法创建菜单
+     * 方块基类右键交互时调用 openMenu，最终到达本方法创建菜单
      *
      * @param containerId 菜单容器编号（服务端分配）
      * @param player      打开菜单的玩家

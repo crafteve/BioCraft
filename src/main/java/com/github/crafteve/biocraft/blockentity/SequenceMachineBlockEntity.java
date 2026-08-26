@@ -95,7 +95,7 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
         }
     }
 
-    /** 打开数据包追加编辑器草稿（编码器；MachineBlock 写入顺序：pos → 本钩子） */
+    /** 打开数据包追加编辑器草稿（编码器；BioCraftMachineBlock 写入顺序：pos → 本钩子） */
     @Override
     public void writeMenuOpeningData(net.minecraft.network.FriendlyByteBuf buf) {
         if (kind() == SequenceMachineKind.DNA_ENCODER) {

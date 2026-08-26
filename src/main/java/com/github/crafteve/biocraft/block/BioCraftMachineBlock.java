@@ -21,18 +21,21 @@ import net.minecraft.world.phys.BlockHitResult;
 import javax.annotation.Nullable;
 
 /**
- * 机器方块抽象基类（酶反应腔与序列机共用）
+ * 机器方块唯一抽象基类（酶反应腔与序列机共用）
  * <p>
- * 抽取两台机器方块的公共部分：水平朝向（放置/旋转/镜像）、右键打开 GUI、
+ * 抽取两类机器方块的公共皮层：水平朝向（放置/旋转/镜像）、右键打开 GUI、
  * 破坏掉落（容器按 64 拆堆 + 额外掉落钩子）。
  * 机器的"业务差异"（创建哪种 BE、每 tick 跑哪种逻辑）由子类实现
+ * <p>
+ * 命名：BioCraft 前缀标明为模组机器基类，区别于原版 Block 与
+ * NeoForge 的 BaseEntityBlock 等，避免 AbstractMachineBlock 的泛化命名与子类 MachineBlock 撞名
  */
-public abstract class AbstractMachineBlock extends Block implements EntityBlock {
+public abstract class BioCraftMachineBlock extends Block implements EntityBlock {
 
     /** 水平朝向：正面放置时面向玩家（熔炉同款） */
     public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
 
-    protected AbstractMachineBlock(Properties properties) {
+    protected BioCraftMachineBlock(Properties properties) {
         super(properties);
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
     }

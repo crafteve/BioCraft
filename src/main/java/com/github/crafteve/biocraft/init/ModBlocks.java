@@ -1,6 +1,7 @@
 package com.github.crafteve.biocraft.init;
 
 import com.github.crafteve.biocraft.BioCraft;
+import com.github.crafteve.biocraft.block.BioCraftMachineBlock;
 import com.github.crafteve.biocraft.block.MachineBlock;
 import com.github.crafteve.biocraft.block.SequenceMachineBlock;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;

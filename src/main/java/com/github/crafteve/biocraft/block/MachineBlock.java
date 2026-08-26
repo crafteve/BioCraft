@@ -12,16 +12,17 @@ import net.minecraft.world.level.material.MapColor;
 import javax.annotation.Nullable;
 
 /**
- * 唯一的机器方块类（AGENTS.md 1.4 硬性规则）
+ * 酶反应腔方块（enzyme_chamber 专用）
  * <p>
- * 酶工厂方块时代结束：机器收敛为统一的"酶反应腔"（enzyme_chamber）——
- * 方块不持有任何酶数据，酶由方块实体从 0 槽（酶物品）动态解析，
- * 同一方块随插入的酶种不同而呈现不同反应网络
+ * 机器两大族之一：化学反应线。方块不持有任何酶数据，酶由方块实体从
+ * 0 槽（酶蛋白物品）动态解析，同一方块随插入的酶种不同而呈现不同反应网络
  * <p>
- * 方块类只承载方块行为（放置/右键交互/破坏掉落/硬度/地图色），
- * 机器的业务逻辑（容器/浓度/引擎）全部在 BlockEntity 层
+ * 方块类只承载皮层行为（放置/右键交互/破坏掉落/硬度/地图色/tick 调度），
+ * 机器的业务逻辑（容器/浓度/引擎/IO 模式）全部在 BlockEntity 层
+ * <p>
+ * 与 {@link SequenceMachineBlock} 并列，共享 {@link BioCraftMachineBlock} 基类
  */
-public class MachineBlock extends AbstractMachineBlock {
+public class MachineBlock extends BioCraftMachineBlock {
 
     /**
      * 酶反应腔构造（唯一机器形态，无参数——酶数据来自 0 槽物品）

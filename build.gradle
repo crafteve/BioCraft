@@ -253,4 +253,31 @@ idea {
     }
 }
 
+// Javadoc 配置：只统计模组源码 API，不包含 Minecraft 本体与依赖库源码
+// 默认 javadoc 任务的 source 就只有 sourceSets.main.java（即 src/main/java），依赖（MC/NeoForge/CDK/JEI/EMI）只进 classpath 供符号解析，不会把它们的源码拉进文档
+tasks.named('javadoc', Javadoc) {
+    description = '生成 BioCraft 模组 API 文档（仅 src/main/java，不含 Minecraft/依赖源码）'
+    group = 'documentation'
+    // 权威输入：只取模组主源码集
+    source = sourceSets.main.java
+    // classpath 仅用于解析类型符号（如 net.minecraft.*、CDK），不展开为文档页
+    classpath = sourceSets.main.compileClasspath
+    destinationDir = file("$buildDir/docs/javadoc")
+    // 显式声明只含模组包，二次保险（即使未来 sourceSets 被改也不会把别的源码卷进来）
+    // include 'com/github/crafteve/biocraft/**'
+
+    options.encoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+    options.docEncoding = 'UTF-8'
+    options.memberLevel = JavadocMemberLevel.PROTECTED
+    options.addBooleanOption('Xdoclint:none', true)
+    options.addBooleanOption('quiet', true)
+    // 标题与窗口标题
+    options.docTitle = "BioCraft ${project.mod_version} API"
+    options.windowTitle = "BioCraft API ${project.mod_version}"
+    // 不生成依赖源码的文档，仅保留对它们的引用链接
+    options.links 'https://docs.oracle.com/en/java/javase/21/docs/api/'
+    failOnError = false
+}
+
 
