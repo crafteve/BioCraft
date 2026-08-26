@@ -30,7 +30,8 @@ public enum SequenceLayout {
     // 无面板顶部文字标识（panelTitle 空 + 无图标），动画内容填满整个面板，
     // 中央标签取消（centerLabel 空），动画区上边界向上延长 9px（标签行高）填满中心区域
     STAGE_LOADER(true, false, "", ' ', 0, 0, "", 68, 29, 122, 135, true, "RUN"),
-    STAGE_HELICASE(true, false, "", ' ', 0, 0, "", 68, 29, 122, 135, true, "UNWIND");
+    STAGE_HELICASE(true, false, "", ' ', 0, 0, "", 68, 29, 122, 135, true, "UNWIND"),
+    STAGE_FOLDER(true, false, "", ' ', 0, 0, "", 68, 29, 122, 135, false, "FOLD");
 
     private final boolean stage;
     private final boolean plainPanel;
@@ -72,6 +73,7 @@ public enum SequenceLayout {
             case TRANSLATOR -> CONSOLE_TRANSLATOR;
             case LOADER -> STAGE_LOADER;
             case HELICASE -> STAGE_HELICASE;
+            case FOLDER -> STAGE_FOLDER;
         };
     }
 

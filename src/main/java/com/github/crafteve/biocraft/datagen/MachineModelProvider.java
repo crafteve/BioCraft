@@ -76,7 +76,7 @@ public class MachineModelProvider implements DataProvider {
      */
     private Map<Path, JsonObject> sequenceMachineResources() {
         Map<Path, JsonObject> outputs = new HashMap<>();
-        for (String blockName : new String[]{"dna_encoder", "transcriber", "helicase", "loader", "translator"}) {
+        for (String blockName : new String[]{"dna_encoder", "transcriber", "helicase", "loader", "translator", "folder"}) {
             ResourceLocation blockModel = ResourceLocation.fromNamespaceAndPath(BioCraft.MODID, "block/" + blockName);
 
             JsonObject blockState = new JsonObject();
@@ -101,6 +101,7 @@ public class MachineModelProvider implements DataProvider {
             else if ("helicase".equals(blockName)) tex = "biocraft:block/helicase";
             else if ("loader".equals(blockName)) tex = "biocraft:block/loader";
             else if ("translator".equals(blockName)) tex = "biocraft:block/translator";
+            else if ("folder".equals(blockName)) tex = "biocraft:block/folder";
             else tex = "biocraft:block/enzyme_chamber_side";
             textures.addProperty("all", tex);
             textures.addProperty("particle", tex);

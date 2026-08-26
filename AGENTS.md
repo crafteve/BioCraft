@@ -78,6 +78,7 @@
 - 已完成 翻译机与转录仪对齐修复（2026-08-23）：翻译机改按钮触发（ServerboundTranscribePacket 泛化为转录仪/翻译机共用启动工序包，IDLE 分支禁自动开翻）；mRNA 指纹追踪泛化（templateSlot 按 kind 取槽，工序中拿走/换链弹产物 + 归零，防"幽灵翻译"）；Menu.mayPickup 补半成品锁（转录仪 mRNA/翻译机多肽 complete 才可 GUI 取——BE canTakeItemInternal 只拦漏斗/管道，GUI 走 Slot.remove 绕过是漏点）；两机 step 重写为"前置全查通过才动物品"（消灭边动边退的余量账目不平）；多肽 materialize kind 继承 mRNA；TranslatorScreen 错误提示对齐转录仪左下角红叹号三态。**续：三机开工方式统一**——ServerboundTranscribePacket 再泛化纳入 DNA_ENCODER（BE IDLE 分支三机全禁自动开工；编码器"编码"按钮 = ServerboundSequenceProgramPacket 提交文本 + 启动包两包按序排队，服务端顺序执行）
 - 已完成 序列机 GUI 统一框架（2026-08-23）：新增 `SequenceLayout` 布局描述枚举（背景贴图 gui_stage/gui_console、输出卡方向右竖滚/底横滚、中央标签 LOAD/UNWIND、动画区矩形 122×126/178×95、进度条开关、面板标题、催化剂图标字母与配色全部数据化，of(kind) 映射）；`SequenceMachineScreen` 基类 renderBg 按布局一次画完全部框架（状态栏/标签/输入竖滚卡/输出卡/动画区面板骨架+统一网格+右上角状态文字与图标），动画内容走 `renderMachineAnimation` 钩子；五台序列机屏幕瘦身为"只写动画+专属按钮"（编码器 plainPanel 面板即编辑器；转录/翻译/装载/解旋各一个动画方法）；细节统一——网格 0x08FFFFFF 四边 6px 边距（转录仪补网格/解旋酶改留边距）、右上角"状态文字在图标左侧"（解旋酶补紫 U、装载 A/翻译 R 补状态词）、装载机补进度条、状态词 IDLE/动词 进度/DONE、解旋酶空卡改 nt 计数、卡片缩写优先取槽内实际物品（动态产物着色跟随）；输出卡三样式（STYLE_STOCK/DNA/PEPTIDE）+ 输入卡绿底高亮进基类
 - 已完成 翻译机"程序肽链无程序"根治（2026-08-25，方案丙：起始密码子）：程序编码流首现 AUG 位置随字节运气漂移（实测 @17 错位帧/@45 框内），翻译机 AUG 扫描从流中间开工 → 多肽缺魔数头、Ctrl 反推必失败（探针复现）——`SeqOps` 新增 `START_CODON_CODING="ATG"`，编码器链结构改为 `启动子 + ATG + 程序流 + 终止子`（mRNA 恒以 AUG 开头，翻译机 0 位命中整链翻译，多肽 = Met + 完整程序蛋白）；`SequenceItem` 新增 `tryDecodeProgram`（解码失败且开头为 ATG 时剥掉再试），DNA/mRNA/多肽三条 Ctrl 反推路径共用，旧格式链直接解码兼容；探针全链路验证 + seqTest 43 用例全绿。**旧存档程序 DNA 需重新编码**
+- 已完成 蛋白质折叠机（folder，stage 布局，类解旋机，2026-08-26）：输入多肽（complete）→ Codec 多肽解码 → 程序文本 → DslParser + EnzymeProgramChecker 校验 → 输出对应酶蛋白物品或错误折叠蛋白；无催化剂、无动画首版，仅输入输出逻辑；贴图 `tools/texturegen/output/folder.png` 已拷入 `assets/biocraft/textures/block/folder.png`，方块/BE/Menu/布局/屏幕/模型/语言/标签页全链路注册
 - 待开发 酶容器贴图 Phase 3 ③④（可选，用户暂未选）：气泡粒子（运行中观察窗冒泡）、GUI 小模型图标
 - 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
 - 待开发 中心法则第二波（信息链贯通，见《docs/中心法则信息层设计_2026-08-18.md》）：复制酶（1 dsDNA → 解旋酶已落地 → 2 ssDNA → 各复制 → 2 dsDNA 倍增闭环，dNTP 消耗）→ tRNA 体系（trna_gene/trna/aa-tRNA/ARS 酶物品）→ 装载机（ARS 0 槽催化，aa + trna + ATP → aa-tRNA + AMP + PPi）+ 翻译仪（aa-tRNA 托盘 + 密码子↔反密码子教学 GUI）+ 折叠机（解码程序 → 语义注册表 → 酶物品或 misfolded_protein）——程序 → DNA → mRNA → 多肽 → 酶物品全链贯通
@@ -170,10 +171,10 @@
 ```
 com.github.crafteve.biocraft
 ├── BioCraft.java                 # 瘦身为纯装配：注册各 init 注册中心（无功能实现）
-├── BioCraftClient.java           # 客户端装配：菜单屏幕绑定（酶腔/编码器/转录仪）+ 方块/物品染色（BlockColor 按 BE 缓存酶主题色给贴片元素 tint，ItemColor 物品固定空机暗灰）+ 烘焙模型包装（ModifyBakingResult 给酶反应腔挂自发光灯）
+├── BioCraftClient.java           # 客户端装配：菜单屏幕绑定（酶腔/编码器/转录仪/折叠机）+ 方块/物品染色（BlockColor 按 BE 缓存酶主题色给贴片元素 tint，ItemColor 物品固定空机暗灰）+ 烘焙模型包装（ModifyBakingResult 给酶反应腔挂自发光灯）
 ├── init/
 │   ├── ModItems.java             # 读 substances.json → 动态注册 71 个 MoleculeItem + 序列物品族（dna/dna_single/mrna/polypeptide/trna/misfolded_protein 共6，烧杯黑灰色阶 tRNA 试管纯黑，trna_gene/rna_polymerase 已移除）；读 enzymes.json → 动态注册 14 个酶蛋白物品（enzyme_<酶id>，EnzymeItem）
-│   ├── ModBlocks.java            # 方块/BE 类型/MenuType/方块物品四件套：酶反应腔 enzyme_chamber（酶由 0 槽动态解析）+ 序列机家族（dna_encoder/transcriber，SequenceMachineKind 硬绑定处理器，共享 BE 类型 + 每机一个 MenuType）
+│   ├── ModBlocks.java            # 方块/BE 类型/MenuType/方块物品四件套：酶反应腔 enzyme_chamber（酶由 0 槽动态解析）+ 序列机家族（dna_encoder/transcriber/helicase/loader/translator/folder，SequenceMachineKind 硬绑定处理器，共享 BE 类型 + 每机一个 MenuType）
 │   ├── ModDataComponents.java    # 数据组件注册中心（重建）：SEQUENCE 序列载荷组件（Codec + StreamCodec，SequenceData 在 item/SequenceData.java 纯 record，Codec 零依赖）
 │   ├── ModCreativeTabs.java      # 多标签页架构：分子页 + 酶页 + 机器页 + 序列页（信息层物品族）
 │   ├── EnzymeFactoryRegistry.java # 读 enzymes.json → 构建酶数据档案（含 color 主题色字段；构建期跑引擎断言防火墙，失败快速失败）
@@ -225,7 +226,8 @@ com.github.crafteve.biocraft
 │           ├── TranscriptionOperation.java # 转录：DNA 模板 KEEP → mRNA 互补链（每步消耗 NTP，RNA 聚合酶 0 槽催化）
 │           ├── HelicaseOperation.java     # 解旋：1 dsDNA → 2 ssDNA 逐碱基对动态解旋（每 tick 1 bp）
 │           ├── LoaderOperation.java       # 装载：tRNA + AA + ATP → aa-tRNA + AMP + PPi
-│           └── TranslatorOperation.java   # 翻译：mRNA + aa-tRNA + GTP → 多肽 + tRNA + GDP + Pi
+│           ├── TranslatorOperation.java   # 翻译：mRNA + aa-tRNA + GTP → 多肽 + tRNA + GDP + Pi
+│           └── FolderOperation.java       # 折叠：多肽 → 酶/错折（多肽解码→程序校验，stage 即时）
 ├── central/                    # 中心法则信息层纯核心（原 seq+program 合并，纯 Java 零 MC 依赖，43+32 用例合 central）
 │   ├── Codec.java               # 编解码门面（原 SeqCodec+CodonTable20+SeqOps+SequenceConstants 合并）：encode/decodeFromDna/Mrna/Polypeptide 四入口 String→DecodeResult，不碰 SequenceData NBT
 │   ├── DslField.java            # 字段枚举（原 ProgramField → DslField）+ HighlightRule 颜色枚举收口（CentralProgramHighlight，ProgramHighlight/CodeEditorWidget 同引）
@@ -258,7 +260,8 @@ com.github.crafteve.biocraft
 │           ├── TranscriberScreen.java    # 转录仪屏幕：动画钩子（模板↔mRNA 逐碱基配对行）+ 转录按钮 + 左下角红叹号错误提示
 │           ├── TranslatorScreen.java     # 翻译机屏幕：动画钩子（mRNA 密码子列/肽链三字母同列居中对齐 + 滚窗浮点缓动 + 就绪光标/完成扫光）+ 翻译按钮 + 红叹号
 │           ├── LoaderScreen.java         # 装载机屏幕：动画钩子（tRNA 装载口袋 24 点呼吸环 + 原料滑入 + 副产物坠落）+ 工作状态检测
-│           └── HelicaseScreen.java       # 解旋酶屏幕：专属 DNA 卡（nt 数 + 四色碱基窗口，输入前缀同步/输出模板链编码链）+ 动画钩子（双螺旋/分叉/平行）
+│           ├── HelicaseScreen.java       # 解旋酶屏幕：专属 DNA 卡（nt 数 + 四色碱基窗口，输入前缀同步/输出模板链编码链）+ 动画钩子（双螺旋/分叉/平行）
+│           └── FolderScreen.java         # 折叠机屏幕：占位 stage 布局，无动画首版，仅 FOLD 文字
 ├── network/                      # 网络载荷（NeoForge payload 机制）
 │   ├── ModNetwork.java           # 载荷注册中心（RegisterPayloadHandlersEvent 装配 playToServer 通道：IO 模式 + 序列程序提交 + 编辑器草稿持久化）
 │   ├── ServerboundSetIoModePacket.java # IO 模式切换包（GUI 按钮 → 服务端：方块坐标 + 区域 + 模式，服务端校验后写 BE）

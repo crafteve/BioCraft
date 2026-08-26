@@ -97,6 +97,10 @@ public final class ModBlocks {
     public static final DeferredBlock<SequenceMachineBlock> TRANSLATOR = BLOCKS.register(
             "translator", () -> new SequenceMachineBlock(SequenceMachineKind.TRANSLATOR));
 
+    /** 折叠机（多肽 → 酶 / 错折，stage 布局） */
+    public static final DeferredBlock<SequenceMachineBlock> FOLDER = BLOCKS.register(
+            "folder", () -> new SequenceMachineBlock(SequenceMachineKind.FOLDER));
+
     public static final DeferredItem<BlockItem> DNA_ENCODER_ITEM = ModItems.ITEMS.register(
             "dna_encoder", () -> new BlockItem(DNA_ENCODER.get(), new Item.Properties()));
 
@@ -112,11 +116,14 @@ public final class ModBlocks {
     public static final DeferredItem<BlockItem> TRANSLATOR_ITEM = ModItems.ITEMS.register(
             "translator", () -> new BlockItem(TRANSLATOR.get(), new Item.Properties()));
 
+    public static final DeferredItem<BlockItem> FOLDER_ITEM = ModItems.ITEMS.register(
+            "folder", () -> new BlockItem(FOLDER.get(), new Item.Properties()));
+
     /** 共享序列机 BE 类型（kind 由方块状态解析，无需每机器一个 BE） */
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SequenceMachineBlockEntity>> SEQUENCE_BE =
             BE_TYPES.register("sequence_machine",
                     () -> BlockEntityType.Builder.of(SequenceMachineBlockEntity::new,
-                            DNA_ENCODER.get(), TRANSCRIBER.get(), HELICASE.get(), LOADER.get(), TRANSLATOR.get()).build(null));
+                            DNA_ENCODER.get(), TRANSCRIBER.get(), HELICASE.get(), LOADER.get(), TRANSLATOR.get(), FOLDER.get()).build(null));
 
     /** DNA 编码器菜单类型（工厂捕获 kind，避免初始化自引用） */
     public static final DeferredHolder<MenuType<?>, MenuType<SequenceMachineMenu>> DNA_ENCODER_MENU =
@@ -143,12 +150,18 @@ public final class ModBlocks {
             MENUS.register("translator", () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(
                     (id, inv, buf) -> new SequenceMachineMenu(SequenceMachineKind.TRANSLATOR, id, inv, buf)));
 
+    /** 折叠机菜单类型 */
+    public static final DeferredHolder<MenuType<?>, MenuType<SequenceMachineMenu>> FOLDER_MENU =
+            MENUS.register("folder", () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(
+                    (id, inv, buf) -> new SequenceMachineMenu(SequenceMachineKind.FOLDER, id, inv, buf)));
+
     static {
         SequenceMachineKind.DNA_ENCODER.setMenuHolder(DNA_ENCODER_MENU);
         SequenceMachineKind.TRANSCRIBER.setMenuHolder(TRANSCRIBER_MENU);
         SequenceMachineKind.HELICASE.setMenuHolder(HELICASE_MENU);
         SequenceMachineKind.LOADER.setMenuHolder(LOADER_MENU);
         SequenceMachineKind.TRANSLATOR.setMenuHolder(TRANSLATOR_MENU);
+        SequenceMachineKind.FOLDER.setMenuHolder(FOLDER_MENU);
     }
 
     /**

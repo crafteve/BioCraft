@@ -372,12 +372,14 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+            };
+            case FOLDER -> new int[][]{
                     {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
+                    {193 + SLOT_X, 41 + SLOT_Y},
             };
         };
     }

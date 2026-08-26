@@ -157,6 +157,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 - **refactor** SequenceData 归位 item 与序列物品烧杯化：`init/SequenceData.java → item/SequenceData.java`（贴纸表归物品家族，`ModDataComponents` 仅注册），序列物品全改烧杯贴图 + 黑灰色阶（`dna 1A1A1A/dna_single 2E2E2E/mrna 404040/polypeptide 525252/misfolded 6B6B6B`）`tRNA` 试管纯黑 `000000` 区分，`SequenceItem` 新增 `tintColor` + `MoleculeColors` 颜色/装饰器注册，已删 `trna_gene/rna_polymerase` 2 项，`SequenceItemModelProvider` 6 项烧杯/试管
 - **fix** 序列物品装饰器与色阶修复：去除装饰器中文缩写（多肽/错折改 PEPT/MFLD，全英文）、黑灰色阶拉大为等距 0x20（1A→3A→5A→7A→9A，tRNA 保持纯黑试管），修正生成模型全为烧杯仅 tRNA 试管并重新生成资源
 - **refactor** 机器命名与分包对齐（内部重构，玩家无感知）：`AbstractMachineBlock→BioCraftMachineBlock`、`MachineBlock→EnzymeMachineBlock`（与 `SequenceMachineBlock` 对仗）；`blockentity` 按 `base/enzyme/sequence/operation` 分层，`IoMode` 内聚为 `EnzymeMachineBlockEntity` 内部枚举；`gui` 按 `base/enzyme/sequence/operation` 分层，`MachineLayout→SequenceLayout` 并更名 `STAGE`（舞台居中，双侧竖卡）/`CONSOLE`（控制台，上舞台下条形），贴图 `gui_v1→gui_stage`/`gui_encoder→gui_console`，`MachineMenu/Screen→EnzymeMachineMenu/Screen`；补齐全 `src` 残留 `v1/ENCODER` 族注释为 `STAGE/CONSOLE`
+- **feat** 蛋白质折叠机：新增序列机家族成员，输入多肽（需完整）→ 解码程序 → 校验设计单 → 输出对应酶蛋白或错误折叠蛋白；无催化剂、无动画首版，仅输入输出；贴图沿用 `folder.png`，方块/物品/菜单/布局/屏幕/模型/语言/标签页全链路落地
 
 ### 2026-08-25
 

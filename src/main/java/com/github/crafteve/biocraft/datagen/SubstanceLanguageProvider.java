@@ -94,6 +94,8 @@ public class SubstanceLanguageProvider implements DataProvider {
                 zh ? "装载机" : "Loader");
         translations.put("block.biocraft.translator",
                 zh ? "翻译机" : "Translator");
+        translations.put("block.biocraft.folder",
+                zh ? "蛋白质折叠机" : "Protein Folder");
         translations.put("tooltip.biocraft.molar_mass",
                 zh ? "摩尔质量 %s g/mol" : "Molar Mass %s g/mol");
         translations.put("tooltip.biocraft.smiles_error",

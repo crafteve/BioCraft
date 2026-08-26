@@ -3,6 +3,7 @@ package com.github.crafteve.biocraft;
 import com.github.crafteve.biocraft.blockentity.enzyme.EnzymeMachineBlockEntity;
 import com.github.crafteve.biocraft.client.EmissiveLampBakedModel;
 import com.github.crafteve.biocraft.gui.sequence.operation.EncoderScreen;
+import com.github.crafteve.biocraft.gui.sequence.operation.FolderScreen;
 import com.github.crafteve.biocraft.gui.sequence.operation.HelicaseScreen;
 import com.github.crafteve.biocraft.gui.sequence.operation.LoaderScreen;
 import com.github.crafteve.biocraft.gui.enzyme.EnzymeMachineScreen;
@@ -38,6 +39,7 @@ public class BioCraftClient {
         event.register(ModBlocks.HELICASE_MENU.get(), HelicaseScreen::new);
         event.register(ModBlocks.LOADER_MENU.get(), LoaderScreen::new);
         event.register(ModBlocks.TRANSLATOR_MENU.get(), TranslatorScreen::new);
+        event.register(ModBlocks.FOLDER_MENU.get(), FolderScreen::new);
     }
 
     @SubscribeEvent

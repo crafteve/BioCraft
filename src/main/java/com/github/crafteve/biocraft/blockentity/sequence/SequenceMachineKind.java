@@ -2,6 +2,7 @@ package com.github.crafteve.biocraft.blockentity.sequence;
 
 import com.github.crafteve.biocraft.block.SequenceMachineBlock;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.DnaSynthesisOperation;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.FolderOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.HelicaseOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.LoaderOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranscriptionOperation;
@@ -24,7 +25,8 @@ public enum SequenceMachineKind {
     TRANSCRIBER("TRANSCRIBER", TranscriptionOperation::new, 8),
     HELICASE("HELICASE", HelicaseOperation::new, 3),
     LOADER("LOADER", LoaderOperation::new, 6),
-    TRANSLATOR("TRANSLATOR", TranslatorOperation::new, 26);
+    TRANSLATOR("TRANSLATOR", TranslatorOperation::new, 26),
+    FOLDER("folder", FolderOperation::new, 2);
 
     private final String blockId;
     private final Supplier<SequenceOperation> operationFactory;
