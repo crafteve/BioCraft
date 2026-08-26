@@ -124,7 +124,20 @@ public class FolderOperation implements SequenceOperation {
 
     @Override
     public void materialize(SimpleContainer container, SeqStepState state) {
-        // 分析期不物化，输出在 finish 阶段一次性产出
+        if (state.stage() != SeqStepState.Stage.EXTENDING) return;
+        String expected = state.pendingProgram();
+        if (expected == null || expected.isEmpty()) return;
+        ItemStack out = container.getItem(SLOT_OUT);
+        // 读条前即确定产物并显示：输出槽为空时置预览，主题色随酶种即时可见
+        if (out.isEmpty()) {
+            SequenceContainerUtil.addOne(container, SLOT_OUT, expected);
+            // 预览仅展示，不消耗输入，进度条驱动位置
+            // 将新置入的预览数量设为 1，但保持可叠加（若同种酶已在槽内则 hasRoom 会处理）
+        } else if (!SequenceContainerUtil.matchesId(out, expected)) {
+            // 预期产物与现有预览不一致（换料），替换为新预期
+            container.setItem(SLOT_OUT, ItemStack.EMPTY);
+            SequenceContainerUtil.addOne(container, SLOT_OUT, expected);
+        }
     }
 
     @Override
@@ -138,12 +151,16 @@ public class FolderOperation implements SequenceOperation {
                 expected = "misfolded_protein";
             }
         }
-        // 原子结算：消耗输入 → 产出输出（失败回滚）
+        ItemStack out = container.getItem(SLOT_OUT);
+        // 若输出已有预览（materialize 已置入），则复用为正式产出，仅消耗输入
+        boolean hasPreview = !out.isEmpty() && SequenceContainerUtil.matchesId(out, expected);
         if (!SequenceContainerUtil.consumeOne(container, SLOT_IN_POLYPEPTIDE, "polypeptide")) {
             return;
         }
-        if (!SequenceContainerUtil.addOne(container, SLOT_OUT, expected)) {
-            SequenceContainerUtil.addOne(container, SLOT_IN_POLYPEPTIDE, "polypeptide");
+        if (!hasPreview) {
+            if (!SequenceContainerUtil.addOne(container, SLOT_OUT, expected)) {
+                SequenceContainerUtil.addOne(container, SLOT_IN_POLYPEPTIDE, "polypeptide");
+            }
         }
     }
 
