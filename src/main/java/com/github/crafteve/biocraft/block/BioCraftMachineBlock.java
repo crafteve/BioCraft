@@ -28,7 +28,7 @@ import javax.annotation.Nullable;
  * 机器的"业务差异"（创建哪种 BE、每 tick 跑哪种逻辑）由子类实现
  * <p>
  * 命名：BioCraft 前缀标明为模组机器基类，区别于原版 Block 与
- * NeoForge 的 BaseEntityBlock 等，避免 AbstractMachineBlock 的泛化命名与子类 MachineBlock 撞名
+ * NeoForge 的 BaseEntityBlock 等；两大子类 EnzymeChamberBlock / SequenceMachineBlock 具象并列
  */
 public abstract class BioCraftMachineBlock extends Block implements EntityBlock {
 

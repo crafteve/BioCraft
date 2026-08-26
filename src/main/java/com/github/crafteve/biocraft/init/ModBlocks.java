@@ -2,7 +2,7 @@ package com.github.crafteve.biocraft.init;
 
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.block.BioCraftMachineBlock;
-import com.github.crafteve.biocraft.block.MachineBlock;
+import com.github.crafteve.biocraft.block.EnzymeChamberBlock;
 import com.github.crafteve.biocraft.block.SequenceMachineBlock;
 import com.github.crafteve.biocraft.blockentity.EnzymeFactoryBlockEntity;
 import com.github.crafteve.biocraft.blockentity.SequenceMachineBlockEntity;
@@ -39,10 +39,10 @@ public final class ModBlocks {
     public static final DeferredRegister<MenuType<?>> MENUS =
             DeferredRegister.create(Registries.MENU, BioCraft.MODID);
 
-    /** 酶反应腔方块（唯一机器方块，酶由 0 槽物品动态解析） */
-    public static final DeferredBlock<MachineBlock> ENZYME_CHAMBER = BLOCKS.register(
+    /** 酶反应腔方块（化学线，酶由 0 槽物品动态解析） */
+    public static final DeferredBlock<EnzymeChamberBlock> ENZYME_CHAMBER = BLOCKS.register(
             "enzyme_chamber",
-            () -> new MachineBlock());
+            () -> new EnzymeChamberBlock());
 
     /**
      * 酶反应腔方块物品（手持放置方块用）

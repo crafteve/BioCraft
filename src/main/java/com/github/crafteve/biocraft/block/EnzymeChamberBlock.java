@@ -22,7 +22,7 @@ import javax.annotation.Nullable;
  * <p>
  * 与 {@link SequenceMachineBlock} 并列，共享 {@link BioCraftMachineBlock} 基类
  */
-public class MachineBlock extends BioCraftMachineBlock {
+public class EnzymeChamberBlock extends BioCraftMachineBlock {
 
     /**
      * 酶反应腔构造（唯一机器形态，无参数——酶数据来自 0 槽物品）
@@ -32,14 +32,14 @@ public class MachineBlock extends BioCraftMachineBlock {
      *
      * @param properties 方块属性
      */
-    public MachineBlock(Properties properties) {
+    public EnzymeChamberBlock(Properties properties) {
         super(properties);
     }
 
     /**
      * 无参数构造（DeferredRegister 默认工厂）：硬度/声音/地图色统一
      */
-    public MachineBlock() {
+    public EnzymeChamberBlock() {
         this(Properties.of()
                 .mapColor(MapColor.COLOR_GRAY)
                 .strength(1.5F)

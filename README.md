@@ -1,4 +1,4 @@
-# BioCraft · 生物工艺
+﻿# BioCraft · 生物工艺
 
 > 硬核生物化学科技模组 | Minecraft 1.21.1 / NeoForge | 将真实的代谢通路、中心法则、酶动力学完整且有创意地搬进 Minecraft
 
@@ -143,7 +143,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 
 - **环境**：Minecraft 1.21.1 / NeoForge 21.1.248 / Java 21 / Gradle 9.2.1 / ModDevGradle 2.0.143 / Parchment 2024.11.17
 - **构建**：`gradlew build`（产物 `build/libs/biocraft-1.0.0.jar`）；进游戏 `gradlew runClient`；datagen `gradlew runData`；引擎单测见 `tools/engineTest/`（28 用例 + 工作效率基准，先 `gradlew build` 再 javac 编译运行）
-- **架构**：`BioCraftMachineBlock` 唯一抽象基类，两大机器族并列——`MachineBlock`（酶反应腔，酶由 0 槽物品动态解析）与 `SequenceMachineBlock`（序列机家族，kind 硬绑定）；`enzymes.json` 数据驱动配方；酶槽事件驱动 + 睡眠性能模型（引擎步进每 tick）；CDK 化学库（合并单 jar 嵌入）；FE 为固定活性物种（满能量自动停转回压）；细胞器相邻检测（规划中）
+- **架构**：`BioCraftMachineBlock` 唯一抽象基类，两大机器族并列——`EnzymeChamberBlock`（酶反应腔，酶由 0 槽物品动态解析）与 `SequenceMachineBlock`（序列机家族，kind 硬绑定）；`enzymes.json` 数据驱动配方；酶槽事件驱动 + 睡眠性能模型（引擎步进每 tick）；CDK 化学库（合并单 jar 嵌入）；FE 为固定活性物种（满能量自动停转回压）；细胞器相邻检测（规划中）
 
 ## 灵感来源与致谢
 
@@ -209,7 +209,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 - **fix** DNA 解旋酶 6 项打磨：①标签简化 `DNA`/`模板链`/`编码链`（`ssDNA-A` 过长，编码链与 dsDNA 一致，模板链为其反向互补）②移除动画区底部超长 tip 与完成态 `⇉ 2× ssDNA` ③扩大动画区至 122×126 并逐碱基对动态显示 A–T/C–G + 分叉闪光 ④三卡均滚动碱基窗口（输入前缀 + 双输出前缀同步）⑤模板/编码链 NBT 与 tooltip 区分（`IS_TEMPLATE` 组件，双产物 NBT 不同）⑥模板链 tooltip 方向 3'→5'（5'/3' 对调，Shift 彩色视图同步）
 - **fix** DNA 解旋酶 5 项精修：①完成态两线性上方各加 `ssDNA` 标签（DNA 同色，一左一右）②移除解旋中可逆箭头 `⇄` ③动画中 AUCG 按主题色着色（A 红/T 黄/C 蓝/G 绿，中央碱基对与末端小标签同步）④双单链改名 `模板链(3'→5', rc)`/`编码链(5'→3', S)` 并校正 NBT/方向（编码链与 dsDNA 完全一致）⑤三卡均滚动（输入前缀 + 模板/编码前缀同步窗口）
 - **feat** 编码器编辑器逐字符动画华丽升级：编码波峰（当前编码字符）金色文字 + 外扩发光晕 + 呼吸脉动背景；已编码字符从新鲜亮绿向后**渐变冷却**为暗绿（15 字符跨度）；编码完成瞬间全文本白色闪光——能量波扫过文本的视觉效果
-- **fix** 编码器打开屏幕崩溃（`SequenceMachineBlock` 漏写草稿）：该方块自覆写 `useWithoutItem` 用旧式 openMenu 只写 BlockPos，客户端读草稿越界（`readerIndex(8)+1 > writerIndex(8)`）——改为与 MachineBlock 同款写入（pos + writeMenuOpeningData）
+- **fix** 编码器打开屏幕崩溃（`SequenceMachineBlock` 漏写草稿）：该方块自覆写 `useWithoutItem` 用旧式 openMenu 只写 BlockPos，客户端读草稿越界（`readerIndex(8)+1 > writerIndex(8)`）——改为与 EnzymeChamberBlock 同款写入（pos + writeMenuOpeningData）
 - **fix** 编码器编辑器草稿持久化：程序文本在编辑过程中实时保存到服务端机器（NBT 存档），**重开 GUI 不重置**（恢复上次内容，模板仅在无草稿时使用）
 - **fix** 编码器报错提示改为**左下角红色感叹号**：不再在编码区直接打印错误文本（避免与按钮/编辑器重叠），鼠标悬停感叹号显示 tooltip 列出全部错误详情
 - **feat** 编码器编辑器动画改为**逐字符**：编码进度推进时逐字符变色（亮绿）+ 变底色（暗绿），取代原"整行扫描线"动画——编码到哪个字符哪个高亮
@@ -344,3 +344,4 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 **搁置原因**：属 Pipez 自身"被动网络不启动拉取"的机制问题，本 mod 无代码修复空间；验证动作（Jade 对准管道触发懒创建）待用户复测。
 
 **规避方案**：能量传输使用 Mekanism 线缆 + PULL 模式（已实测可用）；Pipez 保留用于物品/流体管道。
+

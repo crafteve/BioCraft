@@ -172,7 +172,7 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
     private static ClientInit parseClientInit(Inventory playerInventory, RegistryFriendlyByteBuf buffer,
                                               SequenceMachineKind kind) {
         BlockPos pos = buffer.readBlockPos();
-        // 编码器打开数据包追加草稿（MachineBlock 写入顺序：pos → writeMenuOpeningData）
+        // 编码器打开数据包追加草稿（BioCraftMachineBlock 写入顺序：pos → writeMenuOpeningData）
         String draft = kind == SequenceMachineKind.DNA_ENCODER ? buffer.readUtf() : "";
         if (playerInventory.player.level().getBlockEntity(pos) instanceof SequenceMachineBlockEntity be) {
             return new ClientInit(be.getContainer(), pos, draft);
