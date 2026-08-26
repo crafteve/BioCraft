@@ -24,6 +24,8 @@ import com.github.crafteve.biocraft.gui.base.BiocraftSlot;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.List;
+
 /**
  * 序列机通用菜单：槽位布局由机器 kind 决定（编码器 8 槽 / 转录仪 4 槽）
  * <p>
@@ -90,10 +92,6 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
 
     /** 输出卡片高度（压缩版，输入卡片保持 28） */
     public static final int OUT_CARD_H = 23;
-
-    /** 输出卡片宽度（DNA 加宽放序列预览，ADP/PPi 标准宽） */
-    public static final int OUT_CARD_DNA_W = 104;
-    public static final int OUT_CARD_SUB_W = 56;
 
     /** 输出标签（英文大写，y=132 起始绘制） */
     public static final int OUTPUT_LABEL_X = 70;
@@ -311,79 +309,34 @@ public class SequenceMachineMenu extends AbstractContainerMenu {
         }
     }
 
-    /** 每机器的槽位坐标（GUI 相对；编码器输入/输出槽坐标由 Screen 滚动区覆写） */
+    /**
+     * 每机器的槽位坐标（GUI 相对；滚动槽坐标由 Screen 每帧覆写，此处为占位）。
+     * <p>坐标一律取自 {@link SequenceSlotSpec}：FIXED 用规格表固定坐标，INPUT_SCROLL /
+     * OUTPUT_CARD 用规格表占位坐标。数组长度 = 规格表长度 = 容器 size，三者恒等，
+     * 不会再像旧 switch 手写数组那样与容器对不上</p>
+     */
     private static int[][] slotPositions(SequenceMachineKind kind) {
-        return switch (kind) {
-            case DNA_ENCODER -> new int[][]{
-                    // 输入 5 槽（纵向滚动卡片，坐标由 Screen 写入，此处为占位）
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    // 输出 3 槽（横向滚动卡片，坐标由 Screen 写入，此处为占位）
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-            };
-            case TRANSCRIBER -> new int[][]{
-                    // 模板链槽位仿酶工厂 slot0 (9,8) 顶栏位；左4 NTP 纵向 41 起，右 mRNA/ADP/PPi 横向
-                    {9, 8},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP * 2},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP * 3},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X + 57, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X + 114, OUT_Y + SLOT_Y},
-            };
-            case HELICASE -> new int[][]{
-                    // 输入 1 槽（左侧 STAGE 输入区），输出 2 槽（右侧 STAGE 输出区垂直双卡，复用酶工厂布局）
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {193 + SLOT_X, 41 + SLOT_Y},
-                    {193 + SLOT_X, 41 + SLOT_Y + CARD_STEP},
-            };
-            case LOADER -> new int[][]{
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y + CARD_STEP * 2},
-                    {193 + SLOT_X, 41 + SLOT_Y},
-                    {193 + SLOT_X, 41 + SLOT_Y + CARD_STEP},
-                    {193 + SLOT_X, 41 + SLOT_Y + CARD_STEP * 2},
-            };
-            case TRANSLATOR -> new int[][]{
-                    {9, 8},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-                    {OUT_X + SLOT_X, OUT_Y + SLOT_Y},
-            };
-            case FOLDER -> new int[][]{
-                    {INPUT_SCROLL_X + SLOT_X, INPUT_SCROLL_Y + SLOT_Y},
-                    {193 + SLOT_X, 41 + SLOT_Y},
-            };
-        };
+        List<SequenceSlotSpec.Slot> slots = SequenceSlotSpec.of(kind).slots();
+        int[][] positions = new int[slots.size()][2];
+        boolean vertical = SequenceLayout.of(kind).outputVertical();
+        int inIdx = 0;
+        int outIdx = 0;
+        for (int i = 0; i < slots.size(); i++) {
+            SequenceSlotSpec.Slot slot = slots.get(i);
+            switch (slot.role()) {
+                case FIXED -> positions[i] = new int[]{slot.fx(), slot.fy()};
+                case INPUT_SCROLL -> positions[i] = new int[]{slot.fx(), slot.fy()};
+                case OUTPUT_CARD -> {
+                    if (vertical) {
+                        positions[i] = new int[]{193 + SLOT_X, 41 + outIdx * CARD_STEP + SLOT_Y};
+                        outIdx++;
+                    } else {
+                        positions[i] = new int[]{slot.fx(), slot.fy()};
+                    }
+                }
+            }
+        }
+        return positions;
     }
 
     private void addPlayerInventory(Inventory playerInventory) {

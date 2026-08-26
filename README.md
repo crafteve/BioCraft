@@ -153,6 +153,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 
 ### 2026-08-26
 
+- **refactor** 序列机槽位规格收敛为单一事实源（`SequenceSlotSpec`）：新增槽位角色枚举（顶栏固定/输入滚动/输出卡）+ 每机一份槽位规格表，容器总数/菜单槽位表/屏幕卡片列表三处改由同一规格表派生——旧实现三处各写一遍、靠人眼对齐，翻译机曾因槽位表 24/25 ≠ 26 导致背包首格被误当 PPi 输出槽；规格表与操作层槽常量注册期断言校验（不一致即快速失败）
 - **fix** 翻译机输出卡多肽宽度回退根修：多肽卡从 56 宽改回 104（与 DNA/mRNA 序列卡同宽）——56 宽装不下三字母残基序列（疑点2误改又被回滚保留所致）
 - **fix** 翻译机滚动区交互层遮挡修复：输入（纵向）/输出（横向）滚动区中完全滚出可视边界的槽位移至屏外，原版坐标命中找不到自然不可点击——此前滚动裁剪只裁渲染、不影响命中，出现"渲染被裁但还能点"的隐形槽
 - **refactor** seq+program 合并为 central（信息层重构）：seq/ 5 文件 + program/ 7 文件合并为 central 4 文件（Codec 编解码门面 String进DecodeResult出 + DslField 含 HighlightRule 7色收口 + DslParser 单文件填表回 Map<DslField,String> 键值表 + BalanceChecker 对账工具），SequenceData 迁 item/SequenceData.java 纯 record 不持 NBT（central 保持 String 纯核）；ProgramHighlight/CodeEditorWidget 同引 DslField.Highlight 不再双份；seq/program 旧包删除，全量调用方切 central，tools/seqTest 43/programTest 32 合 central 保持全绿

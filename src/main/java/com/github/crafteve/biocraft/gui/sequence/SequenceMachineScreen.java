@@ -68,17 +68,12 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     private static final double SCROLL_LERP = 0.35;
     private static final double SCROLL_PIXELS_PER_NOTCH = 8.0;
 
-    /** 输出卡内容样式：普通库存卡 / 序列卡（DNA/mRNA，序列号+四色碱基）/ 多肽卡 */
-    protected static final int STYLE_STOCK = 0;
-    protected static final int STYLE_DNA = 1;
-    protected static final int STYLE_PEPTIDE = 2;
-
     /** 输入卡片（纵向滚动）：槽位 + 固定展示的物品 */
     protected record InputCard(int containerSlot, String itemId) {
     }
 
-    /** 输出卡片：槽位 + 固定展示的物品 + 卡片宽 + 内容样式（STYLE_*） */
-    protected record OutputCard(int containerSlot, String itemId, int cardWidth, int style) {
+    /** 输出卡片：槽位 + 固定展示的物品 + 卡片宽 + 内容样式（CardStyle） */
+    protected record OutputCard(int containerSlot, String itemId, int cardWidth, SequenceSlotSpec.CardStyle style) {
     }
 
     protected final List<InputCard> inputCards;
@@ -109,95 +104,28 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         return SequenceLayout.of(menu.getKind());
     }
 
-    protected List<InputCard> buildInputCards(SequenceMachineKind kind) {
-        if (kind == SequenceMachineKind.DNA_ENCODER) {
-            List<InputCard> cards = new ArrayList<>();
-            cards.add(new InputCard(0, "datp"));
-            cards.add(new InputCard(1, "dttp"));
-            cards.add(new InputCard(2, "dctp"));
-            cards.add(new InputCard(3, "dgtp"));
-            cards.add(new InputCard(4, "atp"));
-            return cards;
-        }
-        if (kind == SequenceMachineKind.HELICASE) {
-            List<InputCard> cards = new ArrayList<>();
-            cards.add(new InputCard(0, "dna"));
-            return cards;
-        }
-        if (kind == SequenceMachineKind.TRANSCRIBER) {
-            List<InputCard> cards = new ArrayList<>();
-            cards.add(new InputCard(1, "atp"));
-            cards.add(new InputCard(2, "utp"));
-            cards.add(new InputCard(3, "ctp"));
-            cards.add(new InputCard(4, "gtp"));
-            return cards;
-        }
-        if (kind == SequenceMachineKind.LOADER) {
-            List<InputCard> cards = new ArrayList<>();
-            cards.add(new InputCard(0, "trna"));
-            cards.add(new InputCard(1, "glycine"));
-            cards.add(new InputCard(2, "atp"));
-            return cards;
-        }
-        if (kind == SequenceMachineKind.TRANSLATOR) {
-            List<InputCard> cards = new ArrayList<>();
-            cards.add(new InputCard(1, "gtp"));
-            String[] trnas = {"trna_ala", "trna_arg", "trna_asn", "trna_asp", "trna_cys", "trna_gln", "trna_glu", "trna_gly", "trna_his", "trna_ile", "trna_leu", "trna_lys", "trna_met", "trna_phe", "trna_pro", "trna_ser", "trna_thr", "trna_trp", "trna_tyr", "trna_val"};
-            for (int i = 0; i < trnas.length; i++) {
-                cards.add(new InputCard(2 + i, trnas[i]));
+    private List<InputCard> buildInputCards(SequenceMachineKind kind) {
+        List<InputCard> cards = new ArrayList<>();
+        List<SequenceSlotSpec.Slot> slots = SequenceSlotSpec.of(kind).slots();
+        for (int i = 0; i < slots.size(); i++) {
+            SequenceSlotSpec.Slot slot = slots.get(i);
+            if (slot.role() == SequenceSlotSpec.Role.INPUT_SCROLL) {
+                cards.add(new InputCard(i, slot.itemId()));
             }
-            return cards;
         }
-        if (kind == SequenceMachineKind.FOLDER) {
-            List<InputCard> cards = new ArrayList<>();
-            cards.add(new InputCard(0, "polypeptide"));
-            return cards;
-        }
-        return List.of();
+        return cards;
     }
 
-    protected List<OutputCard> buildOutputCards(SequenceMachineKind kind) {
-        if (kind == SequenceMachineKind.DNA_ENCODER) {
-            List<OutputCard> cards = new ArrayList<>();
-            cards.add(new OutputCard(5, "dna", SequenceMachineMenu.OUT_CARD_DNA_W, STYLE_DNA));
-            cards.add(new OutputCard(6, "adp", SequenceMachineMenu.OUT_CARD_SUB_W, STYLE_STOCK));
-            cards.add(new OutputCard(7, "ppi", SequenceMachineMenu.OUT_CARD_SUB_W, STYLE_STOCK));
-            return cards;
+    private List<OutputCard> buildOutputCards(SequenceMachineKind kind) {
+        List<OutputCard> cards = new ArrayList<>();
+        List<SequenceSlotSpec.Slot> slots = SequenceSlotSpec.of(kind).slots();
+        for (int i = 0; i < slots.size(); i++) {
+            SequenceSlotSpec.Slot slot = slots.get(i);
+            if (slot.role() == SequenceSlotSpec.Role.OUTPUT_CARD) {
+                cards.add(new OutputCard(i, slot.itemId(), slot.width(), slot.style()));
+            }
         }
-        if (kind == SequenceMachineKind.HELICASE) {
-            List<OutputCard> cards = new ArrayList<>();
-            cards.add(new OutputCard(1, "dna_single", 56, STYLE_DNA));
-            cards.add(new OutputCard(2, "dna_single", 56, STYLE_DNA));
-            return cards;
-        }
-        if (kind == SequenceMachineKind.TRANSCRIBER) {
-            List<OutputCard> cards = new ArrayList<>();
-            cards.add(new OutputCard(5, "mrna", SequenceMachineMenu.OUT_CARD_DNA_W, STYLE_DNA));
-            cards.add(new OutputCard(6, "adp", SequenceMachineMenu.OUT_CARD_SUB_W, STYLE_STOCK));
-            cards.add(new OutputCard(7, "ppi", SequenceMachineMenu.OUT_CARD_SUB_W, STYLE_STOCK));
-            return cards;
-        }
-        if (kind == SequenceMachineKind.LOADER) {
-            List<OutputCard> cards = new ArrayList<>();
-            cards.add(new OutputCard(3, "trna_ala", 56, STYLE_STOCK));
-            cards.add(new OutputCard(4, "amp", 56, STYLE_STOCK));
-            cards.add(new OutputCard(5, "ppi", 56, STYLE_STOCK));
-            return cards;
-        }
-        if (kind == SequenceMachineKind.TRANSLATOR) {
-            List<OutputCard> cards = new ArrayList<>();
-            cards.add(new OutputCard(22, "polypeptide", 104, STYLE_PEPTIDE));
-            cards.add(new OutputCard(23, "trna", 56, STYLE_STOCK));
-            cards.add(new OutputCard(24, "gdp", 56, STYLE_STOCK));
-            cards.add(new OutputCard(25, "phosphate_ion", 56, STYLE_STOCK));
-            return cards;
-        }
-        if (kind == SequenceMachineKind.FOLDER) {
-            List<OutputCard> cards = new ArrayList<>();
-            cards.add(new OutputCard(1, "misfolded_protein", 56, STYLE_STOCK));
-            return cards;
-        }
-        return List.of();
+        return cards;
     }
 
     // ------------------------------------------------------------------
@@ -479,11 +407,11 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             int thisCardX = cardX - hOffset;
             Slot slot = menu.getSlot(card.containerSlot());
             switch (card.style()) {
-                case STYLE_DNA -> drawDnaCard(graphics, thisCardX, areaY, card.cardWidth(),
+                case DNA -> drawDnaCard(graphics, thisCardX, areaY, card.cardWidth(),
                         SequenceMachineMenu.OUT_CARD_H, slot);
-                case STYLE_PEPTIDE -> drawPeptideCard(graphics, thisCardX, areaY, card.cardWidth(),
+                case PEPTIDE -> drawPeptideCard(graphics, thisCardX, areaY, card.cardWidth(),
                         SequenceMachineMenu.OUT_CARD_H, slot);
-                default -> drawStockCard(graphics, thisCardX, areaY, card.cardWidth(),
+                case NONE, STOCK -> drawStockCard(graphics, thisCardX, areaY, card.cardWidth(),
                         SequenceMachineMenu.OUT_CARD_H, card.itemId(), slot, false);
             }
             cardX += card.cardWidth() + SequenceMachineMenu.CARD_GAP;
@@ -832,7 +760,9 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
 
     /** 该槽位是否为序列样式输出槽（DNA/mRNA/多肽卡）：堆叠数由序列号代替 */
     private boolean isSeqStyleSlot(int slotIndex) {
-        return outputCards.stream().anyMatch(c -> c.containerSlot() == slotIndex && c.style() != STYLE_STOCK);
+        return outputCards.stream().anyMatch(c -> c.containerSlot() == slotIndex
+                && c.style() != SequenceSlotSpec.CardStyle.STOCK
+                && c.style() != SequenceSlotSpec.CardStyle.NONE);
     }
 
     /**

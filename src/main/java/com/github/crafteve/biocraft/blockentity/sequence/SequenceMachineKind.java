@@ -8,6 +8,7 @@ import com.github.crafteve.biocraft.blockentity.sequence.operation.LoaderOperati
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranscriptionOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
 import com.github.crafteve.biocraft.gui.sequence.SequenceMachineMenu;
+import com.github.crafteve.biocraft.gui.sequence.SequenceSlotSpec;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -21,22 +22,20 @@ import java.util.function.Supplier;
  * BE 从方块状态解析自身 kind（一台机器干一件事，不做 0 槽动态解析）
  */
 public enum SequenceMachineKind {
-    DNA_ENCODER("dna_encoder", DnaSynthesisOperation::new, 8),
-    TRANSCRIBER("TRANSCRIBER", TranscriptionOperation::new, 8),
-    HELICASE("HELICASE", HelicaseOperation::new, 3),
-    LOADER("LOADER", LoaderOperation::new, 6),
-    TRANSLATOR("TRANSLATOR", TranslatorOperation::new, 26),
-    FOLDER("folder", FolderOperation::new, 2);
+    DNA_ENCODER("dna_encoder", DnaSynthesisOperation::new),
+    TRANSCRIBER("TRANSCRIBER", TranscriptionOperation::new),
+    HELICASE("HELICASE", HelicaseOperation::new),
+    LOADER("LOADER", LoaderOperation::new),
+    TRANSLATOR("TRANSLATOR", TranslatorOperation::new),
+    FOLDER("folder", FolderOperation::new);
 
     private final String blockId;
     private final Supplier<SequenceOperation> operationFactory;
-    private final int containerSize;
     private DeferredHolder<MenuType<?>, MenuType<SequenceMachineMenu>> menuHolder;
 
-    SequenceMachineKind(String blockId, Supplier<SequenceOperation> operationFactory, int containerSize) {
+    SequenceMachineKind(String blockId, Supplier<SequenceOperation> operationFactory) {
         this.blockId = blockId;
         this.operationFactory = operationFactory;
-        this.containerSize = containerSize;
     }
 
     public String blockId() {
@@ -47,8 +46,14 @@ public enum SequenceMachineKind {
         return operationFactory.get();
     }
 
+    /**
+     * 容器槽总数 = 槽位规格表长度（单一事实源，见 SequenceSlotSpec）
+     * <p>原为枚举构造参数手写整数，与 Menu.slotPositions 数组、Screen 卡片列表三处
+     * 各写一遍、靠人眼对齐，翻译机曾因槽位表 24/25 ≠ 26 导致背包首格被误当 PPi 输出槽。
+     * 现改由规格表 {@link SequenceSlotSpec#of} 派生，三处恒等</p>
+     */
     public int containerSize() {
-        return containerSize;
+        return SequenceSlotSpec.of(this).size();
     }
 
     /** 绑定菜单类型（由 ModBlocks 注册后注入，消除 switch 硬编码） */
