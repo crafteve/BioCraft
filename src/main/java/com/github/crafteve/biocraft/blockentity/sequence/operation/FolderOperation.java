@@ -16,7 +16,8 @@ import net.minecraft.world.item.ItemStack;
  * 折叠机操作：多肽链 → 酶蛋白 / 错误折叠蛋白
  * <p>
  * 输入 1 槽（0 多肽，必须 complete），输出 1 槽（1 酶或错折）；
- * 即时完成（total=1，单 tick 消耗输入产出输出）；
+ * 逐残基分析（3 tick/残基，进度条 position/total），进度结束后在 finish 阶段
+ * 原子消耗输入并产出输出；
  * 逻辑：多肽序列 → Codec 多肽解码 → 程序文本 → DslParser + EnzymeProgramChecker
  * 校验 → 成功输出对应酶物品，失败输出错折蛋白
  * </p>
@@ -25,6 +26,9 @@ public class FolderOperation implements SequenceOperation {
 
     public static final int SLOT_IN_POLYPEPTIDE = 0;
     public static final int SLOT_OUT = 1;
+
+    /** 每残基分析耗时（固定 3 tick，与翻译机同节奏） */
+    public static final int TICKS_PER_RESIDUE = 3;
 
     @Override
     public int outputSlot() {
@@ -74,13 +78,13 @@ public class FolderOperation implements SequenceOperation {
             return false;
         }
         String seq = data.seq();
-        // 保存多肽链，pendingProgram 存预期输出 id
+        // 保存多肽链，pendingProgram 存预期输出 id，total = 残基数（3 tick/残基）
         String expected = expectedOutputId(seq);
         if (expected == null) {
             expected = "misfolded_protein";
         }
         state.beginExtending(seq);
-        state.setTotal(1);
+        state.setTotal(seq.length());
         state.setPendingProgram(expected);
         return true;
     }
@@ -90,6 +94,7 @@ public class FolderOperation implements SequenceOperation {
         if (state.position() >= state.total()) {
             return StepResult.DONE;
         }
+        // 进度中仅检查输出槽有空间且同种（不消耗/产出，留到 finish 原子结算）
         ItemStack in = container.getItem(SLOT_IN_POLYPEPTIDE);
         if (in.isEmpty()) {
             return StepResult.STALLED;
@@ -104,6 +109,7 @@ public class FolderOperation implements SequenceOperation {
             if (expected == null) {
                 expected = "misfolded_protein";
             }
+            state.setPendingProgram(expected);
         }
         if (!hasRoom(container, SLOT_OUT)) {
             return StepResult.STALLED;
@@ -112,26 +118,33 @@ public class FolderOperation implements SequenceOperation {
         if (!out.isEmpty() && !SequenceContainerUtil.matchesId(out, expected)) {
             return StepResult.STALLED;
         }
-        // 原子消耗输入（多肽统一按 polypeptide 匹配，忽略 NBT）
-        if (!SequenceContainerUtil.consumeOne(container, SLOT_IN_POLYPEPTIDE, "polypeptide")) {
-            return StepResult.STALLED;
-        }
-        // 产出输出
-        if (!SequenceContainerUtil.addOne(container, SLOT_OUT, expected)) {
-            SequenceContainerUtil.addOne(container, SLOT_IN_POLYPEPTIDE, "polypeptide");
-            return StepResult.STALLED;
-        }
         state.setPosition(state.position() + 1);
         return state.position() >= state.total() ? StepResult.DONE : StepResult.ADVANCED;
     }
 
     @Override
     public void materialize(SimpleContainer container, SeqStepState state) {
-        // 即时机，输出已在 step 中产出，无需物化
+        // 分析期不物化，输出在 finish 阶段一次性产出
     }
 
     @Override
     public void finish(SimpleContainer container, SeqStepState state) {
+        String expected = state.pendingProgram();
+        if (expected == null || expected.isEmpty()) {
+            ItemStack in = container.getItem(SLOT_IN_POLYPEPTIDE);
+            SequenceData data = in.get(ModDataComponents.SEQUENCE.get());
+            expected = data != null ? expectedOutputId(data.seq()) : "misfolded_protein";
+            if (expected == null) {
+                expected = "misfolded_protein";
+            }
+        }
+        // 原子结算：消耗输入 → 产出输出（失败回滚）
+        if (!SequenceContainerUtil.consumeOne(container, SLOT_IN_POLYPEPTIDE, "polypeptide")) {
+            return;
+        }
+        if (!SequenceContainerUtil.addOne(container, SLOT_OUT, expected)) {
+            SequenceContainerUtil.addOne(container, SLOT_IN_POLYPEPTIDE, "polypeptide");
+        }
     }
 
     @Override

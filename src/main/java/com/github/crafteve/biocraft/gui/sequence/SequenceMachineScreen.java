@@ -148,6 +148,11 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             }
             return cards;
         }
+        if (kind == SequenceMachineKind.FOLDER) {
+            List<InputCard> cards = new ArrayList<>();
+            cards.add(new InputCard(0, "polypeptide"));
+            return cards;
+        }
         return List.of();
     }
 
@@ -185,6 +190,11 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             cards.add(new OutputCard(23, "trna", 56, STYLE_STOCK));
             cards.add(new OutputCard(24, "gdp", 56, STYLE_STOCK));
             cards.add(new OutputCard(25, "phosphate_ion", 56, STYLE_STOCK));
+            return cards;
+        }
+        if (kind == SequenceMachineKind.FOLDER) {
+            List<OutputCard> cards = new ArrayList<>();
+            cards.add(new OutputCard(1, "misfolded_protein", 56, STYLE_STOCK));
             return cards;
         }
         return List.of();
@@ -499,15 +509,28 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
         int tint;
         String abbr;
         if (!stack.isEmpty() && stack.getItem() instanceof MoleculeItem mi) {
-            // 槽内有货：以实际物品为准（动态产物/错放物品都显示真实缩写与主题色）
             tint = mi.getTintColor();
             abbr = mi.getAbbreviation();
+        } else if (!stack.isEmpty() && stack.getItem() instanceof com.github.crafteve.biocraft.item.SequenceItem si) {
+            tint = si.getTintColor();
+            abbr = si.getAbbreviation();
+        } else if (!stack.isEmpty() && stack.getItem() instanceof com.github.crafteve.biocraft.item.EnzymeItem ei) {
+            tint = ei.getTintColor();
+            abbr = ei.getAbbreviation();
         } else if (registered != null) {
             tint = registered.getTintColor();
             abbr = registered.getAbbreviation();
         } else if ("trna".equals(itemId)) {
             tint = 0xB0C4DE;
             abbr = "tRNA";
+        } else if ("polypeptide".equals(itemId)) {
+            var poly = ModItems.POLYPEPTIDE.get();
+            tint = poly.getTintColor();
+            abbr = poly.getAbbreviation();
+        } else if ("misfolded_protein".equals(itemId)) {
+            var mf = ModItems.MISFOLDED_PROTEIN.get();
+            tint = mf.getTintColor();
+            abbr = mf.getAbbreviation();
         } else {
             tint = 0xCCCCCC;
             abbr = itemId;

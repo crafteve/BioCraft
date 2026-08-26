@@ -31,7 +31,7 @@ public enum SequenceLayout {
     // 中央标签取消（centerLabel 空），动画区上边界向上延长 9px（标签行高）填满中心区域
     STAGE_LOADER(true, false, "", ' ', 0, 0, "", 68, 29, 122, 135, true, "RUN"),
     STAGE_HELICASE(true, false, "", ' ', 0, 0, "", 68, 29, 122, 135, true, "UNWIND"),
-    STAGE_FOLDER(true, false, "", ' ', 0, 0, "", 68, 29, 122, 135, false, "FOLD");
+    STAGE_FOLDER(true, false, "", ' ', 0, 0, "", 68, 29, 122, 135, true, "FOLD");
 
     private final boolean stage;
     private final boolean plainPanel;

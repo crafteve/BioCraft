@@ -171,11 +171,12 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
                 if (--stepCooldown > 0) {
                     return;
                 }
-                // 翻译机节奏 = 每密码子 3 tick（1 tick 1 碱基的逐碱基读移意象），
-                // 其余序列机维持全局 STEP_TICKS 节奏
-                stepCooldown = kind() == SequenceMachineKind.TRANSLATOR
-                        ? TranslatorOperation.TICKS_PER_CODON
-                        : Codec.STEP_TICKS;
+                // 翻译机/折叠机节奏 = 每密码子/残基 3 tick，其余维持全局 STEP_TICKS
+                stepCooldown = switch (kind()) {
+                    case TRANSLATOR -> TranslatorOperation.TICKS_PER_CODON;
+                    case FOLDER -> com.github.crafteve.biocraft.blockentity.sequence.operation.FolderOperation.TICKS_PER_RESIDUE;
+                    default -> Codec.STEP_TICKS;
+                };
                 SequenceOperation.StepResult result = operation.step(inventory, stepState);
                 if (result == SequenceOperation.StepResult.DONE) {
                     operation.finish(inventory, stepState);
@@ -456,6 +457,10 @@ public class SequenceMachineBlockEntity extends MachineBlockEntity {
                 SequenceData d = inventory.getItem(slot).get(ModDataComponents.SEQUENCE.get());
                 return d != null && d.complete();
             }
+            return true;
+        }
+        if (kind() == SequenceMachineKind.FOLDER) {
+            if (slot == com.github.crafteve.biocraft.blockentity.sequence.operation.FolderOperation.SLOT_IN_POLYPEPTIDE) return false;
             return true;
         }
         return true;
