@@ -155,6 +155,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 
 - **refactor** seq+program 合并为 central（信息层重构）：seq/ 5 文件 + program/ 7 文件合并为 central 4 文件（Codec 编解码门面 String进DecodeResult出 + DslField 含 HighlightRule 7色收口 + DslParser 单文件填表回 Map<DslField,String> 键值表 + BalanceChecker 对账工具），SequenceData 迁 item/SequenceData.java 纯 record 不持 NBT（central 保持 String 纯核）；ProgramHighlight/CodeEditorWidget 同引 DslField.Highlight 不再双份；seq/program 旧包删除，全量调用方切 central，tools/seqTest 43/programTest 32 合 central 保持全绿
 - **refactor** SequenceData 归位 item 与序列物品烧杯化：`init/SequenceData.java → item/SequenceData.java`（贴纸表归物品家族，`ModDataComponents` 仅注册），序列物品全改烧杯贴图 + 黑灰色阶（`dna 1A1A1A/dna_single 2E2E2E/mrna 404040/polypeptide 525252/misfolded 6B6B6B`）`tRNA` 试管纯黑 `000000` 区分，`SequenceItem` 新增 `tintColor` + `MoleculeColors` 颜色/装饰器注册，已删 `trna_gene/rna_polymerase` 2 项，`SequenceItemModelProvider` 6 项烧杯/试管
+- **fix** 序列物品装饰器与色阶修复：去除装饰器中文缩写（多肽/错折改 PEPT/MFLD，全英文）、黑灰色阶拉大为等距 0x20（1A→3A→5A→7A→9A，tRNA 保持纯黑试管），修正生成模型全为烧杯仅 tRNA 试管并重新生成资源
 - **refactor** 机器命名与分包对齐（内部重构，玩家无感知）：`AbstractMachineBlock→BioCraftMachineBlock`、`MachineBlock→EnzymeMachineBlock`（与 `SequenceMachineBlock` 对仗）；`blockentity` 按 `base/enzyme/sequence/operation` 分层，`IoMode` 内聚为 `EnzymeMachineBlockEntity` 内部枚举；`gui` 按 `base/enzyme/sequence/operation` 分层，`MachineLayout→SequenceLayout` 并更名 `STAGE`（舞台居中，双侧竖卡）/`CONSOLE`（控制台，上舞台下条形），贴图 `gui_v1→gui_stage`/`gui_encoder→gui_console`，`MachineMenu/Screen→EnzymeMachineMenu/Screen`；补齐全 `src` 残留 `v1/ENCODER` 族注释为 `STAGE/CONSOLE`
 
 ### 2026-08-25

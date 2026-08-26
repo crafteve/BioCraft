@@ -137,29 +137,29 @@ public final class ModItems {
     // 序列物品族（中心法则信息层，DataComponent 承载序列；烧杯/试管 + 黑灰色阶 + 装饰器）
     // ------------------------------------------------------------------
 
-    /** DNA 双链（编码器/复制酶产物，kind=PROGRAM 时带魔数头可解码）— 烧杯 深灰 */
+    /** DNA 双链（编码器/复制酶产物，kind=PROGRAM 时带魔数头可解码）— 烧杯 黑 */
     public static final DeferredItem<SequenceItem> DNA =
             registerSequence("dna", SequenceData.SeqType.DNA, SequenceData.Strand.DS, "DNA", 0xFF1A1A1A);
 
-    /** DNA 单链（解旋产物/复制模板）— 烧杯 中灰 */
+    /** DNA 单链（解旋产物/复制模板）— 烧杯 深灰 */
     public static final DeferredItem<SequenceItem> DNA_SINGLE =
-            registerSequence("dna_single", SequenceData.SeqType.DNA, SequenceData.Strand.SS, "ssDNA", 0xFF2E2E2E);
+            registerSequence("dna_single", SequenceData.SeqType.DNA, SequenceData.Strand.SS, "ssDNA", 0xFF3A3A3A);
 
-    /** 信使 RNA（转录产物）— 烧杯 灰 */
+    /** 信使 RNA（转录产物）— 烧杯 中灰 */
     public static final DeferredItem<SequenceItem> MRNA =
-            registerSequence("mrna", SequenceData.SeqType.MRNA, null, "mRNA", 0xFF404040);
+            registerSequence("mrna", SequenceData.SeqType.MRNA, null, "mRNA", 0xFF5A5A5A);
 
     /** 多肽链（翻译产物，complete=false 为半成品，折叠机拒绝）— 烧杯 浅灰 */
     public static final DeferredItem<SequenceItem> POLYPEPTIDE =
-            registerSequence("polypeptide", SequenceData.SeqType.POLYPEPTIDE, null, "肽链", 0xFF525252);
+            registerSequence("polypeptide", SequenceData.SeqType.POLYPEPTIDE, null, "PEPT", 0xFF7A7A7A);
 
     /** 通用 tRNA（未装载，ARS 装载底物）— 试管 纯黑区分 */
     public static final DeferredItem<SequenceItem> TRNA =
             registerSequence("trna", SequenceData.SeqType.POLYPEPTIDE, null, "tRNA", 0xFF000000);
 
-    /** 错误折叠蛋白（折叠失败产物：乱码/未授权/语法错）— 烧杯 中浅灰 */
+    /** 错误折叠蛋白（折叠失败产物：乱码/未授权/语法错）— 烧杯 亮灰 */
     public static final DeferredItem<SequenceItem> MISFOLDED_PROTEIN =
-            registerSequence("misfolded_protein", SequenceData.SeqType.POLYPEPTIDE, null, "错折", 0xFF6B6B6B);
+            registerSequence("misfolded_protein", SequenceData.SeqType.POLYPEPTIDE, null, "MFLD", 0xFF9A9A9A);
 
     /**
      * 注册序列物品（DataComponent 承载，烧杯/试管 + 黑灰色阶 + 缩写装饰器）

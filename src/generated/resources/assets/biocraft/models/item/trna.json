@@ -1,1 +1,1 @@
-{"parent":"minecraft:item/generated","textures":{"layer0":"biocraft:item/flask_0","layer1":"biocraft:item/flask_1"}}
+{"parent":"minecraft:item/generated","textures":{"layer0":"biocraft:item/test_tube_0","layer1":"biocraft:item/test_tube_1"}}
