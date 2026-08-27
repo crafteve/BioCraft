@@ -158,6 +158,7 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 ### 2026-08-27
 
 - **feat** 折叠机动画重做与悬念卡片：`FolderOperation.materialize` 空实现读条期不落真实酶（真实酶仅 `finish` 落盘，悬念保持）；`SequenceMachineScreen` 折叠机分支覆写——进度条固定绿 `0xFF4CAF50`、读条期输出卡硬编码 `UNKN` 灰 `0xFF707070`、输入卡单字母氨基酸滚动（7px）/输出卡解码代码滚动（6px，`sanitizeProgram` 过滤 `<32` 控制字符→空格）+ 当前位白底/青底高亮，`sanitizeProgram` 抽为静态工具；`FolderScreen` 四态重绘（待机呼吸口袋/工作漏斗收束 `R18→8` + 残基坠落/结束烧杯 `slot.png` + 染色块+缩写+白扫光+信息罗列/中断红闪抖动），自动启动无按钮，`FolderOperation` 悬念期输出槽空避免 tooltip 透题
+- **fix** 折叠机四项修复：①动画区画布回移对齐网格（左2px/下4px）②结束态灰块居中于烧杯（`haloCy=by+9`，下衬在HK下方）③移除折叠机右上角完成提示（与工作栏DONE重复）④卡片滚动修复：INPUT改三字母缩写（翻译机同款）、OUTPUT按比例 `progPos=pos/total*progLen` 同步速度、按字符实测宽度排布修复重叠与中文字体变宽
 
 ### 2026-08-26
 

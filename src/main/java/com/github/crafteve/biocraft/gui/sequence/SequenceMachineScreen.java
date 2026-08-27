@@ -362,11 +362,16 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     }
 
     /** 动画区内右上角状态词（与标题栏状态同源）：待机 / pos/total / 完成 */
-    private String panelStatus() {
+    protected String panelStatus() {
         int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
         int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
         int total = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
-        return switch (SeqStepState.Stage.values()[Math.min(stage, SeqStepState.Stage.values().length - 1)]) {
+        SeqStepState.Stage st = SeqStepState.Stage.values()[Math.min(stage, SeqStepState.Stage.values().length - 1)];
+        // 折叠机：右上角完成与工作栏 DONE 重复，暂去
+        if (menu.getKind() == SequenceMachineKind.FOLDER && st == SeqStepState.Stage.DONE) {
+            return "";
+        }
+        return switch (st) {
             case IDLE -> "待机";
             case EXTENDING -> total > 0 ? pos + "/" + total : "";
             case DONE -> "完成";
@@ -514,27 +519,32 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             if (fill2 > 0) {
                 graphics.fill(cardX + 1, barY2, cardX + 1 + fill2, barY2 + barH2, 0xFF4CAF50);
             }
-            // 卡内第二行滚动：输入=氨基酸单字母滚动，输出=解码代码滚动（控制字符过滤）
+            // 卡内第二行滚动：输入=三字母氨基酸滚动（翻译机同款），输出=解码代码滚动（按字符实测宽度，速度与输入按比例同步）
             if (extending) {
                 ItemStack inStack = menu.getSlot(FolderOperation.SLOT_IN_POLYPEPTIDE).getItem();
                 SequenceData inData = inStack.get(ModDataComponents.SEQUENCE.get());
                 String inSeq = inData != null ? inData.seq() : "";
                 if (isInput) {
-                    // 输入卡：单字母氨基酸滚动（7px/字符，卡内可用宽 cardW-34）
+                    // 输入卡：三字母缩写滚动，与翻译机 PEPT 卡同款（24px/残基），按实际字宽排布避免重叠
                     int textY2 = pngY + 11;
                     int avail = cardW - 34;
-                    int window = Math.max(1, avail / 7);
+                    // 用实测宽度算窗口：每个残基约 font.width(aa3)+4
+                    int window = Math.max(1, avail / 20);
                     if (!inSeq.isEmpty()) {
                         int from = Math.max(0, Math.min(pos - window / 2, inSeq.length() - window));
                         int baseX = pngX + 18 + 4;
-                        for (int i = from; i < Math.min(inSeq.length(), from + window); i++) {
-                            char aa1 = inSeq.charAt(i);
-                            int c = (i == pos && pos < tot) ? 0xFF000000 : cardTextColor(aaColor(aa1));
-                            if (i == pos && pos < tot) {
-                                graphics.fill(baseX - 1, textY2 - 1, baseX + 7, textY2 + 9, 0xFFFFFFFF);
+                        int end = Math.min(inSeq.length(), from + window);
+                        for (int i = from; i < end; i++) {
+                            String aa3 = aa1To3(inSeq.charAt(i));
+                            int w = font.width(aa3);
+                            boolean isCurrent = i == pos && pos < tot;
+                            int c = isCurrent ? 0xFF000000 : cardTextColor(aaColor(inSeq.charAt(i)));
+                            if (isCurrent) {
+                                graphics.fill(baseX - 1, textY2 - 1, baseX + w + 1, textY2 + 9, 0xFFFFFFFF);
                             }
-                            graphics.drawString(font, String.valueOf(aa1), baseX, textY2, c, false);
-                            baseX += 7;
+                            graphics.drawString(font, aa3, baseX, textY2, c, false);
+                            baseX += w + 4;
+                            if (baseX > cardX + cardW - 4) break;
                         }
                         if (inSeq.length() > window) {
                             graphics.drawString(font, "…", baseX, textY2, 0xFF90A4AE, false);
@@ -543,7 +553,7 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
                         graphics.drawString(font, "空", pngX + 18 + 4, pngY + 11, CONC_TEXT_COLOR, false);
                     }
                 } else {
-                    // 输出卡：解码代码滚动（6px/字符，控制字符替换为空格）
+                    // 输出卡：解码代码滚动，速度与输入按比例同步（progPos = pos/total*progLen），按字符实测宽度排布
                     String program = "";
                     if (!inSeq.isEmpty()) {
                         var decoded = Codec.decodeFromPolypeptide(inSeq);
@@ -551,20 +561,28 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
                     }
                     int textY2 = pngY + 11;
                     int avail = cardW - 34;
-                    int win = Math.max(1, avail / 6);
                     if (!program.isEmpty()) {
-                        int pFrom = Math.max(0, Math.min(pos - win / 2, program.length() - win));
+                        // 预估窗口（按平均 6px），再按实测宽度裁剪
+                        int winEst = Math.max(1, avail / 6);
+                        int progLen = program.length();
+                        int progPos = tot > 0 ? (int) Math.round(pos * (double) progLen / tot) : 0;
+                        progPos = Math.max(0, Math.min(progPos, progLen - 1));
+                        int pFrom = Math.max(0, Math.min(progPos - winEst / 2, progLen - winEst));
                         int baseX = pngX + 18 + 4;
-                        for (int i = pFrom; i < Math.min(program.length(), pFrom + win); i++) {
-                            char ch = program.charAt(i);
-                            int c = (i == pos && pos < tot) ? 0xFF000000 : 0xFFB0BEC5;
-                            if (i == pos && pos < tot) {
-                                graphics.fill(baseX - 1, textY2 - 1, baseX + 7, textY2 + 9, 0xFF00E5FF);
+                        // 按实测宽度逐步绘制，超出即停
+                        for (int i = pFrom; i < progLen; i++) {
+                            String chStr = String.valueOf(program.charAt(i));
+                            int cw = font.width(chStr);
+                            if (baseX + cw > cardX + cardW - 4) break;
+                            boolean isCurrent = i == progPos;
+                            int c = isCurrent ? 0xFF000000 : 0xFFB0BEC5;
+                            if (isCurrent) {
+                                graphics.fill(baseX - 1, textY2 - 1, baseX + cw + 1, textY2 + 9, 0xFF00E5FF);
                             }
-                            graphics.drawString(font, String.valueOf(ch), baseX, textY2, c, false);
-                            baseX += 6;
+                            graphics.drawString(font, chStr, baseX, textY2, c, false);
+                            baseX += cw + 1;
                         }
-                        if (program.length() > win) {
+                        if (progLen > winEst) {
                             graphics.drawString(font, "…", baseX, textY2, 0xFF90A4AE, false);
                         }
                     } else if (!inSeq.isEmpty()) {

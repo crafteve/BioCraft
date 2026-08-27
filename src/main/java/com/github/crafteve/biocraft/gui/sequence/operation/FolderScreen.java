@@ -47,8 +47,9 @@ public class FolderScreen extends SequenceMachineScreen {
         int tick = net.minecraft.client.Minecraft.getInstance().gui.getGuiTicks();
         double breath = (Math.sin(tick * 0.35) + 1) * 0.5;
 
-        int cx = x + w / 2;
-        int cy = y + h / 2;
+        // 修正画布偏移：实测动画整体偏右 2px、偏上 4px，回移对齐网格中心
+        int cx = x + w / 2 - 2;
+        int cy = y + h / 2 + 4;
 
         if (isDone) {
             renderDone(g, x, y, w, h, cx, cy, tick, breath, outStack);
@@ -143,16 +144,18 @@ public class FolderScreen extends SequenceMachineScreen {
             abbr = "MFLD";
             name = "错误折叠蛋白";
         }
-        // 烧杯背景
+        // 烧杯背景（居中）
         int bx = cx - 9;
         int by = cy - 16;
         g.blit(SLOT_TEX, bx, by, 0, 0, 18, 18, 18, 18);
         // 用纯色块模拟烧杯内容物染色（避免在此 renderItem 引入 z 冲突）
         g.fill(bx + 1, by + 1, bx + 17, by + 17, tint);
         g.drawString(font, abbr, cx - font.width(abbr) / 2, by + 4, 0xFFFFFFFF, true);
-        // 光晕
+        // 光晕：居中于烧杯中心（bx+9, by+9），而非画布中心，避免灰块与橙块错位
+        int haloCx = bx + 9;
+        int haloCy = by + 9;
         int halo = (int) (26 + breath * 18) << 24 | 0x00FFFFFF;
-        g.fill(cx - 14, cy - 14, cx + 14, cy + 14, halo);
+        g.fill(haloCx - 14, haloCy - 14, haloCx + 14, haloCy + 14, halo);
         // 白扫光 26tick
         int sinceDone = tick % 40;
         if (sinceDone < 26) {
