@@ -45,7 +45,7 @@
 
 **最终目标 = 细胞工厂**：在工厂体系之上搭建合成生物学终极形态——以酶工厂网络模拟完整细胞代谢（合成代谢 + 分解代谢），实现近乎创造模式的全物质合成，且完全依赖生化产线供能。
 
-**当前进度**（2026-08-21）：
+**当前进度**（2026-08-27）：
 - 已完成 物品地基：**71 个分子物品**（20 氨基酸/14 离子/5 原子/2 无机物/5 碱基含 U/8 核苷酸（4 NTP + 4 dNTP）/3 辅酶/14 糖酵解+发酵产物；乳酸/乙醛/乙醇、dNTP、PPi 为后续条目逐步新增）由 `substances.json` 数据表驱动注册，datagen 自动生成模型/语言/贴图
 - 已完成 Tooltip 分子图渲染（自绘管线）：CDK 负责解析/2D 坐标/Kekulize（`Kekulization`），渲染层自绘——4x 超采样抗锯齿细键线（0.8px）、Kekulé 单双交替、环内双键朝环心偏移、杂原子符号绘制进纹理（深色底块截断键线、随分子等比缩放、显式 H 如 OH/NH₂）、竖长分子自动旋转 90° 横放、标签碰撞推开
 - 已完成 Tooltip 信息行：黄色分子式（Hill 排序 Unicode 下标）+ 类别徽章 + 摩尔质量；结构式改为**按住 Shift 展示**，未按时显示提示行；离子/原子/无机物不展示结构式
@@ -80,6 +80,7 @@
 - 已完成 序列机槽位规格收敛为单一事实源（`SequenceSlotSpec`，2026-08-26）：新增槽位角色枚举（顶栏固定/输入滚动/输出卡）+ 每机一份槽位规格表（列表下标=容器槽位下标、长度=容器 size、含默认物品 id/卡宽/内容样式/固定坐标）；`SequenceMachineKind.containerSize` 改由 `SequenceSlotSpec.of(kind).size()` 派生（删枚举构造手写整数），`Menu.slotPositions` 数组与 `Screen.buildInputCards/buildOutputCards` 卡片列表全部改由规格表生成，`CardStyle` 枚举收口旧 STYLE_* int 常量——原三处各写一遍靠人眼对齐（翻译机曾因槽位表 24/25 ≠ 26 导致"背包首格被误当 PPi 输出槽"），现恒等；规格表注册期断言校验与操作层槽常量一致（不一致快速失败）
 - 已完成 翻译机"程序肽链无程序"根治（2026-08-25，方案丙：起始密码子）：程序编码流首现 AUG 位置随字节运气漂移（实测 @17 错位帧/@45 框内），翻译机 AUG 扫描从流中间开工 → 多肽缺魔数头、Ctrl 反推必失败（探针复现）——`SeqOps` 新增 `START_CODON_CODING="ATG"`，编码器链结构改为 `启动子 + ATG + 程序流 + 终止子`（mRNA 恒以 AUG 开头，翻译机 0 位命中整链翻译，多肽 = Met + 完整程序蛋白）；`SequenceItem` 新增 `tryDecodeProgram`（解码失败且开头为 ATG 时剥掉再试），DNA/mRNA/多肽三条 Ctrl 反推路径共用，旧格式链直接解码兼容；探针全链路验证 + seqTest 43 用例全绿。**旧存档程序 DNA 需重新编码**
 - 已完成 蛋白质折叠机（folder，stage 布局，类解旋机，2026-08-26）：输入多肽（complete）→ Codec 多肽解码 → 程序文本 → DslParser + EnzymeProgramChecker 校验 → 输出对应酶蛋白物品或错误折叠蛋白；无催化剂、无动画首版，仅输入输出逻辑；贴图 `tools/texturegen/output/folder.png` 已拷入 `assets/biocraft/textures/block/folder.png`，方块/BE/Menu/布局/屏幕/模型/语言/标签页全链路注册
+- 已完成 折叠机动画重做与悬念卡片（2026-08-27）：`FolderOperation.materialize` 空实现读条期不落真实酶（真实酶仅 `finish` 落盘，悬念保持）；`SequenceMachineScreen` 折叠机分支覆写——进度条固定绿 `0xFF4CAF50`、读条期输出卡硬编码 `UNKN` 灰 `0xFF707070`、输入卡单字母氨基酸滚动（7px）/输出卡解码代码滚动（6px，`sanitizeProgram` 过滤 `<32` 控制字符→空格）+ 当前位白底/青底高亮，`sanitizeProgram` 抽为静态工具；`FolderScreen` 四态重绘（待机呼吸口袋/工作漏斗收束 `R18→8` + 残基坠落/结束烧杯 `slot.png` + 染色块+缩写+白扫光+信息罗列/中断红闪抖动），自动启动无按钮，`FolderOperation` 悬念期输出槽空避免 tooltip 透题
 - 待开发 酶容器贴图 Phase 3 ③④（可选，用户暂未选）：气泡粒子（运行中观察窗冒泡）、GUI 小模型图标
 - 待开发 TNT 爆炸转化 + 熔炉产 ATP（事件层）
 - 待开发 中心法则第二波（信息链贯通，见《docs/中心法则信息层设计_2026-08-18.md》）：复制酶（1 dsDNA → 解旋酶已落地 → 2 ssDNA → 各复制 → 2 dsDNA 倍增闭环，dNTP 消耗）→ tRNA 体系（trna_gene/trna/aa-tRNA/ARS 酶物品）→ 装载机（ARS 0 槽催化，aa + trna + ATP → aa-tRNA + AMP + PPi）+ 翻译仪（aa-tRNA 托盘 + 密码子↔反密码子教学 GUI）+ 折叠机（解码程序 → 语义注册表 → 酶物品或 misfolded_protein）——程序 → DNA → mRNA → 多肽 → 酶物品全链贯通
@@ -263,7 +264,7 @@ com.github.crafteve.biocraft
 │           ├── TranslatorScreen.java     # 翻译机屏幕：动画钩子（mRNA 密码子列/肽链三字母同列居中对齐 + 滚窗浮点缓动 + 就绪光标/完成扫光）+ 翻译按钮 + 红叹号
 │           ├── LoaderScreen.java         # 装载机屏幕：动画钩子（tRNA 装载口袋 24 点呼吸环 + 原料滑入 + 副产物坠落）+ 工作状态检测
 │           ├── HelicaseScreen.java       # 解旋酶屏幕：专属 DNA 卡（nt 数 + 四色碱基窗口，输入前缀同步/输出模板链编码链）+ 动画钩子（双螺旋/分叉/平行）
-│           └── FolderScreen.java         # 折叠机屏幕：占位 stage 布局，无动画首版，仅 FOLD 文字
+│           └── FolderScreen.java         # 折叠机屏幕：四态重绘（待机呼吸口袋/工作漏斗收束+残基坠落/结束烧杯+染色块+扫光+信息/中断红闪），卡片联动悬念（UNKN 灰、绿进度、AA/代码滚动）
 ├── network/                      # 网络载荷（NeoForge payload 机制）
 │   ├── ModNetwork.java           # 载荷注册中心（RegisterPayloadHandlersEvent 装配 playToServer 通道：IO 模式 + 序列程序提交 + 编辑器草稿持久化）
 │   ├── ServerboundSetIoModePacket.java # IO 模式切换包（GUI 按钮 → 服务端：方块坐标 + 区域 + 模式，服务端校验后写 BE）

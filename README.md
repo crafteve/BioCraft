@@ -48,7 +48,7 @@
 
 **最终目标 = 细胞工厂**：以酶工厂网络模拟完整细胞代谢，实现近乎创造模式的全物质合成，且完全依赖生化产线供能。
 
-## 目前进度（2026-08-23 同步）
+## 目前进度（2026-08-27 同步）
 
 ### 已实现
 
@@ -109,6 +109,10 @@
 **翻译机（2026-08-23）**
 - 核糖体催化 `mRNA + 20种 aa-tRNA + GTP → 多肽 + 空载tRNA + GDP + Pi`，26 槽（GTP 置顶 +20 专槽 aa-tRNA +mRNA 9,8 +底 4 卡多肽/tRNA/GDP/Pi），`0.1 aa-tRNA/0.2 GTP→0.1 tRNA/0.2 GDP/0.2 Pi` 分数计量，起始额外 `2.5 GTP`（0.25 首步）终止 `1 GTP`（0.1 尾步）；多肽卡 `104` 宽 AA 单字母着色滚动，核糖体动画（密码子窗口/肽链 N-C 上长/GTP双闪）
 
+**折叠机动画重做（2026-08-27）**
+- 四态：待机呼吸口袋 / 工作漏斗收束 `R18→8` + 残基坠落 / 结束烧杯 `slot.png` 染色块+缩写+白扫光+信息罗列（烧杯图标+缩写+文字） / 中断红闪抖动；自动启动无按钮
+- 悬念卡片：`FolderOperation.materialize` 读条期不落真实酶仅 `finish` 落盘；`SequenceMachineScreen` 折叠机分支进度条固定绿 `0xFF4CAF50`、读条期输出卡硬编码 `UNKN` 灰、输入卡单字母氨基酸滚动（7px）/输出卡解码代码滚动（6px，`sanitizeProgram` 过滤控制字符）+ 当前位白底/青底高亮
+
 ### 待开发
 
 **近期目标**
@@ -150,6 +154,10 @@ BioCraft 的终局不只是"生产出所有天然酶"，而是让玩家能够通
 本模组的玩法灵感来源于 [AlChemistry（炼金化学）](https://www.curseforge.com/minecraft/mc-mods/alchemistry)：以真实化学原理驱动合成与反应；部分物品贴图借鉴自 AlChemistry，特此致谢。
 
 ## 更新日志
+
+### 2026-08-27
+
+- **feat** 折叠机动画重做与悬念卡片：`FolderOperation.materialize` 空实现读条期不落真实酶（真实酶仅 `finish` 落盘，悬念保持）；`SequenceMachineScreen` 折叠机分支覆写——进度条固定绿 `0xFF4CAF50`、读条期输出卡硬编码 `UNKN` 灰 `0xFF707070`、输入卡单字母氨基酸滚动（7px）/输出卡解码代码滚动（6px，`sanitizeProgram` 过滤 `<32` 控制字符→空格）+ 当前位白底/青底高亮，`sanitizeProgram` 抽为静态工具；`FolderScreen` 四态重绘（待机呼吸口袋/工作漏斗收束 `R18→8` + 残基坠落/结束烧杯 `slot.png` + 染色块+缩写+白扫光+信息罗列/中断红闪抖动），自动启动无按钮，`FolderOperation` 悬念期输出槽空避免 tooltip 透题
 
 ### 2026-08-26
 

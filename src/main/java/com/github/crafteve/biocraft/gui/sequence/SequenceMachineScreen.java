@@ -3,7 +3,9 @@ package com.github.crafteve.biocraft.gui.sequence;
 import com.github.crafteve.biocraft.BioCraft;
 import com.github.crafteve.biocraft.blockentity.sequence.SeqStepState;
 import com.github.crafteve.biocraft.blockentity.sequence.SequenceMachineKind;
+import com.github.crafteve.biocraft.blockentity.sequence.operation.FolderOperation;
 import com.github.crafteve.biocraft.blockentity.sequence.operation.TranslatorOperation;
+import com.github.crafteve.biocraft.central.Codec;
 import com.github.crafteve.biocraft.compat.CompatRenderUtil;
 import com.github.crafteve.biocraft.gui.base.BiocraftSlot;
 import com.github.crafteve.biocraft.init.ModDataComponents;
@@ -481,12 +483,23 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             tint = 0xCCCCCC;
             abbr = itemId;
         }
-        int color = stack.isEmpty() ? CONC_TEXT_COLOR : cardTextColor(tint);
-        graphics.drawString(font, abbr, pngX + 18 + 4, pngY, color, false);
-        // 折叠机：输入/输出卡按序列卡显示 position/total（短肽链/程序滚动），不显示 x 数量
+        // 折叠机分支：悬念期输出硬编码 UNKN 灰、进度条固定绿、卡内滚动
         if (menu.getKind() == SequenceMachineKind.FOLDER) {
+            int stage = menu.getData().get(SequenceMachineMenu.DATA_STAGE);
+            boolean extending = stage == SeqStepState.Stage.EXTENDING.ordinal();
             int pos = menu.getData().get(SequenceMachineMenu.DATA_POSITION);
             int tot = menu.getData().get(SequenceMachineMenu.DATA_TOTAL);
+            // 悬念：读条期间输出卡强制 UNKN 灰色（硬编码，不新增物品）
+            String displayAbbr = abbr;
+            int displayTint = tint;
+            int displayColor = stack.isEmpty() ? CONC_TEXT_COLOR : cardTextColor(tint);
+            if (!isInput && extending) {
+                displayAbbr = "UNKN";
+                displayTint = 0xFF707070;
+                displayColor = 0xFF707070;
+            }
+            graphics.drawString(font, displayAbbr, pngX + 18 + 4, pngY, displayColor, false);
+            // 进度条固定绿色
             int barY2;
             int barH2;
             if (cardH >= 25) {
@@ -499,12 +512,75 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
             int fill2 = tot > 0 ? (int) Math.min((cardW - 2) * pos / (double) tot, cardW - 2) : 0;
             graphics.fill(cardX + 1, barY2, cardX + 1 + cardW - 2, barY2 + barH2, BAR_TRACK);
             if (fill2 > 0) {
-                graphics.fill(cardX + 1, barY2, cardX + 1 + fill2, barY2 + barH2, color);
+                graphics.fill(cardX + 1, barY2, cardX + 1 + fill2, barY2 + barH2, 0xFF4CAF50);
             }
-            String countText2 = pos + "/" + tot;
-            graphics.drawString(font, countText2, pngX + 18 + 4, pngY + 18 + 1 - 8, CONC_TEXT_COLOR, false);
+            // 卡内第二行滚动：输入=氨基酸单字母滚动，输出=解码代码滚动（控制字符过滤）
+            if (extending) {
+                ItemStack inStack = menu.getSlot(FolderOperation.SLOT_IN_POLYPEPTIDE).getItem();
+                SequenceData inData = inStack.get(ModDataComponents.SEQUENCE.get());
+                String inSeq = inData != null ? inData.seq() : "";
+                if (isInput) {
+                    // 输入卡：单字母氨基酸滚动（7px/字符，卡内可用宽 cardW-34）
+                    int textY2 = pngY + 11;
+                    int avail = cardW - 34;
+                    int window = Math.max(1, avail / 7);
+                    if (!inSeq.isEmpty()) {
+                        int from = Math.max(0, Math.min(pos - window / 2, inSeq.length() - window));
+                        int baseX = pngX + 18 + 4;
+                        for (int i = from; i < Math.min(inSeq.length(), from + window); i++) {
+                            char aa1 = inSeq.charAt(i);
+                            int c = (i == pos && pos < tot) ? 0xFF000000 : cardTextColor(aaColor(aa1));
+                            if (i == pos && pos < tot) {
+                                graphics.fill(baseX - 1, textY2 - 1, baseX + 7, textY2 + 9, 0xFFFFFFFF);
+                            }
+                            graphics.drawString(font, String.valueOf(aa1), baseX, textY2, c, false);
+                            baseX += 7;
+                        }
+                        if (inSeq.length() > window) {
+                            graphics.drawString(font, "…", baseX, textY2, 0xFF90A4AE, false);
+                        }
+                    } else {
+                        graphics.drawString(font, "空", pngX + 18 + 4, pngY + 11, CONC_TEXT_COLOR, false);
+                    }
+                } else {
+                    // 输出卡：解码代码滚动（6px/字符，控制字符替换为空格）
+                    String program = "";
+                    if (!inSeq.isEmpty()) {
+                        var decoded = Codec.decodeFromPolypeptide(inSeq);
+                        if (decoded.ok()) program = sanitizeProgram(decoded.text());
+                    }
+                    int textY2 = pngY + 11;
+                    int avail = cardW - 34;
+                    int win = Math.max(1, avail / 6);
+                    if (!program.isEmpty()) {
+                        int pFrom = Math.max(0, Math.min(pos - win / 2, program.length() - win));
+                        int baseX = pngX + 18 + 4;
+                        for (int i = pFrom; i < Math.min(program.length(), pFrom + win); i++) {
+                            char ch = program.charAt(i);
+                            int c = (i == pos && pos < tot) ? 0xFF000000 : 0xFFB0BEC5;
+                            if (i == pos && pos < tot) {
+                                graphics.fill(baseX - 1, textY2 - 1, baseX + 7, textY2 + 9, 0xFF00E5FF);
+                            }
+                            graphics.drawString(font, String.valueOf(ch), baseX, textY2, c, false);
+                            baseX += 6;
+                        }
+                        if (program.length() > win) {
+                            graphics.drawString(font, "…", baseX, textY2, 0xFF90A4AE, false);
+                        }
+                    } else if (!inSeq.isEmpty()) {
+                        graphics.drawString(font, "…解码中", pngX + 18 + 4, textY2, 0xFF90A4AE, false);
+                    } else {
+                        graphics.drawString(font, "空", pngX + 18 + 4, textY2, CONC_TEXT_COLOR, false);
+                    }
+                }
+            } else {
+                String countText2 = pos + "/" + tot;
+                graphics.drawString(font, countText2, pngX + 18 + 4, pngY + 18 + 1 - 8, CONC_TEXT_COLOR, false);
+            }
             return;
         }
+        int color = stack.isEmpty() ? CONC_TEXT_COLOR : cardTextColor(tint);
+        graphics.drawString(font, abbr, pngX + 18 + 4, pngY, color, false);
         double rem = menu.getRemainder(slot.index);
         double totalCount = isInput ? Math.max(0, stack.getCount() - rem) : stack.getCount() + rem;
         // 进度条：宽 cardW-2，位置按卡片高度分档——
@@ -810,6 +886,31 @@ public class SequenceMachineScreen extends AbstractContainerScreen<SequenceMachi
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
         this.renderTooltip(graphics, mouseX, mouseY);
+    }
+
+    /** 折叠机程序滚动脱敏：\r\n\t 等控制字符替换为空格，连续空格合并，超长截断留可视 */
+    protected static String sanitizeProgram(String s) {
+        if (s == null) return "";
+        StringBuilder sb = new StringBuilder(s.length());
+        boolean lastSpace = false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c < 32) {
+                if (!lastSpace) {
+                    sb.append(' ');
+                    lastSpace = true;
+                }
+                continue;
+            }
+            sb.append(c);
+            lastSpace = c == ' ';
+        }
+        // 去首尾空格
+        int start = 0;
+        while (start < sb.length() && sb.charAt(start) == ' ') start++;
+        int end = sb.length();
+        while (end > start && sb.charAt(end - 1) == ' ') end--;
+        return sb.substring(start, end);
     }
 
     /** 物品色加深 1/5，与卡片底色亮度相近时改黑色（保证缩写可读，酶工厂同款算法） */

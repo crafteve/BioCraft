@@ -124,20 +124,8 @@ public class FolderOperation implements SequenceOperation {
 
     @Override
     public void materialize(SimpleContainer container, SeqStepState state) {
-        if (state.stage() != SeqStepState.Stage.EXTENDING) return;
-        String expected = state.pendingProgram();
-        if (expected == null || expected.isEmpty()) return;
-        ItemStack out = container.getItem(SLOT_OUT);
-        // 读条前即确定产物并显示：输出槽为空时置预览，主题色随酶种即时可见
-        if (out.isEmpty()) {
-            SequenceContainerUtil.addOne(container, SLOT_OUT, expected);
-            // 预览仅展示，不消耗输入，进度条驱动位置
-            // 将新置入的预览数量设为 1，但保持可叠加（若同种酶已在槽内则 hasRoom 会处理）
-        } else if (!SequenceContainerUtil.matchesId(out, expected)) {
-            // 预期产物与现有预览不一致（换料），替换为新预期
-            container.setItem(SLOT_OUT, ItemStack.EMPTY);
-            SequenceContainerUtil.addOne(container, SLOT_OUT, expected);
-        }
+        // 悬念设计：读条期间不在输出槽放置真实产物，卡片层硬编码显示 UNKN 灰色
+        // 真实产物仅在 finish 原子结算时落盘，避免中途透题（tooltip/管道提前可见）
     }
 
     @Override
